@@ -1,0 +1,31 @@
+{
+	"configurations": [
+		{
+			"type": "node-terminal",
+			"request": "launch",
+			"name": "Run Vhrase App Bundle",
+			"command": "./scripts/build-and-run.sh",
+			"cwd": "${workspaceFolder:Vhrase}"
+		},
+		{
+			"type": "swift",
+			"request": "launch",
+			"args": [],
+			"cwd": "${workspaceFolder:Vhrase}",
+			"name": "Debug Vhrase",
+			"target": "Vhrase",
+			"configuration": "debug",
+			"preLaunchTask": "swift: Build Debug Vhrase"
+		},
+		{
+			"type": "swift",
+			"request": "launch",
+			"args": [],
+			"cwd": "${workspaceFolder:Vhrase}",
+			"name": "Release Vhrase",
+			"target": "Vhrase",
+			"configuration": "release",
+			"preLaunchTask": "swift: Build Release Vhrase"
+		}
+	]
+}

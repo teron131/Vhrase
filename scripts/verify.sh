@@ -1,0 +1,240 @@
+#!/usr/bin/env bash
+# Verifies production-facing Vhrase behavior, builds and signs the app bundle, and optionally smoke-launches it.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+APP_DIR="$ROOT/dist/Vhrase.app"
+PLIST="$APP_DIR/Contents/Info.plist"
+
+export CLANG_MODULE_CACHE_PATH="$ROOT/.build/ModuleCache"
+export PYTHONPYCACHEPREFIX="$ROOT/.cache/python"
+
+RUN_LAUNCH_CHECK=0
+BUILD_CONFIG="debug"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --launch)
+      RUN_LAUNCH_CHECK=1
+      shift
+      ;;
+    --release)
+      BUILD_CONFIG="release"
+      shift
+      ;;
+    --help|-h)
+      echo "Usage: bash scripts/verify.sh [--launch] [--release]"
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+cd "$ROOT"
+
+if /usr/bin/grep -Eq 'find-generic-password.*[[:space:]]-w' "$ROOT/scripts/build-and-run.sh"; then
+  echo "The app launcher must not read Keychain secret values during verification." >&2
+  exit 1
+fi
+
+echo "==> Running focused Swift checks"
+APP_DOMAIN_SOURCES=(
+  Sources/VhraseApp/Domain/DictationSettings.swift
+  Sources/VhraseApp/Domain/Shortcut.swift
+  Sources/VhraseApp/Domain/Transcript.swift
+  Sources/VhraseApp/Domain/WorkflowStatus.swift
+)
+APP_PRESENTATION_CHECK_SOURCES=(
+  "${APP_DOMAIN_SOURCES[@]}"
+  Sources/VhraseApp/System/PermissionManager.swift
+  Sources/VhraseApp/UI/DictationPresentation.swift
+)
+APP_PRESENTATION_CHECKS=(
+  scripts/checks/record-button-state-check.swift
+  scripts/checks/readiness-summary-check.swift
+  scripts/checks/history-metadata-check.swift
+)
+APP_CORE_CHECK_SOURCES=(
+  "${APP_DOMAIN_SOURCES[@]}"
+  Sources/VhraseApp/Adjustment/Local/TextReplacementProcessor.swift
+  Sources/VhraseApp/Adjustment/Local/LocalAdjustment.swift
+  Sources/VhraseApp/Storage/SettingsStore.swift
+)
+APP_CORE_CHECKS=(
+  scripts/checks/status-flow-check.swift
+  scripts/checks/shortcut-behavior-check.swift
+  scripts/checks/replacement-rules-check.swift
+  scripts/checks/customization-summary-check.swift
+  scripts/checks/customization-snapshot-check.swift
+  scripts/checks/history-check.swift
+  scripts/checks/demo-adjustment-check.swift
+)
+APP_PROVIDER_CHECK_SOURCES=(
+  "${APP_DOMAIN_SOURCES[@]}"
+  Sources/VhraseApp/Transcription/Audio/AudioRecorder.swift
+  Sources/VhraseApp/Transcription/Upload/MultipartForm.swift
+  Sources/VhraseApp/Transcription/ProviderContracts.swift
+  Sources/VhraseApp/Transcription/Realtime/RealtimeTranscription.swift
+  Sources/VhraseApp/Transcription/Realtime/RealtimeTranscriptAccumulator.swift
+  Sources/VhraseApp/Transcription/Upload/UploadTranscriptionClients.swift
+)
+APP_PROVIDER_CHECKS=(
+  scripts/checks/xai-stt-options-check.swift
+  scripts/checks/elevenlabs-options-check.swift
+)
+APP_FINALIZATION_CHECK_SOURCES=(
+  "${APP_DOMAIN_SOURCES[@]}"
+  Sources/VhraseApp/System/ScreenContext.swift
+  Sources/VhraseApp/Adjustment/Local/TextReplacementProcessor.swift
+  Sources/VhraseApp/Adjustment/Local/ChineseTextConverter.swift
+  Sources/VhraseApp/Adjustment/Local/LocalAdjustment.swift
+  Sources/VhraseApp/Adjustment/LLMAdjustmentClient.swift
+  Sources/VhraseApp/Adjustment/TranscriptFinalization.swift
+)
+APP_FINALIZATION_CHECKS=(
+  scripts/checks/adjustment-fallback-check.swift
+)
+APP_CREDENTIAL_CHECK_SOURCES=(
+  Sources/VhraseApp/Storage/APIKeyStore.swift
+)
+APP_CREDENTIAL_CHECKS=(
+  scripts/checks/api-key-import-check.swift
+)
+
+mkdir -p "$ROOT/.cache/checks"
+run_compiled_check() {
+  local check_script="$1"
+  shift
+  local check_name
+  check_name="$(basename "$check_script" .swift)"
+  swiftc -parse-as-library "$@" "$check_script" -o "$ROOT/.cache/checks/$check_name"
+  "$ROOT/.cache/checks/$check_name"
+}
+
+for check_script in "${APP_PRESENTATION_CHECKS[@]}"; do
+  run_compiled_check "$check_script" "${APP_PRESENTATION_CHECK_SOURCES[@]}"
+done
+for check_script in "${APP_CORE_CHECKS[@]}"; do
+  run_compiled_check "$check_script" "${APP_CORE_CHECK_SOURCES[@]}"
+done
+for check_script in "${APP_PROVIDER_CHECKS[@]}"; do
+  run_compiled_check "$check_script" "${APP_PROVIDER_CHECK_SOURCES[@]}"
+done
+for check_script in "${APP_FINALIZATION_CHECKS[@]}"; do
+  run_compiled_check "$check_script" "${APP_FINALIZATION_CHECK_SOURCES[@]}"
+done
+for check_script in "${APP_CREDENTIAL_CHECKS[@]}"; do
+  run_compiled_check "$check_script" "${APP_CREDENTIAL_CHECK_SOURCES[@]}"
+done
+
+echo "==> Compiling live STT smoke client"
+mkdir -p "$ROOT/.cache/live-stt-smoke"
+swiftc -parse-as-library "$ROOT/scripts/live-stt-smoke.swift" -o "$ROOT/.cache/live-stt-smoke/live-stt-smoke"
+"$ROOT/.cache/live-stt-smoke/live-stt-smoke" --help >/dev/null
+/usr/bin/python3 -m py_compile "$ROOT/scripts/live-realtime-stt-smoke.py"
+/usr/bin/python3 -m py_compile "$ROOT/scripts/live-adjustment-smoke.py"
+bash "$ROOT/scripts/live-mic-stt-smoke.sh" --help >/dev/null
+bash "$ROOT/scripts/doctor.sh" --help >/dev/null
+
+echo "==> Generating offline audio fixture"
+AUDIO_SMOKE_DIR="$ROOT/.cache/audio-smoke"
+AUDIO_SMOKE_AIFF="$AUDIO_SMOKE_DIR/vhrase-smoke.aiff"
+AUDIO_SMOKE_WAV="$AUDIO_SMOKE_DIR/vhrase-smoke.wav"
+mkdir -p "$AUDIO_SMOKE_DIR"
+say -o "$AUDIO_SMOKE_AIFF" "Vhrase audio smoke test. Custom dictation is ready."
+afconvert -f WAVE -d LEI16@16000 -c 1 "$AUDIO_SMOKE_AIFF" "$AUDIO_SMOKE_WAV"
+
+audio_fixture_is_valid() {
+  local info
+  local byte_count
+  info="$(afinfo "$1" 2>/dev/null)" || return 1
+  byte_count="$(awk '/audio bytes:/ {print $3}' <<<"$info")"
+  [[ "$info" == *"1 ch"* && "$info" == *"16000 Hz, Int16"* && "$byte_count" =~ ^[0-9]+$ && "$byte_count" -gt 0 ]]
+}
+
+if ! audio_fixture_is_valid "$AUDIO_SMOKE_WAV"; then
+  echo "System speech synthesis unavailable; generating deterministic tone fixture"
+  /usr/bin/python3 - "$AUDIO_SMOKE_WAV" <<'PY'
+import math
+import struct
+import sys
+import wave
+
+sample_rate = 16_000
+duration_seconds = 2
+samples = []
+for index in range(sample_rate * duration_seconds):
+    segment = min(index // (sample_rate // 2), 3)
+    frequency = (440, 554, 659, 880)[segment]
+    envelope = min(index / 800, (sample_rate * duration_seconds - index) / 800, 1)
+    samples.append(int(10_000 * envelope * math.sin(2 * math.pi * frequency * index / sample_rate)))
+
+with wave.open(sys.argv[1], "wb") as fixture:
+    fixture.setnchannels(1)
+    fixture.setsampwidth(2)
+    fixture.setframerate(sample_rate)
+    fixture.writeframes(b"".join(struct.pack("<h", sample) for sample in samples))
+PY
+fi
+
+if ! audio_fixture_is_valid "$AUDIO_SMOKE_WAV"; then
+  echo "Generated audio fixture is not nonempty mono 16 kHz Int16 PCM." >&2
+  exit 1
+fi
+
+echo "==> Building Swift package"
+if [[ "$BUILD_CONFIG" == "release" ]]; then
+  swift build -c release
+else
+  swift build
+fi
+
+echo "==> Bundling app"
+bash scripts/bundle-app.sh "$BUILD_CONFIG"
+
+echo "==> Validating bundle metadata"
+plutil -lint "$PLIST"
+
+echo "==> Signing and verifying app"
+bash scripts/sign-app.sh "$APP_DIR"
+
+echo "==> Running local readiness doctor"
+bash scripts/doctor.sh --strict
+
+if [[ "$RUN_LAUNCH_CHECK" == "1" ]]; then
+  echo "==> Running bundled app smoke check"
+  if pgrep -x Vhrase >/dev/null 2>&1; then
+    echo "Quit the running Vhrase instance before using --launch." >&2
+    exit 1
+  fi
+  /usr/bin/open -n "$APP_DIR"
+  APP_IS_RUNNING="false"
+  for _ in {1..10}; do
+    APP_IS_RUNNING="$(osascript -e 'application id "local.codex.Vhrase" is running')"
+    if [[ "$APP_IS_RUNNING" == "true" ]] && pgrep -x Vhrase >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$APP_IS_RUNNING" != "true" ]]; then
+    echo "Vhrase did not report as running after launch." >&2
+    exit 1
+  fi
+  osascript -e 'tell application id "local.codex.Vhrase" to quit' >/dev/null || true
+  for _ in {1..10}; do
+    if ! pgrep -x Vhrase >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.5
+  done
+  if pgrep -x Vhrase >/dev/null 2>&1; then
+    echo "Vhrase did not quit after the bundled launch check." >&2
+    exit 1
+  fi
+fi
+
+echo "==> Verification complete"
