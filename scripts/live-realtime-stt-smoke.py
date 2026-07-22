@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise realtime STT with environment overrides or saved Vhrase Keychain credentials."""
+"""Exercise realtime STT with saved Vhrase Keychain credentials or environment fallbacks."""
 
 from __future__ import annotations
 
@@ -23,9 +23,6 @@ PCM_FRAME_BYTES = 3_200
 
 
 def key_value(name: str) -> str:
-    if value := os.environ.get(name):
-        return value
-
     result = subprocess.run(  # noqa: S603
         [
             SECURITY,
@@ -41,7 +38,9 @@ def key_value(name: str) -> str:
         text=True,
         check=False,
     )
-    return result.stdout.strip() if result.returncode == 0 else ""
+    if result.returncode == 0 and (value := result.stdout.strip()):
+        return value
+    return os.environ.get(name, "")
 
 
 def wav_pcm_data(path: Path) -> bytes:

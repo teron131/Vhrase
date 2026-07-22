@@ -6,6 +6,7 @@ import Foundation
 struct AdjustmentFallbackCheck {
     static func main() async throws {
         try validateEndpointPolicy()
+        try validateTargetedModelAccessRequest()
 
         let raw = try await finalize(
             rawTranscript: "  Custom dictation raw text.  ",
@@ -98,6 +99,22 @@ struct AdjustmentFallbackCheck {
         precondition(missingOpenCC.warning == "OpenCC s2hk unavailable. Final transcript was not normalized.")
 
         print("adjustment fallback ok")
+    }
+
+    /// Protects the access check from falling back to a catalog listing that says nothing about the configured model.
+    private static func validateTargetedModelAccessRequest() throws {
+        let request: URLRequest = try LLMModelAccessClient.modelCheckRequest(
+            apiKey: "test-key",
+            baseURL: "http://localhost:8317/v1",
+            model: "gpt-5.6-luna"
+        )
+        precondition(request.url?.absoluteString == "http://localhost:8317/v1/chat/completions")
+        precondition(request.httpMethod == "POST")
+        precondition(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-key")
+
+        let body = try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any]
+        precondition(body?["model"] as? String == "gpt-5.6-luna")
+        precondition(body?["stream"] as? Bool == false)
     }
 
     /// Protects remote transport and URL composition policy without making a network request.

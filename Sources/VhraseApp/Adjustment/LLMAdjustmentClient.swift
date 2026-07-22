@@ -15,20 +15,13 @@ final class LLMModelAccessClient: @unchecked Sendable {
         self.baseURL = baseURL
     }
 
-    func listModels() async throws -> [String] {
-        guard !apiKey.isEmpty else {
-            throw NSError(
-                domain: "Vhrase.LLMModels",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "LLM API key is required to check model access."]
-            )
-        }
-
-        var request = URLRequest(url: try endpoint("models"))
-        request.httpMethod = "GET"
-        request.timeoutInterval = 20
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-
+    /// Sends a minimal completion probe through the configured model and the same route used by cleanup.
+    func checkModel(_ model: String) async throws {
+        let request = try Self.modelCheckRequest(
+            apiKey: apiKey,
+            baseURL: baseURL,
+            model: model
+        )
         let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             let message = String(data: data, encoding: .utf8) ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
@@ -38,24 +31,55 @@ final class LLMModelAccessClient: @unchecked Sendable {
                 userInfo: [NSLocalizedDescriptionKey: message]
             )
         }
-
-        return try Self.extractModelIDs(from: data)
     }
 
-    static func extractModelIDs(from data: Data) throws -> [String] {
-        let object = try JSONSerialization.jsonObject(with: data)
-        guard let dictionary = object as? [String: Any],
-              let models = dictionary["data"] as? [[String: Any]] else {
-            return []
+    static func modelCheckRequest(
+        apiKey: String,
+        baseURL: String,
+        model: String
+    ) throws -> URLRequest {
+        guard !apiKey.isEmpty else {
+            throw NSError(
+                domain: "Vhrase.LLMModels",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "LLM API key is required to check model access."]
+            )
+        }
+        let configuredModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !configuredModel.isEmpty else {
+            throw NSError(
+                domain: "Vhrase.LLMModels",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Choose an LLM model before checking access."]
+            )
         }
 
-        return models.compactMap { model in
-            model["id"] as? String
-        }
-    }
+        let payload = LLMChatRequest(
+            model: configuredModel,
+            messages: [
+                LLMChatMessage(
+                    role: "user",
+                    content: [
+                        LLMChatContent(
+                            type: "text",
+                            text: "Reply with OK.",
+                            imageURL: nil
+                        )
+                    ]
+                )
+            ],
+            stream: false
+        )
 
-    private func endpoint(_ path: String) throws -> URL {
-        try LLMEndpoint(baseURL: baseURL).appending(path)
+        var request = URLRequest(
+            url: try LLMEndpoint(baseURL: baseURL).appending("chat/completions")
+        )
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(payload)
+        return request
     }
 }
 

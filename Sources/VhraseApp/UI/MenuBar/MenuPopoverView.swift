@@ -5,32 +5,27 @@ import SwiftUI
 
 struct MenuPopoverView: View {
     @ObservedObject var appState: AppState
-    @Environment(\.openSettings) private var openSettings
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var presentation: DictationPresentation {
-        DictationPresentation(
-            status: appState.status,
-            settings: appState.settings,
-            xaiAPIKey: appState.effectiveXAIAPIKey,
-            elevenLabsAPIKey: appState.effectiveElevenLabsAPIKey,
-            permissions: appState.permissions,
-            liveTranscript: appState.liveTranscript,
-            recordingElapsedSeconds: appState.recordingElapsedSeconds
-        )
+        appState.presentation
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 13) {
-                header
-                recordButton
+            VStack(alignment: .leading, spacing: 12) {
+                compactHero
                 statusMessagePanel
 
-                if showsLiveWorkflow {
-                    liveTranscriptPanel
-                } else {
-                    recentTranscripts
+                Group {
+                    if showsLiveWorkflow {
+                        liveTranscriptPanel
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    } else {
+                        activitySummary
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
 
                 captureConfiguration
@@ -39,7 +34,7 @@ struct MenuPopoverView: View {
                     setupSummary
                 }
             }
-            .padding(15)
+            .padding(14)
 
             Divider()
 
@@ -47,82 +42,63 @@ struct MenuPopoverView: View {
                 .padding(.horizontal, 13)
                 .padding(.vertical, 9)
         }
-        .frame(width: 336)
+        .frame(width: 368)
+        .background(VhraseTheme.canvas)
+        .animation(
+            VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
+            value: showsLiveWorkflow
+        )
         .onAppear {
             appState.refreshPermissions()
         }
     }
 
-    private var header: some View {
+    private var compactHero: some View {
         HStack(spacing: 10) {
-            Image(systemName: "waveform")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 30, height: 30)
-                .background(Color.accentColor.opacity(0.12), in: Circle())
-                .accessibilityHidden(true)
-
             VStack(alignment: .leading, spacing: 1) {
                 Text("Vhrase")
-                    .font(.headline)
+                    .font(VhraseFont.micro)
+                    .foregroundStyle(VhraseTheme.accent)
+                Text(presentation.displayStatusTitle)
+                    .font(VhraseFont.title)
                 Text(presentation.compactWorkflowSummary)
-                    .font(.caption)
+                    .font(VhraseFont.micro)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
             Spacer()
 
-            Label(menuStatusTitle, systemImage: menuStatusSystemImage)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(statusColor)
-                .labelStyle(.titleAndIcon)
-                .accessibilityElement(children: .combine)
+            KeyCap(text: appState.settings.hotkeyDisplay)
+
+            RecordHeroButton(
+                presentation: presentation,
+                recordingLevel: appState.recordingLevel,
+                style: .compact,
+                action: handleRecordButton
+            )
         }
-    }
-
-    private var recordButton: some View {
-        Button {
-            handleRecordButton()
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: presentation.recordButtonSystemImage)
-                    .font(.system(size: 15, weight: .bold))
-                    .frame(width: 22)
-
-                Text(presentation.recordButtonTitle)
-                    .font(.callout.weight(.semibold))
-
-                Spacer()
-
-                if appState.isRecording {
-                    Text(presentation.elapsedTime)
-                        .font(.caption.monospacedDigit().weight(.medium))
-                } else {
-                    Text(appState.settings.hotkeyDisplay)
-                        .font(.caption.monospaced().weight(.medium))
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 3)
+        .padding(12)
+        .background(VhraseTheme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(VhraseTheme.hairline, lineWidth: 1)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .tint(recordButtonTint)
-        .disabled(presentation.recordAction == .disabled)
-        .accessibilityHint(presentation.recordButtonSubtitle(style: .compact))
+        .shadow(color: presentation.statusTint.opacity(0.12), radius: 16, y: 6)
     }
 
     @ViewBuilder
     private var statusMessagePanel: some View {
         if appState.status == .completed {
-            compactNotice(
+            NoticeCard(
                 appState.lastDelivery.completionDetail,
                 systemImage: appState.lastDelivery.completionSystemImage,
-                color: statusColor
+                color: statusColor,
+                actionTitle: completedPastePermissionActionTitle,
+                action: handlePastePermissionAction
             )
         } else if let message = presentation.statusMessage {
-            compactNotice(
+            NoticeCard(
                 message,
                 systemImage: presentation.statusMessageIcon,
                 color: statusMessageColor
@@ -148,22 +124,11 @@ struct MenuPopoverView: View {
             }
 
             if appState.isRecording {
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(.quaternary)
-                        Capsule()
-                            .fill(Color.red)
-                            .frame(
-                                width: max(
-                                    8,
-                                    proxy.size.width * min(max(appState.recordingLevel, 0), 1)
-                                )
-                            )
-                    }
-                }
-                .frame(height: 4)
-                .accessibilityHidden(true)
+                WaveformView(
+                    level: appState.recordingLevel,
+                    barCount: 16,
+                    height: 28
+                )
             }
 
             Text(liveTranscriptText)
@@ -174,17 +139,13 @@ struct MenuPopoverView: View {
                 .textSelection(.enabled)
         }
         .padding(10)
-        .background(AppTheme.field.opacity(0.72), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(AppTheme.hairline.opacity(0.5), lineWidth: 1)
-        }
+        .insetField(cornerRadius: 10)
     }
 
-    private var recentTranscripts: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private var activitySummary: some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Recent")
+                Text("Activity")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
@@ -197,64 +158,49 @@ struct MenuPopoverView: View {
                 .accessibilityHint("Opens all saved transcripts")
             }
 
-            if recentHistory.isEmpty {
-                Text("Your latest dictations will stay within reach here.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 7)
-            } else {
-                ForEach(recentHistory) { item in
-                    recentTranscriptRow(item)
+            HStack(spacing: 0) {
+                menuMetric("Today", value: "\(transcriptsTodayCount)")
+
+                Divider()
+                    .frame(height: 28)
+
+                menuMetric("Saved", value: "\(appState.history.count)")
+
+                Divider()
+                    .frame(height: 28)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(appState.savesTranscriptHistory ? "On" : "Off")
+                        .font(.callout.weight(.semibold))
+                    Text("History")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .padding(10)
+            .insetField(cornerRadius: 9)
         }
     }
 
-    private func recentTranscriptRow(_ item: TranscriptHistoryItem) -> some View {
-        Button {
-            appState.copyHistoryItem(item)
-        } label: {
-            HStack(alignment: .top, spacing: 9) {
-                Image(systemName: "text.quote")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18, height: 18)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(item.text)
-                        .font(.callout)
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-
-                    Text(presentation.historyMetadata(item))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 4)
-
-                Image(systemName: "doc.on.doc")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-            }
-            .padding(9)
-            .background(AppTheme.field.opacity(0.54), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .contentShape(Rectangle())
+    private func menuMetric(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(value)
+                .font(.callout.weight(.semibold))
+                .contentTransition(.numericText())
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
-        .buttonStyle(.plain)
-        .help("Copy transcript")
-        .accessibilityHint("Copies this transcript to the clipboard")
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var captureConfiguration: some View {
         HStack(spacing: 8) {
-            Label("Capture", systemImage: "slider.horizontal.2.square")
+            Label("Input", systemImage: "slider.horizontal.2.square")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .fixedSize()
 
             Spacer()
 
@@ -278,12 +224,14 @@ struct MenuPopoverView: View {
             .fixedSize()
             .accessibilityLabel("Transcription mode")
         }
+        .padding(10)
+        .insetField(cornerRadius: 9)
         .disabled(presentation.workflowControlsAreDisabled)
     }
 
     private var setupSummary: some View {
         Button {
-            openMainWindow(.setup)
+            openMainWindow(.system)
         } label: {
             HStack(alignment: .top, spacing: 9) {
                 Image(systemName: primarySetupDiagnostic.systemImage)
@@ -308,39 +256,39 @@ struct MenuPopoverView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
+            .padding(10)
+            .background(
+                diagnosticColor(primarySetupDiagnostic.severity).opacity(0.1),
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityHint("Opens setup in the main Vhrase window")
+        .accessibilityHint("Opens System in the main Vhrase window")
     }
 
     private var footer: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             Button {
                 openMainWindow()
             } label: {
-                Label("Home", systemImage: "macwindow")
+                Label("Dictate", systemImage: "waveform")
             }
             .buttonStyle(.borderless)
 
             Button {
-                openMainWindow(.history)
+                openMainWindow(.system)
             } label: {
-                Label("History", systemImage: "clock.arrow.circlepath")
+                Label("System", systemImage: "wrench.and.screwdriver")
             }
             .buttonStyle(.borderless)
-
-            Button {
-                NSApplication.shared.activate()
-                openSettings()
-            } label: {
-                Image(systemName: "gearshape")
-            }
-            .buttonStyle(.borderless)
-            .help("Settings")
-            .accessibilityLabel("Settings")
+            .help("System")
+            .accessibilityLabel("System")
 
             Spacer()
+
+            Divider()
+                .frame(height: 16)
 
             Button {
                 appState.prepareForTermination()
@@ -354,8 +302,8 @@ struct MenuPopoverView: View {
         }
     }
 
-    private var recentHistory: [TranscriptHistoryItem] {
-        Array(appState.history.prefix(2))
+    private var transcriptsTodayCount: Int {
+        appState.history.filter { Calendar.current.isDateInToday($0.createdAt) }.count
     }
 
     private var showsLiveWorkflow: Bool {
@@ -387,7 +335,7 @@ struct MenuPopoverView: View {
     }
 
     private var menuStatusTitle: String {
-        appState.status == .completed ? appState.lastDelivery.completionTitle : presentation.statusShortTitle
+        presentation.displayStatusTitle
     }
 
     private var menuStatusSystemImage: String {
@@ -407,48 +355,30 @@ struct MenuPopoverView: View {
             )
     }
 
-    private var statusColor: Color {
-        switch appState.status {
-        case .failed, .recording:
-            return .red
-        case .completed:
-            return appState.lastDelivery == .none ? .orange : .green
-        case .idle:
-            return presentation.coreRecordingReady ? .secondary : .orange
-        case .preparing, .transcribing, .adjusting:
-            return .accentColor
+    private var completedPastePermissionActionTitle: String? {
+        guard appState.status == .completed,
+              appState.lastDelivery == .copied else {
+            return nil
         }
+        return presentation.pastePermissionActionTitle
+    }
+
+    private func handlePastePermissionAction() {
+        guard let snapshot = presentation.permissionSnapshot(.accessibility) else {
+            return
+        }
+        appState.handlePermissionAction(snapshot)
+    }
+
+    private var statusColor: Color {
+        presentation.statusTint
     }
 
     private var statusMessageColor: Color {
         if case .failed = appState.status {
-            return .red
+            return VhraseTheme.statusFailure
         }
-        return .orange
-    }
-
-    private var recordButtonTint: Color {
-        switch appState.status {
-        case .preparing, .recording:
-            return .red
-        default:
-            return .accentColor
-        }
-    }
-
-    private func compactNotice(
-        _ text: String,
-        systemImage: String,
-        color: Color
-    ) -> some View {
-        Label(text, systemImage: systemImage)
-            .font(.caption)
-            .foregroundStyle(color)
-            .lineLimit(2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(9)
-            .background(color.opacity(0.09), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .accessibilityElement(children: .combine)
+        return VhraseTheme.statusWarning
     }
 
     private func handleRecordButton() {
@@ -458,13 +388,13 @@ struct MenuPopoverView: View {
         case .cancelRecording:
             appState.cancelRecording()
         case .openSetup:
-            openMainWindow(.setup)
+            openMainWindow(.system)
         case .disabled:
             break
         }
     }
 
-    private func openMainWindow(_ tab: MainWindowTab = .dictation) {
+    private func openMainWindow(_ tab: MainWindowTab = .dictate) {
         UserDefaults.standard.set(tab.rawValue, forKey: "mainWindow.selectedTab")
         openWindow(id: "main")
         DispatchQueue.main.async {
@@ -475,9 +405,9 @@ struct MenuPopoverView: View {
     private func diagnosticColor(_ severity: SetupDiagnosticSeverity) -> Color {
         switch severity {
         case .ready:
-            return .green
+            return VhraseTheme.statusSuccess
         case .attention:
-            return .orange
+            return VhraseTheme.statusWarning
         case .info:
             return .secondary
         }

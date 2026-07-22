@@ -22,7 +22,7 @@ struct CustomizationSnapshotCheck {
         precondition(!json.localizedCaseInsensitiveContains("apiKey"))
         precondition(!json.localizedCaseInsensitiveContains("XAI_API_KEY"))
         precondition(!json.localizedCaseInsensitiveContains("ELEVENLABS_API_KEY"))
-        precondition(!json.localizedCaseInsensitiveContains("AI_GATEWAY_API_KEY"))
+        precondition(!json.localizedCaseInsensitiveContains("LLM_API_KEY"))
 
         let decoded = try JSONDecoder().decode(CustomizationSnapshot.self, from: data)
         precondition(decoded == snapshot)

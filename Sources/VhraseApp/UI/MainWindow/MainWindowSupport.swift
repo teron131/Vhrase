@@ -6,34 +6,90 @@ import SwiftUI
 
 extension MainWindowView {
     var presentation: DictationPresentation {
-        DictationPresentation(
-            status: appState.status,
-            settings: appState.settings,
-            xaiAPIKey: appState.effectiveXAIAPIKey,
-            elevenLabsAPIKey: appState.effectiveElevenLabsAPIKey,
-            permissions: appState.permissions,
-            liveTranscript: appState.liveTranscript,
-            recordingElapsedSeconds: appState.recordingElapsedSeconds
-        )
+        appState.presentation
     }
 
-    var audioMeter: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(.quaternary)
-                Capsule()
-                    .fill(appState.isRecording ? Color.red : Color.accentColor)
-                    .frame(
-                        width: max(
-                            8,
-                            proxy.size.width * min(max(appState.recordingLevel, 0), 1)
-                        )
-                    )
+    /// Typographic card header; icons stay out of section titles to keep hierarchy editorial.
+    func sectionHeader(
+        _ title: String,
+        description: String? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(VhraseFont.headline)
+            if let description {
+                Text(description)
+                    .font(VhraseFont.caption)
+                    .foregroundStyle(VhraseTheme.inkSecondary)
             }
         }
-        .frame(height: 6)
-        .accessibilityHidden(true)
+    }
+
+    /// Establishes a consistent page-level hierarchy before the destination's working controls.
+    func pageHeader(
+        _ title: String,
+        description: String,
+        systemImage: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(VhraseTheme.accent)
+                .frame(width: 40, height: 40)
+                .background(VhraseTheme.accentSubtle, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(VhraseFont.pageTitle)
+                    .tracking(-0.5)
+                Text(description)
+                    .font(VhraseFont.caption)
+                    .foregroundStyle(VhraseTheme.inkSecondary)
+            }
+        }
+    }
+
+    func settingsToggle(
+        _ title: String,
+        detail: String,
+        isOn: Binding<Bool>
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityLabel(title)
+        .accessibilityHint(detail)
+    }
+
+    func activityMetric(
+        _ title: String,
+        value: String,
+        detail: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value)
+                .font(VhraseFont.statValue)
+                .foregroundStyle(.primary)
+                .contentTransition(.numericText())
+            Text(title)
+                .font(.callout.weight(.medium))
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    var transcriptsTodayCount: Int {
+        appState.history.filter { Calendar.current.isDateInToday($0.createdAt) }.count
     }
 
     var transcriptWorkspaceTitle: String {
@@ -41,13 +97,6 @@ extension MainWindowView {
             return "Interrupted transcript"
         }
         return showsLiveCapture ? "Live transcript" : "Latest transcript"
-    }
-
-    var transcriptWorkspaceSystemImage: String {
-        if hasInterruptedLiveTranscript {
-            return "exclamationmark.bubble"
-        }
-        return showsLiveCapture ? statusSystemImage : "text.quote"
     }
 
     var transcriptWorkspaceSubtitle: String {
@@ -78,7 +127,7 @@ extension MainWindowView {
         case .preparing:
             "Starting microphone…"
         case .recording:
-            liveTranscriptText
+            presentation.fullLiveTranscriptText
         case .transcribing:
             appState.liveTranscript.isEmpty
                 ? "Audio captured. Waiting for \(appState.settings.provider.title) to return the transcript…"
@@ -142,18 +191,66 @@ extension MainWindowView {
     }
 
     var setupOverviewTitle: String {
-        switch primarySetupDiagnostic.id {
+        return switch primarySetupDiagnostic.id {
         case "ready", "opencc-s2hk":
             "Ready to dictate"
-        case "input-monitoring-permission", "screen-permission", "accessibility-permission":
+        case "input-monitoring-permission":
+            "Enable Fn/Globe"
+        case "screen-permission", "accessibility-permission":
             "Recording is ready"
         default:
             "Finish setup"
         }
     }
 
+    /// Shows the least-privileged permission path for the currently selected shortcut and output behavior.
+    var relevantPermissionSnapshots: [PermissionSnapshot] {
+        appState.permissions.filter { snapshot in
+            switch snapshot.permission {
+            case .microphone:
+                true
+            case .inputMonitoring:
+                appState.settings.hotkeyPreset == .fn
+                    && !appState.settings.pasteAfterTranscription
+                    && !presentation.permissionIsReady(.accessibility)
+            case .screenRecording:
+                appState.settings.adjustWithLLM && appState.settings.includeScreenshot
+            case .accessibility:
+                appState.settings.pasteAfterTranscription
+            }
+        }
+    }
+
+    var sidebarReadinessTitle: String {
+        if !presentation.coreRecordingReady {
+            return "Needs attention"
+        }
+        if !presentation.selectedShortcutReady {
+            return "Shortcut needs access"
+        }
+        return "Ready to dictate"
+    }
+
+    var sidebarReadinessColor: Color {
+        presentation.coreRecordingReady && presentation.selectedShortcutReady
+            ? VhraseTheme.statusSuccess
+            : VhraseTheme.statusWarning
+    }
+
+    /// Requests or opens the macOS permission required to paste finalized transcripts into other apps.
+    func handlePastePermissionAction() {
+        guard let snapshot = presentation.permissionSnapshot(.accessibility) else {
+            return
+        }
+        appState.handlePermissionAction(snapshot)
+    }
+
     var setupOverviewDetail: String {
-        switch primarySetupDiagnostic.id {
+        if primarySetupDiagnostic.id == "opencc-s2hk",
+           let failureMessage = appState.openCCInstallationState.failureMessage {
+            return failureMessage
+        }
+        return switch primarySetupDiagnostic.id {
         case "ready":
             "The selected provider and required permissions are ready."
         case "opencc-s2hk", "input-monitoring-permission", "screen-permission", "accessibility-permission":
@@ -166,7 +263,7 @@ extension MainWindowView {
     func setupDiagnosticActionTitle(_ diagnostic: SetupDiagnostic) -> String? {
         switch diagnostic.id {
         case "transcription-configuration":
-            "Review Writing"
+            "Review Capture"
         case "selected-provider-key", "adjustment-key":
             "Add Key"
         case "microphone-permission":
@@ -175,9 +272,27 @@ extension MainWindowView {
             presentation.permissionSnapshot(.inputMonitoring)?.requestedBefore == true
                 ? "Open Settings"
                 : "Enable Shortcut"
-        case "screen-permission", "accessibility-permission":
+        case "screen-permission":
             "Open Settings"
-        case "opencc-s2hk", "ready":
+        case "accessibility-permission":
+            if presentation.permissionSnapshot(.accessibility)?.requestedBefore == true {
+                "Open Settings"
+            } else if appState.settings.hotkeyPreset == .fn {
+                "Enable Shortcut & Paste"
+            } else {
+                "Enable Paste"
+            }
+        case "opencc-s2hk":
+            if appState.openCCInstallationState == .installing {
+                "Installing…"
+            } else if !appState.canInstallOpenCC {
+                "Get Homebrew"
+            } else if appState.openCCInstallationState.failureMessage != nil {
+                "Retry Install"
+            } else {
+                "Install OpenCC"
+            }
+        case "ready":
             nil
         default:
             nil
@@ -188,7 +303,7 @@ extension MainWindowView {
     func handleSetupDiagnostic(_ diagnostic: SetupDiagnostic) {
         switch diagnostic.id {
         case "transcription-configuration":
-            selectedTab = .customize
+            selectedTab = .capture
         case "selected-provider-key":
             focusedSecretField = switch appState.settings.provider {
             case .xai:
@@ -216,7 +331,13 @@ extension MainWindowView {
             if let snapshot = presentation.permissionSnapshot(.accessibility) {
                 appState.handlePermissionAction(snapshot)
             }
-        case "opencc-s2hk", "ready":
+        case "opencc-s2hk":
+            if appState.canInstallOpenCC {
+                isOpenCCInstallConfirmationPresented = true
+            } else {
+                appState.openHomebrewSetup()
+            }
+        case "ready":
             break
         default:
             break
@@ -252,13 +373,13 @@ extension MainWindowView {
     ) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Label(title, systemImage: systemImage)
-                .font(.headline)
+                .font(.subheadline.weight(.medium))
             TextEditor(text: text)
                 .font(.body.monospaced())
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: height, maxHeight: height)
                 .padding(8)
-                .background(AppTheme.field, in: RoundedRectangle(cornerRadius: 8))
+                .insetField()
                 .accessibilityLabel(title)
         }
     }
@@ -266,16 +387,15 @@ extension MainWindowView {
     func keyStatus(
         _ title: String,
         isReady: Bool,
-        usesEnvironmentOverride: Bool
+        usesEnvironmentFallback: Bool
     ) -> some View {
-        Label(
-            usesEnvironmentOverride
+        StatusPill(
+            title: usesEnvironmentFallback
                 ? "\(title) from environment"
                 : (isReady ? "\(title) ready" : "\(title) missing"),
-            systemImage: isReady ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
+            systemImage: isReady ? "checkmark.circle.fill" : "exclamationmark.circle.fill",
+            color: isReady ? VhraseTheme.statusSuccess : VhraseTheme.statusWarning
         )
-        .font(.callout)
-        .foregroundStyle(isReady ? Color.green : Color.orange)
     }
 
     func permissionTile(_ snapshot: PermissionSnapshot) -> some View {
@@ -284,12 +404,12 @@ extension MainWindowView {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: snapshot.permission.systemImage)
-                    .font(.title3)
-                    .frame(width: 24)
-                    .foregroundStyle(snapshot.state.isReady ? Color.green : Color.orange)
+                    .font(.body)
+                    .frame(width: 22)
+                    .foregroundStyle(snapshot.state.isReady ? VhraseTheme.statusSuccess : VhraseTheme.statusWarning)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(snapshot.permission.title)
-                        .font(.headline)
+                        .font(.subheadline.weight(.medium))
                     Text(snapshot.displayTitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -304,29 +424,22 @@ extension MainWindowView {
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
-        .background(AppTheme.field, in: RoundedRectangle(cornerRadius: 10))
+        .insetField(cornerRadius: 10)
         .accessibilityHint(snapshot.state.isReady ? "Opens macOS permission settings" : "Requests access or opens macOS permission settings")
     }
 }
 
 extension MainWindowView {
-    var statusShortTitle: String {
-        if appState.status == .completed {
-            return appState.lastDelivery.completionTitle
-        }
-        return presentation.statusShortTitle
-    }
-
     var statusDetail: String {
         switch appState.status {
         case .idle:
-            if !selectedProviderHasKey {
+            if !presentation.selectedProviderHasKey {
                 return "Add the selected provider key before recording."
             }
             if !presentation.permissionIsReady(.microphone) {
                 return "Grant Microphone access before recording."
             }
-            return "Ready for \(workflowSummary)."
+            return "Ready for \(presentation.fullWorkflowSummary)."
         case .preparing:
             return "Starting the microphone and preparing \(appState.settings.provider.title)."
         case .recording:
@@ -343,67 +456,6 @@ extension MainWindowView {
         case .failed(let message):
             return message
         }
-    }
-
-    var statusSystemImage: String {
-        if appState.status == .completed {
-            return appState.lastDelivery.completionSystemImage
-        }
-        return presentation.statusSystemImage
-    }
-
-    var statusColor: Color {
-        switch appState.status {
-        case .failed:
-            return .red
-        case .recording:
-            return .red
-        case .completed:
-            return appState.lastDelivery == .none ? .orange : .green
-        case .idle:
-            return presentation.coreRecordingReady ? .secondary : .orange
-        case .preparing, .transcribing, .adjusting:
-            return .accentColor
-        }
-    }
-
-    var recordButtonSystemImage: String {
-        presentation.recordButtonSystemImage
-    }
-
-    var recordButtonTitle: String {
-        presentation.recordButtonTitle
-    }
-
-    var recordButtonSubtitle: String {
-        presentation.recordButtonSubtitle(style: .full)
-    }
-
-    var recordButtonTint: Color {
-        switch appState.status {
-        case .preparing, .recording:
-            return .red
-        case .failed:
-            return .red
-        default:
-            return .accentColor
-        }
-    }
-
-    var selectedProviderHasKey: Bool {
-        presentation.selectedProviderHasKey
-    }
-
-    var workflowSummary: String {
-        presentation.fullWorkflowSummary
-    }
-
-    var elapsedTime: String {
-        presentation.elapsedTime
-    }
-
-    var liveTranscriptText: String {
-        presentation.fullLiveTranscriptText
     }
 
     var showsLiveCapture: Bool {
@@ -453,7 +505,7 @@ extension MainWindowView {
         case .cancelRecording:
             appState.cancelRecording()
         case .openSetup:
-            selectedTab = .setup
+            selectedTab = .system
         case .disabled:
             break
         }
@@ -470,16 +522,12 @@ extension MainWindowView {
     func diagnosticColor(_ severity: SetupDiagnosticSeverity) -> Color {
         switch severity {
         case .ready:
-            return .green
+            return VhraseTheme.statusSuccess
         case .attention:
-            return .orange
+            return VhraseTheme.statusWarning
         case .info:
             return .secondary
         }
-    }
-
-    func historyMetadata(_ item: TranscriptHistoryItem) -> String {
-        presentation.historyMetadata(item)
     }
 
     func persistedBinding<Value>(
@@ -497,48 +545,18 @@ extension MainWindowView {
         )
     }
 
-    func apiKeyBinding(
-        _ key: SecretKey,
-        _ keyPath: ReferenceWritableKeyPath<AppState, String>
-    ) -> Binding<String> {
+    func apiKeyBinding(_ key: SecretKey) -> Binding<String> {
         Binding(
             get: {
-                appState[keyPath: keyPath]
+                switch key {
+                case .xaiAPIKey: appState.xaiAPIKey
+                case .elevenLabsAPIKey: appState.elevenLabsAPIKey
+                case .llmAPIKey: appState.llmAPIKey
+                }
             },
             set: { value in
-                appState[keyPath: keyPath] = value
-                scheduleAPIKeySave(key)
+                appState.updateAPIKey(key, value: value)
             }
         )
-    }
-
-    func scheduleAPIKeySave(_ key: SecretKey) {
-        pendingAPIKeySaves.insert(key)
-        apiKeySaveTask?.cancel()
-        apiKeySaveTask = Task { @MainActor in
-            do {
-                try await Task.sleep(nanoseconds: 500_000_000)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else {
-                return
-            }
-            apiKeySaveTask = nil
-            let keys = pendingAPIKeySaves
-            pendingAPIKeySaves.removeAll()
-            appState.saveAPIKeys(keys)
-        }
-    }
-
-    func flushPendingAPIKeySave() {
-        guard apiKeySaveTask != nil else {
-            return
-        }
-        apiKeySaveTask?.cancel()
-        apiKeySaveTask = nil
-        let keys = pendingAPIKeySaves
-        pendingAPIKeySaves.removeAll()
-        appState.saveAPIKeys(keys)
     }
 }

@@ -7,17 +7,10 @@ import SwiftUI
 /// Displays the current dictation phase without exposing transport-level implementation details.
 struct StatusPopupView: View {
     @ObservedObject var appState: AppState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var presentation: DictationPresentation {
-        DictationPresentation(
-            status: appState.status,
-            settings: appState.settings,
-            xaiAPIKey: appState.effectiveXAIAPIKey,
-            elevenLabsAPIKey: appState.effectiveElevenLabsAPIKey,
-            permissions: appState.permissions,
-            liveTranscript: appState.liveTranscript,
-            recordingElapsedSeconds: appState.recordingElapsedSeconds
-        )
+        appState.presentation
     }
 
     var body: some View {
@@ -40,30 +33,29 @@ struct StatusPopupView: View {
         }
         .frame(width: popupWidth, height: popupHeight)
         .background {
-            ZStack {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.regularMaterial)
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(statusColor.opacity(0.055))
-            }
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.regularMaterial)
         }
         .overlay {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(statusColor.opacity(0.24), lineWidth: 1)
+                .strokeBorder(VhraseTheme.hairline, lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+        .shadow(color: .black.opacity(0.1), radius: 14, y: 5)
         .fixedSize(horizontal: true, vertical: true)
-        .animation(.easeInOut(duration: 0.22), value: showsTranscript)
+        .animation(
+            VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
+            value: showsTranscript
+        )
     }
 
     private var controlBar: some View {
         HStack(spacing: 11) {
             statusIndicator
-                .frame(width: 30, height: 30)
+                .frame(width: appState.isRecording ? 96 : 30, height: 30)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(popupStatusTitle)
-                    .font(.callout.weight(.semibold))
+                    .font(appState.isRecording ? VhraseFont.timer : .callout.weight(.semibold))
                     .lineLimit(1)
                 Text(secondaryStatusText)
                     .font(.caption)
@@ -87,25 +79,18 @@ struct StatusPopupView: View {
                 .tint(statusColor)
                 .accessibilityHidden(true)
         case .recording:
-            HStack(alignment: .center, spacing: 2) {
-                ForEach(0..<5, id: \.self) { index in
-                    Capsule()
-                        .fill(Color.red)
-                        .frame(
-                            width: 3,
-                            height: waveformHeight(at: index)
-                        )
-                }
-            }
-            .frame(width: 28, height: 24)
-            .animation(.easeOut(duration: 0.12), value: appState.recordingLevel)
-            .accessibilityHidden(true)
+            WaveformView(
+                level: appState.recordingLevel,
+                response: .live,
+                barCount: 20,
+                tint: VhraseTheme.statusRecording,
+                height: 28
+            )
         case .completed, .failed, .idle:
             Image(systemName: popupStatusSystemImage)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(statusColor)
                 .frame(width: 28, height: 28)
-                .background(statusColor.opacity(0.14), in: Circle())
                 .accessibilityHidden(true)
         }
     }
@@ -123,7 +108,7 @@ struct StatusPopupView: View {
                 hudButton("Cancel recording", systemImage: "xmark", tint: .secondary) {
                     appState.cancelRecording()
                 }
-                hudButton("Finish recording", systemImage: "checkmark", tint: .white, fill: .red) {
+                hudButton("Finish recording", systemImage: "checkmark", tint: .white, fill: VhraseTheme.statusRecording) {
                     appState.toggleRecording()
                 }
                 .accessibilityHint("Stops recording and transcribes the captured audio")
@@ -142,7 +127,7 @@ struct StatusPopupView: View {
                 hudButton("Dismiss", systemImage: "xmark") {
                     appState.dismissWorkflowOutcome()
                 }
-                hudButton("Try again", systemImage: "arrow.clockwise", tint: .white, fill: .red) {
+                hudButton("Try again", systemImage: "arrow.clockwise", tint: .white, fill: VhraseTheme.accent) {
                     appState.toggleRecording()
                 }
             case .idle:
@@ -155,17 +140,25 @@ struct StatusPopupView: View {
         _ title: String,
         systemImage: String,
         tint: Color = .primary,
-        fill: Color = .primary.opacity(0.08),
+        fill: Color = .primary.opacity(0.06),
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .bold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(width: 28, height: 28)
                 .background(fill, in: Circle())
+                .overlay {
+                    Circle()
+                        .strokeBorder(VhraseTheme.hairline, lineWidth: 1)
+                }
         }
         .buttonStyle(.plain)
+        .animation(
+            VhraseMotion.respectingReduceMotion(VhraseMotion.snappy, reduceMotion: reduceMotion),
+            value: appState.status
+        )
         .help(title)
         .accessibilityLabel(title)
     }
@@ -201,18 +194,15 @@ struct StatusPopupView: View {
     }
 
     private var showsTranscript: Bool {
-        switch appState.status {
-        case .recording:
-            return !appState.liveTranscript.isEmpty
-        case .failed:
-            return true
-        case .idle, .preparing, .transcribing, .adjusting, .completed:
-            return false
-        }
+        StatusPopupContentPolicy.showsTranscript(
+            status: appState.status,
+            hasLiveTranscript: !appState.liveTranscript.isEmpty,
+            hasFinalTranscript: !appState.lastTranscript.isEmpty
+        )
     }
 
     private var popupWidth: CGFloat {
-        showsTranscript ? 380 : 312
+        showsTranscript ? 400 : 360
     }
 
     private var popupHeight: CGFloat {
@@ -220,7 +210,7 @@ struct StatusPopupView: View {
     }
 
     private var cornerRadius: CGFloat {
-        showsTranscript ? 16 : 27
+        showsTranscript ? 14 : 12
     }
 
     private var secondaryStatusText: String {
@@ -249,14 +239,8 @@ struct StatusPopupView: View {
         }
     }
 
-    private func waveformHeight(at index: Int) -> CGFloat {
-        let profiles: [CGFloat] = [0.58, 0.9, 1.0, 0.76, 0.48]
-        let level = max(0.12, min(appState.recordingLevel, 1))
-        return max(5, 5 + 18 * level * profiles[index])
-    }
-
     private var popupStatusTitle: String {
-        appState.status == .completed ? appState.lastDelivery.completionTitle : presentation.statusShortTitle
+        appState.isRecording ? presentation.elapsedTime : presentation.displayStatusTitle
     }
 
     private var popupStatusSystemImage: String {
@@ -264,18 +248,7 @@ struct StatusPopupView: View {
     }
 
     private var statusColor: Color {
-        switch appState.status {
-        case .preparing, .transcribing, .adjusting:
-            .accentColor
-        case .recording:
-            .red
-        case .completed:
-            appState.lastDelivery == .none ? .orange : .green
-        case .failed:
-            .red
-        case .idle:
-            .secondary
-        }
+        presentation.statusTint
     }
 }
 
@@ -295,7 +268,7 @@ final class RecorderHUDPanelController: NSWindowController {
         self.hostingView = hostingView
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 312, height: 54),
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 54),
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -363,7 +336,7 @@ final class RecorderHUDPanelController: NSWindowController {
         }
 
         delayedHideTask = Task { [weak self, weak panel] in
-            try? await Task.sleep(for: .seconds(2.0))
+            try? await Task.sleep(for: .seconds(4.0))
             guard !Task.isCancelled,
                   self?.appState?.status == .completed else {
                 return
@@ -373,17 +346,16 @@ final class RecorderHUDPanelController: NSWindowController {
     }
 
     private func resizeAndPosition(_ panel: NSWindow) {
-        let showsTranscript = switch appState?.status {
-        case .recording:
-            appState?.liveTranscript.isEmpty == false
-        case .failed:
-            true
-        case .idle, .preparing, .transcribing, .adjusting, .completed, .none:
-            false
-        }
+        let showsTranscript = appState.map {
+            StatusPopupContentPolicy.showsTranscript(
+                status: $0.status,
+                hasLiveTranscript: !$0.liveTranscript.isEmpty,
+                hasFinalTranscript: !$0.lastTranscript.isEmpty
+            )
+        } ?? false
         panel.setContentSize(
             NSSize(
-                width: showsTranscript ? 380 : 312,
+                width: showsTranscript ? 400 : 360,
                 height: showsTranscript ? 104 : 54
             )
         )

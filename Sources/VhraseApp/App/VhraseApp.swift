@@ -1,4 +1,4 @@
-// Composes Vhrase's main window, menu-bar control, settings scene, and focus-preserving recorder HUD.
+// Composes Vhrase's main window, menu-bar control, commands, and focus-preserving recorder HUD.
 
 import AppKit
 import SwiftUI
@@ -24,16 +24,18 @@ struct VhraseApp: App {
                     handleMainWindowAppearance()
                 }
         }
-        .defaultSize(width: 900, height: 680)
+        .defaultSize(width: 1120, height: 760)
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                OpenVhraseSystemCommand()
+            }
+        }
 
         MenuBarExtra("Vhrase", systemImage: appState.isRecording ? "mic.fill" : "mic") {
             MenuPopoverView(appState: appState)
         }
         .menuBarExtraStyle(.window)
 
-        Settings {
-            SettingsView(appState: appState)
-        }
     }
 
     /// Presents setup on first launch, then keeps later launches resident in the menu bar.
@@ -94,5 +96,21 @@ struct VhraseApp: App {
                 window.makeKeyAndOrderFront(nil)
             }
         }
+    }
+}
+
+/// Restores the conventional Command-comma route into the unified System destination.
+private struct OpenVhraseSystemCommand: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Vhrase Settings…") {
+            UserDefaults.standard.set(MainWindowTab.system.rawValue, forKey: "mainWindow.selectedTab")
+            openWindow(id: "main")
+            DispatchQueue.main.async {
+                NSApplication.shared.activate()
+            }
+        }
+        .keyboardShortcut(",", modifiers: .command)
     }
 }

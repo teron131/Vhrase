@@ -46,7 +46,10 @@ actor RealtimeTranscriptAccumulator {
                 publishCurrentText()
             }
         case "transcript.done":
-            doneText = event.text
+            if let text = event.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !text.isEmpty {
+                doneText = text
+            }
             duration = event.duration
             resolve()
             return .completed

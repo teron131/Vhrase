@@ -3,6 +3,20 @@
 import AppKit
 import Foundation
 
+enum OpenCCInstallationState: Equatable {
+    case idle
+    case installing
+    case installed
+    case failed(String)
+
+    var failureMessage: String? {
+        guard case .failed(let message) = self else {
+            return nil
+        }
+        return message
+    }
+}
+
 @MainActor
 final class AppState: ObservableObject {
     private static let importEnvironmentCredentialsArgument = "--import-environment-credentials"
@@ -18,10 +32,12 @@ final class AppState: ObservableObject {
     @Published var recordingElapsedSeconds = 0
     @Published var permissions: [PermissionSnapshot] = []
     @Published var history: [TranscriptHistoryItem] = []
+    @Published var savesTranscriptHistory = true
     @Published var lastAdjustmentWarning = ""
     @Published var lastDelivery: TranscriptDelivery = .none
     @Published var targetAppLabel = ""
     @Published var customizationNotice = ""
+    @Published var openCCInstallationState = OpenCCInstallationState.idle
 
     private let settingsStore = SettingsStore()
     private let historyStore = TranscriptHistoryStore()
@@ -30,6 +46,7 @@ final class AppState: ObservableObject {
     private let inserter = TextInsertion()
     private let permissionManager = PermissionManager()
     private let appContext = AppContext()
+    private let openCCInstaller = OpenCCInstaller()
     private let hotkeyManager = GlobalHotkeyManager()
     private let fnHotkeyManager = FnHotkeyManager()
     private var recorder: AudioRecorder?
@@ -42,44 +59,47 @@ final class AppState: ObservableObject {
     private var processingAudioURL: URL?
     private var isShortcutCaptureActive = false
     private var lastHotkeyPressDate: Date?
+    private var apiKeySaveTask: Task<Void, Never>?
+    private var pendingAPIKeySaves: Set<SecretKey> = []
 
     init() {
         let apiKeys = APIKeyStore()
         self.apiKeys = apiKeys
         settings = settingsStore.load()
-        var keyReadErrors: [String] = []
+        var credentialNotices: [String] = []
         if CommandLine.arguments.contains(Self.importEnvironmentCredentialsArgument) {
             do {
                 let importedKeys = try apiKeys.importEnvironmentValues()
                 if !importedKeys.isEmpty {
-                    keyReadErrors.append("Launch credentials synchronized with macOS Keychain.")
+                    credentialNotices.append("Launch credentials imported into macOS Keychain.")
                 }
             } catch {
-                keyReadErrors.append(error.localizedDescription)
+                credentialNotices.append(error.localizedDescription)
             }
         }
         do {
             xaiAPIKey = try apiKeys.savedValueForEditing(for: .xaiAPIKey)
         } catch {
             xaiAPIKey = ""
-            keyReadErrors.append(error.localizedDescription)
+            credentialNotices.append(error.localizedDescription)
         }
         do {
             elevenLabsAPIKey = try apiKeys.savedValueForEditing(for: .elevenLabsAPIKey)
         } catch {
             elevenLabsAPIKey = ""
-            keyReadErrors.append(error.localizedDescription)
+            credentialNotices.append(error.localizedDescription)
         }
         do {
             llmAPIKey = try apiKeys.savedValueForEditing(for: .llmAPIKey)
         } catch {
             llmAPIKey = ""
-            keyReadErrors.append(error.localizedDescription)
+            credentialNotices.append(error.localizedDescription)
         }
         history = historyStore.load()
+        savesTranscriptHistory = historyStore.savesHistory
         lastTranscript = history.first?.text ?? ""
         AudioRecorder.removeAbandonedRecordings()
-        customizationNotice = keyReadErrors.joined(separator: " ")
+        customizationNotice = credentialNotices.joined(separator: " ")
         refreshPermissions()
         registerHotkey()
     }
@@ -96,8 +116,25 @@ final class AppState: ObservableObject {
         effectiveAPIKey(.llmAPIKey)
     }
 
-    func usesEnvironmentOverride(for key: SecretKey) -> Bool {
-        !apiKeys.environmentValue(for: key).isEmpty
+    /// Creates the shared UI projection from the current application state.
+    var presentation: DictationPresentation {
+        DictationPresentation(
+            status: status,
+            settings: settings,
+            xaiAPIKey: effectiveXAIAPIKey,
+            elevenLabsAPIKey: effectiveElevenLabsAPIKey,
+            permissions: permissions,
+            liveTranscript: liveTranscript,
+            recordingElapsedSeconds: recordingElapsedSeconds,
+            delivery: lastDelivery
+        )
+    }
+
+    func usesEnvironmentFallback(for key: SecretKey) -> Bool {
+        apiKeys.usesEnvironmentFallback(
+            for: key,
+            savedValue: savedAPIKey(for: key)
+        )
     }
 
     var isRecording: Bool {
@@ -123,6 +160,46 @@ final class AppState: ObservableObject {
             permissions: permissions,
             chineseConversionIsAvailable: ChineseTextConverter.isAvailable
         ).build()
+    }
+
+    var canInstallOpenCC: Bool {
+        OpenCCInstaller.isHomebrewAvailable
+    }
+
+    /// Installs OpenCC after explicit UI confirmation and refreshes the computed setup diagnostics.
+    func installOpenCC() {
+        guard openCCInstallationState != .installing else {
+            return
+        }
+
+        openCCInstallationState = .installing
+        customizationNotice = "Installing OpenCC with Homebrew…"
+        let installer = openCCInstaller
+        Task {
+            do {
+                try await installer.install()
+                guard ChineseTextConverter.isAvailable else {
+                    throw NSError(
+                        domain: "Vhrase.OpenCCInstaller",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Homebrew completed, but the OpenCC executable was not found."]
+                    )
+                }
+                openCCInstallationState = .installed
+                customizationNotice = "OpenCC installed. New transcripts will use s2hk conversion."
+            } catch {
+                openCCInstallationState = .failed(error.localizedDescription)
+                customizationNotice = error.localizedDescription
+            }
+        }
+    }
+
+    /// Opens Homebrew's setup page when OpenCC cannot yet be installed from the app.
+    func openHomebrewSetup() {
+        guard let url = URL(string: "https://brew.sh") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 
     var transcriptionConfigurationIssue: String? {
@@ -195,7 +272,7 @@ final class AppState: ObservableObject {
     }
 
     /// Saves only explicitly edited credentials so an unrelated field cannot erase an unread Keychain item.
-    func saveAPIKeys(_ keys: Set<SecretKey>) {
+    private func saveAPIKeys(_ keys: Set<SecretKey>) {
         guard !keys.isEmpty else {
             return
         }
@@ -211,6 +288,41 @@ final class AppState: ObservableObject {
                 status = .failed(message)
             }
         }
+    }
+
+    /// Updates one editable credential and debounces its Keychain write for 500 milliseconds.
+    func updateAPIKey(_ key: SecretKey, value: String) {
+        switch key {
+        case .xaiAPIKey:
+            xaiAPIKey = value
+        case .elevenLabsAPIKey:
+            elevenLabsAPIKey = value
+        case .llmAPIKey:
+            llmAPIKey = value
+        }
+
+        pendingAPIKeySaves.insert(key)
+        apiKeySaveTask?.cancel()
+        apiKeySaveTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: 500_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.savePendingAPIKeys()
+        }
+    }
+
+    /// Flushes credentials edited on a disappearing configuration surface.
+    func flushPendingAPIKeySave() {
+        guard apiKeySaveTask != nil || !pendingAPIKeySaves.isEmpty else {
+            return
+        }
+        apiKeySaveTask?.cancel()
+        savePendingAPIKeys()
     }
 
     func saveSettingsOnly() {
@@ -327,6 +439,12 @@ final class AppState: ObservableObject {
         synchronizeLatestTranscriptWithHistory()
     }
 
+    /// Controls whether future completed dictations are retained without deleting existing history.
+    func updateTranscriptHistorySaving(_ isEnabled: Bool) {
+        historyStore.setSavingEnabled(isEnabled)
+        savesTranscriptHistory = isEnabled
+    }
+
     /// Prevents a deleted history item from remaining exposed as the recoverable latest transcript.
     private func synchronizeLatestTranscriptWithHistory() {
         let latestTranscript = history.first?.text ?? ""
@@ -344,6 +462,7 @@ final class AppState: ObservableObject {
 
     /// Releases active capture resources and removes any recording owned by an in-flight transcription before app exit.
     func prepareForTermination() {
+        flushPendingAPIKeySave()
         recordingID = nil
         recordingTask?.cancel()
         recordingTask = nil
@@ -404,24 +523,19 @@ final class AppState: ObservableObject {
             return
         }
 
-        customizationNotice = "Checking LLM model access..."
+        let model = settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseURL = settings.adjustmentBaseURL
+        customizationNotice = "Checking LLM model: \(model)..."
         Task {
             do {
-                let models = try await LLMModelAccessClient(
+                try await LLMModelAccessClient(
                     apiKey: apiKey,
-                    baseURL: settings.adjustmentBaseURL
+                    baseURL: baseURL
                 )
-                .listModels()
-                if models.isEmpty {
-                    customizationNotice = "LLM endpoint returned no models."
-                } else if models.contains(settings.adjustmentModel) {
-                    customizationNotice = "LLM model ready: \(settings.adjustmentModel)."
-                } else {
-                    let preview = models.prefix(3).joined(separator: ", ")
-                    customizationNotice = "LLM models available: \(preview)."
-                }
+                .checkModel(model)
+                customizationNotice = "LLM model ready: \(model)."
             } catch {
-                customizationNotice = "LLM model check failed: \(error.localizedDescription)"
+                customizationNotice = "LLM model check failed for \(model): \(error.localizedDescription)"
             }
         }
     }
@@ -500,7 +614,7 @@ final class AppState: ObservableObject {
             throw NSError(
                 domain: "Vhrase.Permissions",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Grant Microphone access in Setup before recording."]
+                userInfo: [NSLocalizedDescriptionKey: "Grant Microphone access in System before recording."]
             )
         }
     }
@@ -654,7 +768,7 @@ final class AppState: ObservableObject {
         NSError(
             domain: "Vhrase.Settings",
             code: 1,
-            userInfo: [NSLocalizedDescriptionKey: "\(name) is missing. Add it in Setup before recording."]
+            userInfo: [NSLocalizedDescriptionKey: "\(name) is missing. Add it in System before recording."]
         )
     }
 
@@ -689,6 +803,14 @@ final class AppState: ObservableObject {
         case .llmAPIKey:
             llmAPIKey
         }
+    }
+
+    /// Completes the pending Keychain batch and clears its debounce state.
+    private func savePendingAPIKeys() {
+        apiKeySaveTask = nil
+        let keys = pendingAPIKeySaves
+        pendingAPIKeySaves.removeAll()
+        saveAPIKeys(keys)
     }
 
     /// Rejects stale continuations before they can mutate resources owned by a newer recording.

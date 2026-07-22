@@ -30,7 +30,7 @@ final class FnHotkeyManager {
         }
     }
 
-    /// Installs the global listener after Input Monitoring changes while Vhrase is already running.
+    /// Installs the global listener after Input Monitoring or Accessibility changes while Vhrase is running.
     func refreshAuthorization() {
         guard isEnabled else {
             return
@@ -49,7 +49,7 @@ final class FnHotkeyManager {
             }
         }
 
-        guard globalEventTap == nil, CGPreflightListenEventAccess() else {
+        guard globalEventTap == nil else {
             return
         }
 

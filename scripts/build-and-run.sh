@@ -34,7 +34,7 @@ open_app() {
 # Confirms every nonempty supported launch override has a Keychain item without reading secret values.
 credential_sync_complete() {
   local key_name
-  for key_name in XAI_API_KEY ELEVENLABS_API_KEY AI_GATEWAY_API_KEY; do
+  for key_name in XAI_API_KEY ELEVENLABS_API_KEY LLM_API_KEY; do
     if [[ -z "${!key_name:-}" ]]; then
       continue
     fi
@@ -68,7 +68,7 @@ case "$MODE" in
       fi
       sleep 0.1
     done
-    echo "$APP_NAME did not start or synchronize its launch credentials." >&2
+    echo "$APP_NAME did not start or finish its launch credential import." >&2
     exit 1
     ;;
   *)

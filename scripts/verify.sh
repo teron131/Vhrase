@@ -51,18 +51,25 @@ APP_DOMAIN_SOURCES=(
 APP_PRESENTATION_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"
   Sources/VhraseApp/System/PermissionManager.swift
+  Sources/VhraseApp/UI/Design/VhraseTheme.swift
+  Sources/VhraseApp/UI/Design/WaveformLevelResponse.swift
   Sources/VhraseApp/UI/DictationPresentation.swift
+  Sources/VhraseApp/UI/StatusPopup/StatusPopupContentPolicy.swift
 )
 APP_PRESENTATION_CHECKS=(
+  scripts/checks/permission-request-plan-check.swift
   scripts/checks/record-button-state-check.swift
   scripts/checks/readiness-summary-check.swift
   scripts/checks/history-metadata-check.swift
+  scripts/checks/waveform-response-check.swift
+  scripts/checks/status-popup-content-check.swift
 )
 APP_CORE_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"
   Sources/VhraseApp/Adjustment/Local/TextReplacementProcessor.swift
   Sources/VhraseApp/Adjustment/Local/LocalAdjustment.swift
   Sources/VhraseApp/Storage/SettingsStore.swift
+  Sources/VhraseApp/Storage/TranscriptHistoryStore.swift
 )
 APP_CORE_CHECKS=(
   scripts/checks/status-flow-check.swift
@@ -83,12 +90,14 @@ APP_PROVIDER_CHECK_SOURCES=(
   Sources/VhraseApp/Transcription/Upload/UploadTranscriptionClients.swift
 )
 APP_PROVIDER_CHECKS=(
+  scripts/checks/audio-tap-isolation-check.swift
   scripts/checks/xai-stt-options-check.swift
   scripts/checks/elevenlabs-options-check.swift
 )
 APP_FINALIZATION_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"
   Sources/VhraseApp/System/ScreenContext.swift
+  Sources/VhraseApp/Adjustment/Local/OpenCCInstaller.swift
   Sources/VhraseApp/Adjustment/Local/TextReplacementProcessor.swift
   Sources/VhraseApp/Adjustment/Local/ChineseTextConverter.swift
   Sources/VhraseApp/Adjustment/Local/LocalAdjustment.swift
@@ -97,6 +106,7 @@ APP_FINALIZATION_CHECK_SOURCES=(
 )
 APP_FINALIZATION_CHECKS=(
   scripts/checks/adjustment-fallback-check.swift
+  scripts/checks/opencc-installer-check.swift
 )
 APP_CREDENTIAL_CHECK_SOURCES=(
   Sources/VhraseApp/Storage/APIKeyStore.swift
