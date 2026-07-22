@@ -1,0 +1,143 @@
+// Persists Vhrase's non-secret user preferences with explicit empty-value semantics.
+
+import Foundation
+
+final class SettingsStore {
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    func load() -> DictationSettings {
+        let fallback = DictationSettings.defaults
+        var settings = DictationSettings(
+            provider: STTProvider(rawValue: defaults.string(forKey: "provider") ?? "") ?? fallback.provider,
+            transcriptionMode: TranscriptionMode(rawValue: defaults.string(forKey: "transcriptionMode") ?? "") ?? fallback.transcriptionMode,
+            elevenLabsCommitStrategy: ElevenLabsCommitStrategy(rawValue: defaults.string(forKey: "elevenLabsCommitStrategy") ?? "") ?? fallback.elevenLabsCommitStrategy,
+            elevenLabsNoVerbatim: bool("elevenLabsNoVerbatim", fallback.elevenLabsNoVerbatim),
+            elevenLabsVADSilenceThreshold: boundedDouble("elevenLabsVADSilenceThreshold", fallback.elevenLabsVADSilenceThreshold, range: 0.3...3),
+            elevenLabsVADThreshold: boundedDouble("elevenLabsVADThreshold", fallback.elevenLabsVADThreshold, range: 0.1...0.9),
+            elevenLabsMinSpeechDuration: boundedInt("elevenLabsMinSpeechDuration", fallback.elevenLabsMinSpeechDuration, range: 50...2_000),
+            elevenLabsMinSilenceDuration: boundedInt("elevenLabsMinSilenceDuration", fallback.elevenLabsMinSilenceDuration, range: 50...2_000),
+            language: storedString("language", fallback.language),
+            keyterms: storedString("keyterms", fallback.keyterms),
+            replacementRules: storedString("replacementRules", fallback.replacementRules),
+            includeFillerWords: bool("includeFillerWords", fallback.includeFillerWords),
+            xaiRealtimeEndpointing: boundedInt("xaiRealtimeEndpointing", fallback.xaiRealtimeEndpointing, range: 0...5_000),
+            xaiSmartTurnEnabled: bool("xaiSmartTurnEnabled", fallback.xaiSmartTurnEnabled),
+            xaiSmartTurnThreshold: boundedDouble("xaiSmartTurnThreshold", fallback.xaiSmartTurnThreshold, range: 0...1),
+            xaiSmartTurnTimeout: boundedInt("xaiSmartTurnTimeout", fallback.xaiSmartTurnTimeout, range: 1...5_000),
+            pasteAfterTranscription: bool("pasteAfterTranscription", fallback.pasteAfterTranscription),
+            adjustWithLLM: bool("adjustWithLLM", fallback.adjustWithLLM),
+            useLocalAdjustmentFallback: bool("useLocalAdjustmentFallback", fallback.useLocalAdjustmentFallback),
+            adjustmentBaseURL: nonEmptyString("adjustmentBaseURL", fallback.adjustmentBaseURL),
+            adjustmentModel: nonEmptyString("adjustmentModel", fallback.adjustmentModel),
+            adjustmentPrompt: storedString("adjustmentPrompt", fallback.adjustmentPrompt),
+            includeScreenshot: bool("includeScreenshot", fallback.includeScreenshot),
+            hotkeyPreset: HotkeyPreset(rawValue: defaults.string(forKey: "hotkeyPreset") ?? "") ?? fallback.hotkeyPreset,
+            customHotkey: customHotkey(),
+            shortcutBehavior: ShortcutBehavior(rawValue: defaults.string(forKey: "shortcutBehavior") ?? "") ?? fallback.shortcutBehavior
+        )
+        if settings.hotkeyPreset == .custom, settings.customHotkey == nil {
+            settings.hotkeyPreset = fallback.hotkeyPreset
+        }
+        return settings
+    }
+
+    func save(_ settings: DictationSettings) {
+        defaults.set(settings.provider.rawValue, forKey: "provider")
+        defaults.set(settings.transcriptionMode.rawValue, forKey: "transcriptionMode")
+        defaults.set(settings.elevenLabsCommitStrategy.rawValue, forKey: "elevenLabsCommitStrategy")
+        defaults.set(settings.elevenLabsNoVerbatim, forKey: "elevenLabsNoVerbatim")
+        defaults.set(settings.elevenLabsVADSilenceThreshold, forKey: "elevenLabsVADSilenceThreshold")
+        defaults.set(settings.elevenLabsVADThreshold, forKey: "elevenLabsVADThreshold")
+        defaults.set(settings.elevenLabsMinSpeechDuration, forKey: "elevenLabsMinSpeechDuration")
+        defaults.set(settings.elevenLabsMinSilenceDuration, forKey: "elevenLabsMinSilenceDuration")
+        defaults.set(settings.language, forKey: "language")
+        defaults.set(settings.keyterms, forKey: "keyterms")
+        defaults.set(settings.replacementRules, forKey: "replacementRules")
+        defaults.set(settings.includeFillerWords, forKey: "includeFillerWords")
+        defaults.set(settings.xaiRealtimeEndpointing, forKey: "xaiRealtimeEndpointing")
+        defaults.set(settings.xaiSmartTurnEnabled, forKey: "xaiSmartTurnEnabled")
+        defaults.set(settings.xaiSmartTurnThreshold, forKey: "xaiSmartTurnThreshold")
+        defaults.set(settings.xaiSmartTurnTimeout, forKey: "xaiSmartTurnTimeout")
+        defaults.set(settings.pasteAfterTranscription, forKey: "pasteAfterTranscription")
+        defaults.set(settings.adjustWithLLM, forKey: "adjustWithLLM")
+        defaults.set(settings.useLocalAdjustmentFallback, forKey: "useLocalAdjustmentFallback")
+        defaults.set(settings.adjustmentBaseURL, forKey: "adjustmentBaseURL")
+        defaults.set(settings.adjustmentModel, forKey: "adjustmentModel")
+        defaults.set(settings.adjustmentPrompt, forKey: "adjustmentPrompt")
+        defaults.set(settings.includeScreenshot, forKey: "includeScreenshot")
+        defaults.set(settings.hotkeyPreset.rawValue, forKey: "hotkeyPreset")
+        saveCustomHotkey(settings.customHotkey)
+        defaults.set(settings.shortcutBehavior.rawValue, forKey: "shortcutBehavior")
+    }
+
+    private func nonEmptyString(_ key: String, _ fallback: String) -> String {
+        let value = defaults.string(forKey: key) ?? fallback
+        return value.isEmpty ? fallback : value
+    }
+
+    private func storedString(_ key: String, _ fallback: String) -> String {
+        guard defaults.object(forKey: key) != nil else {
+            return fallback
+        }
+        return defaults.string(forKey: key) ?? fallback
+    }
+
+    private func bool(_ key: String, _ fallback: Bool) -> Bool {
+        defaults.object(forKey: key) == nil ? fallback : defaults.bool(forKey: key)
+    }
+
+    private func int(_ key: String, _ fallback: Int) -> Int {
+        defaults.object(forKey: key) == nil ? fallback : defaults.integer(forKey: key)
+    }
+
+    private func double(_ key: String, _ fallback: Double) -> Double {
+        defaults.object(forKey: key) == nil ? fallback : defaults.double(forKey: key)
+    }
+
+    private func boundedInt(
+        _ key: String,
+        _ fallback: Int,
+        range: ClosedRange<Int>
+    ) -> Int {
+        min(max(int(key, fallback), range.lowerBound), range.upperBound)
+    }
+
+    private func boundedDouble(
+        _ key: String,
+        _ fallback: Double,
+        range: ClosedRange<Double>
+    ) -> Double {
+        min(max(double(key, fallback), range.lowerBound), range.upperBound)
+    }
+
+    private func customHotkey() -> CustomHotkey? {
+        guard let display = defaults.string(forKey: "customHotkeyDisplay"),
+              defaults.object(forKey: "customHotkeyKeyCode") != nil,
+              defaults.object(forKey: "customHotkeyModifiers") != nil else {
+            return nil
+        }
+
+        return CustomHotkey(
+            keyCode: UInt32(defaults.integer(forKey: "customHotkeyKeyCode")),
+            modifiers: UInt32(defaults.integer(forKey: "customHotkeyModifiers")),
+            display: display
+        )
+    }
+
+    private func saveCustomHotkey(_ hotkey: CustomHotkey?) {
+        guard let hotkey else {
+            defaults.removeObject(forKey: "customHotkeyKeyCode")
+            defaults.removeObject(forKey: "customHotkeyModifiers")
+            defaults.removeObject(forKey: "customHotkeyDisplay")
+            return
+        }
+
+        defaults.set(Int(hotkey.keyCode), forKey: "customHotkeyKeyCode")
+        defaults.set(Int(hotkey.modifiers), forKey: "customHotkeyModifiers")
+        defaults.set(hotkey.display, forKey: "customHotkeyDisplay")
+    }
+}
