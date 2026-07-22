@@ -61,13 +61,13 @@ check() {
 
 key_value() {
   local name="$1"
-  if [[ -n "${!name:-}" ]]; then
-    echo "environment"
+  if /usr/bin/security find-generic-password -s Vhrase -a "$name" >/dev/null 2>&1; then
+    echo "macOS Keychain"
     return
   fi
 
-  if /usr/bin/security find-generic-password -s Vhrase -a "$name" >/dev/null 2>&1; then
-    echo "macOS Keychain"
+  if [[ -n "${!name:-}" ]]; then
+    echo "environment fallback"
   fi
 }
 
@@ -148,14 +148,14 @@ XAI_SOURCE="$(key_value XAI_API_KEY)"
 if [[ -n "$XAI_SOURCE" ]]; then
   check ok "xAI key" "$XAI_SOURCE"
 else
-  check warn "xAI key" "add XAI_API_KEY in Setup or environment"
+  check warn "xAI key" "add XAI_API_KEY in System or environment"
 fi
 
 ELEVEN_SOURCE="$(key_value ELEVENLABS_API_KEY)"
 if [[ -n "$ELEVEN_SOURCE" ]]; then
   check ok "ElevenLabs key" "$ELEVEN_SOURCE"
 else
-  check warn "ElevenLabs key" "add ELEVENLABS_API_KEY in Setup or environment"
+  check warn "ElevenLabs key" "add ELEVENLABS_API_KEY in System or environment"
 fi
 
 MIC_STATUS="$(permission_status kTCCServiceMicrophone)"
@@ -172,17 +172,14 @@ case "$MIC_STATUS" in
 esac
 
 INPUT_STATUS="$(permission_status kTCCServiceListenEvent)"
-case "$INPUT_STATUS" in
-  2)
-    check ok "input monitoring permission" "Fn/Globe works outside Vhrase"
-    ;;
-  0|1|3|4)
-    check warn "input monitoring permission" "Fn/Globe is limited to Vhrase"
-    ;;
-  *)
-    check warn "input monitoring permission" "unknown until Fn/Globe setup is used"
-    ;;
-esac
+ACCESSIBILITY_STATUS="$(permission_status kTCCServiceAccessibility)"
+if [[ "$INPUT_STATUS" == "2" || "$ACCESSIBILITY_STATUS" == "2" ]]; then
+  check ok "Fn/Globe event access" "granted by Accessibility or Input Monitoring"
+elif [[ "$INPUT_STATUS" =~ ^[0134]$ || "$ACCESSIBILITY_STATUS" =~ ^[0134]$ ]]; then
+  check warn "Fn/Globe event access" "grant Accessibility for paste, or Input Monitoring for copy-only use"
+else
+  check warn "Fn/Globe event access" "unknown to the shell; confirm Accessibility or Input Monitoring in Vhrase"
+fi
 
 SCREEN_STATUS="$(permission_status kTCCServiceScreenCapture)"
 case "$SCREEN_STATUS" in

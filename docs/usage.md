@@ -11,27 +11,27 @@ bash scripts/ensure-local-codesign-identity.sh
 
 Run the identity command once per development machine; it is idempotent and may request one Keychain or trust authorization while creating `Vhrase Local Development`.
 Subsequent builds reuse that identity so macOS recognizes Vhrase as the same app instead of repeatedly asking for credential or privacy access.
-The run script stops stale Vhrase processes, rebuilds and signs the bundle, and adds a microphone icon to the menu bar. Vhrase opens the main setup window once on first launch; later launches stay in the menu bar until you explicitly open Home, History, or Settings.
+The run script stops stale Vhrase processes, rebuilds and signs the bundle, and adds a microphone icon to the menu bar. Vhrase opens the main window once on first launch; later launches stay in the menu bar until you open the main window from its controls.
 Use the bundle for normal operation so macOS associates privacy permissions with the app instead of Terminal.
 
 ## First Setup
 
-1. Open **Setup** in the sidebar.
-2. Add xAI and/or ElevenLabs credentials in Setup, or export them before running `./scripts/build-and-run.sh`; both paths store the nonempty values in macOS Keychain for later menu-bar and Finder launches.
+1. Open **System** in the sidebar.
+2. Add xAI and/or ElevenLabs credentials in System, or export them before running `./scripts/build-and-run.sh`; both paths store the nonempty values in macOS Keychain for later menu-bar and Finder launches.
 3. Request Microphone access, which is the only permission required to record.
-4. Grant Input Monitoring when Fn/Globe is the global shortcut.
-5. Grant Screen Recording only when screenshot context is enabled, and Accessibility only when automatic paste is enabled.
+4. Grant Accessibility when automatic paste is enabled; it also enables the global Fn/Globe shortcut, so a second keyboard permission is unnecessary.
+5. Grant Input Monitoring only for a copy-only Fn/Globe workflow, and Screen Recording only when screenshot context is enabled.
 
-The setup screen reports saved or environment-backed credentials separately and routes unavailable permissions to the matching macOS privacy pane.
-Direct launch-environment values still take precedence for the current process, while the development runner synchronizes them into Keychain without printing them.
-Credential fields are read-only while their environment override is active, preventing an empty placeholder from deleting the synchronized Keychain item.
-Microphone, Input Monitoring, Screen Recording, and Accessibility can each produce one native prompt when their feature is first enabled; Vhrase does not request optional permissions preemptively.
+The System screen reports saved or environment-backed credentials separately and routes unavailable permissions to the matching macOS privacy pane.
+Saved Keychain values take precedence, while the development runner imports an environment fallback only when the matching saved item is empty and never prints credentials.
+Credential fields remain editable; clearing a saved value reveals its environment fallback when one exists.
+Microphone, Input Monitoring, Screen Recording, and Accessibility can each produce one native prompt when their feature is first enabled. Vhrase requests either Accessibility or Input Monitoring for Fn/Globe, never both for the same workflow, and does not request optional permissions preemptively.
 
 ## Dictate
 
-Choose the provider and Upload or Realtime mode from the compact menu-bar controller or the **Writing** screen.
+Choose the provider and Upload or Realtime mode from the compact menu-bar controller or **Capture**.
 ElevenLabs uses `scribe_v2` for Upload and `scribe_v2_realtime` for Realtime; these transport-specific models are shown read-only so an unsupported combination cannot be saved.
-Start from the menu, the **Home** screen, or the configured global shortcut.
+Start from the menu, **Dictate**, or the configured global shortcut.
 Toggle mode presses once to start and once to stop; Hold mode records while the shortcut is held and processes when it is released.
 
 Vhrase remembers the external app that was active when recording began.
@@ -41,13 +41,12 @@ If that target is unavailable, the transcript stays on the clipboard and Vhrase 
 ## Surfaces
 
 - **Floating recorder:** follows the active screen at the bottom edge, shows listening or processing state, and provides explicit cancel and finish controls without taking focus from the target app.
-- **Menu bar:** start capture, recover recent transcripts with one-click copy, open History, and switch provider or mode when no workflow is active.
-- **Main window toolbar:** exposes the microphone action only; passive workflow status stays in the content surface and floating recorder instead of appearing as a control.
-- **Home:** current readiness, latest transcript, and the fastest route to demo, writing, and setup.
-- **Writing:** provider tuning, vocabulary, replacements, LLM cleanup, output behavior, and shortcut capture.
-- **Setup:** Keychain credentials, macOS permissions, and actionable diagnostics.
-- **History:** search, copy, delete, or explicitly confirm clearing saved transcripts.
-- **Settings:** compact general defaults, credentials, and permission controls.
+- **Menu bar:** start capture, review compact activity stats, open the main window, and switch provider or mode when no workflow is active.
+- **Dictate:** current readiness, latest transcript, local activity, and the fastest route to capture or system controls.
+- **Capture:** provider tuning, transport mode, language, and global shortcut behavior.
+- **Output:** delivery, history saving, vocabulary, replacements, and optional LLM cleanup.
+- **System:** Keychain credentials, macOS permissions, and actionable diagnostics.
+- **History:** saved-activity statistics plus searchable, copyable, and removable transcripts.
 
 Workflow-shaping controls are locked while a recording or transcription is active, and each run keeps its own settings and credential snapshot.
 
@@ -60,9 +59,9 @@ Screenshot context is off by default; enabling it captures only the main display
 If the LLM call fails, Vhrase uses deterministic local cleanup when that fallback is enabled; otherwise it preserves the raw transcript.
 
 Keyterms are validated against the selected provider and transport before recording can start.
-ElevenLabs keyterm prompting carries a 20% usage premium, which the **Writing** screen calls out alongside its batch or realtime limits.
+ElevenLabs keyterm prompting carries a 20% usage premium, which **Output** calls out alongside its batch or realtime limits.
 
-Use **Check model access** in **Writing** to validate the configured LLM model list without running a transcription.
+Use **Check model access** in **Output** to send a minimal request through the configured model without running a transcription.
 Import and Export move customization settings between machines without including API keys.
 Imports accept only regular current-version JSON files up to 1 MiB and validate local settings, provider keyterm limits, and the LLM endpoint before changing anything.
 Before persisting an import, Vhrase shows the exact sensitive changes for review when the file changes the LLM endpoint or global shortcut, enables LLM cleanup or screenshot context, or enables automatic paste.

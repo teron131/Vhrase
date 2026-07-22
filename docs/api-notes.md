@@ -3,9 +3,9 @@
 ## Credentials
 
 Vhrase stores API keys as macOS Keychain generic-password items under service `Vhrase`, with the environment-variable name as the account name.
-A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `AI_GATEWAY_API_KEY` environment value overrides its saved item for that process.
-Development launches synchronize nonempty overrides into the same Keychain accounts so a later GUI cold launch does not depend on shell-environment inheritance.
-While an override is active, its credential field is read-only and editable-field autosaves cannot remove the synchronized Keychain value.
+A saved Keychain credential takes precedence. A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `LLM_API_KEY` environment value is used only when the matching saved item is empty.
+Development launches import nonempty fallbacks only into empty matching Keychain accounts so a later GUI cold launch does not depend on shell-environment inheritance.
+Credential fields always edit the saved Keychain value; clearing one reveals the environment fallback when it exists.
 
 ## Speech-To-Text
 
@@ -22,7 +22,7 @@ ElevenLabs charges a 20% premium when keyterm prompting is used, so Vhrase surfa
 ## LLM Adjustment
 
 LLM adjustment uses `POST {adjustmentBaseURL}/chat/completions`.
-The default base URL is `https://ai-gateway.vercel.sh/v1`, and the saved LLM API key uses the `AI_GATEWAY_API_KEY` Keychain account.
+The default base URL is `https://ai-gateway.vercel.sh/v1`, and the saved LLM API key uses the `LLM_API_KEY` Keychain account.
 Screenshot context is off by default and, when explicitly enabled, captures only the main display into a disposable cache directory, sends it as base64 PNG OpenAI-compatible `image_url` content to the configured adjustment endpoint, and removes the complete capture directory immediately afterward.
 Configured keyterms are included as preferred vocabulary spellings in the prompt, and replacement rules are applied before the LLM call.
 

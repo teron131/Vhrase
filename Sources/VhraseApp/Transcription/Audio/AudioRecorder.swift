@@ -43,28 +43,23 @@ final class AudioRecorder {
         let file = try AVAudioFile(forWriting: url, settings: format.settings)
         let converter = onAudioChunk.map { _ in PCM16AudioConverter(inputFormat: format) }
         let captureState = AudioCaptureState()
+        let tapProcessor = AudioTapProcessor(
+            file: file,
+            converter: converter,
+            chunkHandler: onAudioChunk,
+            captureState: captureState
+        )
 
         do {
             input.removeTap(onBus: 0)
-            input.installTap(onBus: 0, bufferSize: 4_096, format: format) { buffer, _ in
-                guard captureState.beginCallback() else {
-                    return
+            input.installTap(
+                onBus: 0,
+                bufferSize: 4_096,
+                format: format,
+                block: Self.makeAudioTapBlock { buffer in
+                    tapProcessor.process(buffer)
                 }
-                defer {
-                    captureState.endCallback()
-                }
-                do {
-                    try file.write(from: buffer)
-                } catch {
-                    captureState.recordWriteError(error)
-                    NSLog("Vhrase audio write failed: \(error.localizedDescription)")
-                }
-                if let onAudioChunk, let converter {
-                    for chunk in converter.convert(buffer) {
-                        onAudioChunk(chunk)
-                    }
-                }
-            }
+            )
 
             audioFile = file
             outputURL = url
@@ -85,6 +80,15 @@ final class AudioRecorder {
             self.captureState = nil
             try? FileManager.default.removeItem(at: url)
             throw error
+        }
+    }
+
+    /// Creates a CoreAudio callback without inheriting the recorder's main-actor isolation.
+    nonisolated static func makeAudioTapBlock(
+        process: @escaping @Sendable (AVAudioPCMBuffer) -> Void
+    ) -> AVAudioNodeTapBlock {
+        { buffer, _ in
+            process(buffer)
         }
     }
 
@@ -245,6 +249,46 @@ private final class AudioCaptureState: @unchecked Sendable {
             condition.wait()
         }
         condition.unlock()
+    }
+}
+
+/// Owns the nonisolated work performed by CoreAudio's realtime callback queue.
+private final class AudioTapProcessor: @unchecked Sendable {
+    private let file: AVAudioFile
+    private let converter: PCM16AudioConverter?
+    private let chunkHandler: AudioChunkHandler?
+    private let captureState: AudioCaptureState
+
+    init(
+        file: AVAudioFile,
+        converter: PCM16AudioConverter?,
+        chunkHandler: AudioChunkHandler?,
+        captureState: AudioCaptureState
+    ) {
+        self.file = file
+        self.converter = converter
+        self.chunkHandler = chunkHandler
+        self.captureState = captureState
+    }
+
+    func process(_ buffer: AVAudioPCMBuffer) {
+        guard captureState.beginCallback() else {
+            return
+        }
+        defer {
+            captureState.endCallback()
+        }
+        do {
+            try file.write(from: buffer)
+        } catch {
+            captureState.recordWriteError(error)
+            NSLog("Vhrase audio write failed: \(error.localizedDescription)")
+        }
+        if let chunkHandler, let converter {
+            for chunk in converter.convert(buffer) {
+                chunkHandler(chunk)
+            }
+        }
     }
 }
 

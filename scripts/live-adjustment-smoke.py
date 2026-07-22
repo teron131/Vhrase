@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise LLM adjustment with an environment override or saved Vhrase Keychain credential."""
+"""Exercise LLM adjustment with a saved Vhrase Keychain credential or environment fallback."""
 
 from __future__ import annotations
 
@@ -34,9 +34,6 @@ def defaults_value(key: str) -> str:
 
 
 def key_value(name: str) -> str:
-    if value := os.environ.get(name):
-        return value
-
     result = subprocess.run(  # noqa: S603
         [
             SECURITY,
@@ -52,7 +49,9 @@ def key_value(name: str) -> str:
         text=True,
         check=False,
     )
-    return result.stdout.strip() if result.returncode == 0 else ""
+    if result.returncode == 0 and (value := result.stdout.strip()):
+        return value
+    return os.environ.get(name, "")
 
 
 def config_value(
@@ -206,7 +205,7 @@ def main() -> int:
     parser.add_argument("--list-models", action="store_true")
     args = parser.parse_args()
 
-    api_key = key_value("AI_GATEWAY_API_KEY")
+    api_key = key_value("LLM_API_KEY")
     if not api_key:
         raise RuntimeError("LLM API key is missing")
 

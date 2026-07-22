@@ -3,6 +3,7 @@
 import AppKit
 import AVFoundation
 import Foundation
+import IOKit.hid
 
 enum AppPermission: String, CaseIterable, Identifiable, Sendable {
     case microphone
@@ -99,6 +100,27 @@ struct PermissionSnapshot: Identifiable, Sendable {
     }
 }
 
+enum OptionalPermissionRequestStep: Equatable {
+    case requestSystemAccess
+    case openSettingsIfRequestDenied
+}
+
+struct OptionalPermissionRequestPlan {
+    static func steps(
+        isGranted: Bool,
+        requestedBefore: Bool
+    ) -> [OptionalPermissionRequestStep] {
+        guard !isGranted else {
+            return []
+        }
+        var steps: [OptionalPermissionRequestStep] = [.requestSystemAccess]
+        if requestedBefore {
+            steps.append(.openSettingsIfRequestDenied)
+        }
+        return steps
+    }
+}
+
 @MainActor
 final class PermissionManager {
     private let defaults = UserDefaults(suiteName: "local.codex.Vhrase") ?? .standard
@@ -132,11 +154,11 @@ final class PermissionManager {
                 openSettings(for: .microphone)
             }
         case .inputMonitoring:
-            requestInputMonitoringOnce()
+            requestInputMonitoring()
         case .screenRecording:
-            requestScreenRecordingOnce()
+            requestScreenRecording()
         case .accessibility:
-            requestAccessibilityOnce()
+            requestAccessibility()
         }
     }
 
@@ -147,49 +169,58 @@ final class PermissionManager {
         NSWorkspace.shared.open(url)
     }
 
-    private func requestScreenRecordingOnce() {
-        guard state(for: .screenRecording) != .granted else {
-            return
-        }
-
-        guard !defaults.bool(forKey: screenPromptKey) else {
-            openSettings(for: .screenRecording)
-            return
-        }
-
-        defaults.set(true, forKey: screenPromptKey)
-        _ = CGRequestScreenCaptureAccess()
+    private func requestScreenRecording() {
+        executeOptionalPermissionRequest(
+            .screenRecording,
+            promptKey: screenPromptKey,
+            requestSystemAccess: CGRequestScreenCaptureAccess
+        )
     }
 
-    private func requestInputMonitoringOnce() {
-        guard state(for: .inputMonitoring) != .granted else {
-            return
-        }
-
-        guard !defaults.bool(forKey: inputMonitoringPromptKey) else {
-            openSettings(for: .inputMonitoring)
-            return
-        }
-
-        defaults.set(true, forKey: inputMonitoringPromptKey)
-        _ = CGRequestListenEventAccess()
+    private func requestInputMonitoring() {
+        executeOptionalPermissionRequest(
+            .inputMonitoring,
+            promptKey: inputMonitoringPromptKey,
+            requestSystemAccess: {
+                IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+            }
+        )
     }
 
-    private func requestAccessibilityOnce() {
-        guard state(for: .accessibility) != .granted else {
-            return
+    private func requestAccessibility() {
+        executeOptionalPermissionRequest(
+            .accessibility,
+            promptKey: accessibilityPromptKey
+        ) {
+            let options = [
+                "AXTrustedCheckOptionPrompt": true,
+            ] as CFDictionary
+            return AXIsProcessTrustedWithOptions(options)
         }
+    }
 
-        guard !defaults.bool(forKey: accessibilityPromptKey) else {
-            openSettings(for: .accessibility)
-            return
+    /// Registers the current signed bundle with macOS before falling back to the matching privacy pane.
+    private func executeOptionalPermissionRequest(
+        _ permission: AppPermission,
+        promptKey: String,
+        requestSystemAccess: () -> Bool
+    ) {
+        let steps = OptionalPermissionRequestPlan.steps(
+            isGranted: state(for: permission).isReady,
+            requestedBefore: defaults.bool(forKey: promptKey)
+        )
+        var requestGranted = false
+        for step in steps {
+            switch step {
+            case .requestSystemAccess:
+                defaults.set(true, forKey: promptKey)
+                requestGranted = requestSystemAccess()
+            case .openSettingsIfRequestDenied:
+                if !requestGranted {
+                    openSettings(for: permission)
+                }
+            }
         }
-
-        defaults.set(true, forKey: accessibilityPromptKey)
-        let options = [
-            "AXTrustedCheckOptionPrompt": true,
-        ] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
     }
 
     private func requestedBefore(for permission: AppPermission) -> Bool {
@@ -219,7 +250,9 @@ final class PermissionManager {
                 return .unknown
             }
         case .inputMonitoring:
-            return CGPreflightListenEventAccess() ? .granted : .notDetermined
+            return IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
+                ? .granted
+                : .notDetermined
         case .screenRecording:
             return CGPreflightScreenCaptureAccess() ? .granted : .notDetermined
         case .accessibility:

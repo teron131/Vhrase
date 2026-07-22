@@ -19,6 +19,22 @@ struct HistoryCheck {
         let data = try JSONEncoder().encode([item])
         let decoded = try JSONDecoder().decode([TranscriptHistoryItem].self, from: data)
         precondition(decoded == [item])
+
+        let suiteName = "Vhrase.History.Check.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            preconditionFailure("Could not create isolated history defaults")
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let store = TranscriptHistoryStore(defaults: defaults)
+        precondition(store.savesHistory)
+        store.setSavingEnabled(false)
+        precondition(!store.savesHistory)
+        precondition(store.prepend(item, to: []).isEmpty)
+        store.setSavingEnabled(true)
+        precondition(store.prepend(item, to: []).first == item)
+
         print("history record ok")
     }
 }

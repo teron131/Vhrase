@@ -39,6 +39,7 @@ struct XAISTTOptionsCheck {
         verifyPCMFraming()
         verifyPCMConversion()
         await verifyRealtimeFinalStates()
+        await verifyEmptyDoneFallsBackToPartial()
 
         print("xAI STT option shape ok")
     }
@@ -209,6 +210,36 @@ struct XAISTTOptionsCheck {
             precondition(result.duration == 1.2)
         } catch {
             preconditionFailure("xAI accumulator failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Replays xAI's observed empty terminal payload after a valid speech-final partial.
+    private static func verifyEmptyDoneFallsBackToPartial() async {
+        let accumulator = RealtimeTranscriptAccumulator(
+            providerName: "xAI Realtime",
+            onPartialTranscript: nil
+        )
+        _ = await accumulator.handleXAI(XAIRealtimeEvent(
+            type: "transcript.partial",
+            text: "Realtime text must survive finalization.",
+            is_final: true,
+            speech_final: true,
+            duration: 1.0,
+            message: nil
+        ))
+        _ = await accumulator.handleXAI(XAIRealtimeEvent(
+            type: "transcript.done",
+            text: "",
+            is_final: nil,
+            speech_final: nil,
+            duration: 1.0,
+            message: nil
+        ))
+        do {
+            let result = try await accumulator.waitForDone()
+            precondition(result.text == "Realtime text must survive finalization.")
+        } catch {
+            preconditionFailure("Empty xAI terminal payload failed: \(error.localizedDescription)")
         }
     }
 

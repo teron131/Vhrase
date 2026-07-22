@@ -13,6 +13,57 @@ struct ReadinessSummaryCheck {
                 includeScreenshot: true
             ).selectedWorkflowReady
         )
+        let missingInputMonitoring = presentation(
+            keyReady: true,
+            microphoneReady: true,
+            screenReady: true,
+            includeScreenshot: false,
+            inputMonitoringReady: false,
+            hotkeyPreset: .fn,
+            accessibilityReady: false
+        )
+        precondition(!missingInputMonitoring.selectedShortcutReady)
+        precondition(missingInputMonitoring.displayStatusTitle == "Shortcut setup")
+        precondition(
+            presentation(
+                keyReady: true,
+                microphoneReady: true,
+                screenReady: true,
+                includeScreenshot: false,
+                inputMonitoringReady: false,
+                hotkeyPreset: .fn,
+                accessibilityReady: true
+            ).selectedShortcutReady
+        )
+        let missingAccessibility = presentation(
+            keyReady: true,
+            microphoneReady: true,
+            screenReady: true,
+            includeScreenshot: false,
+            accessibilityReady: false,
+            pasteAfterTranscription: true
+        )
+        precondition(missingAccessibility.needsAccessibilityForPaste)
+        precondition(missingAccessibility.pastePermissionActionTitle == "Enable Paste")
+        let requestedAccessibility = presentation(
+            keyReady: true,
+            microphoneReady: true,
+            screenReady: true,
+            includeScreenshot: false,
+            accessibilityReady: false,
+            accessibilityRequestedBefore: true,
+            pasteAfterTranscription: true
+        )
+        precondition(requestedAccessibility.pastePermissionActionTitle == "Open Accessibility")
+        let copyOnlyWorkflow = presentation(
+            keyReady: true,
+            microphoneReady: true,
+            screenReady: true,
+            includeScreenshot: false,
+            accessibilityReady: false,
+            pasteAfterTranscription: false
+        )
+        precondition(!copyOnlyWorkflow.needsAccessibilityForPaste)
         precondition(
             presentation(
                 keyReady: true,
@@ -74,12 +125,16 @@ struct ReadinessSummaryCheck {
         microphoneReady: Bool,
         screenReady: Bool,
         includeScreenshot: Bool,
+        inputMonitoringReady: Bool = true,
+        hotkeyPreset: HotkeyPreset = .controlOptionSpace,
         accessibilityReady: Bool = true,
+        accessibilityRequestedBefore: Bool = false,
         pasteAfterTranscription: Bool = true
     ) -> DictationPresentation {
         var settings = DictationSettings.defaults
         settings.includeScreenshot = includeScreenshot
         settings.pasteAfterTranscription = pasteAfterTranscription
+        settings.hotkeyPreset = hotkeyPreset
         return DictationPresentation(
             status: .idle,
             settings: settings,
@@ -91,12 +146,17 @@ struct ReadinessSummaryCheck {
                     state: microphoneReady ? .granted : .notDetermined
                 ),
                 PermissionSnapshot(
+                    permission: .inputMonitoring,
+                    state: inputMonitoringReady ? .granted : .notDetermined
+                ),
+                PermissionSnapshot(
                     permission: .screenRecording,
                     state: screenReady ? .granted : .notDetermined
                 ),
                 PermissionSnapshot(
                     permission: .accessibility,
-                    state: accessibilityReady ? .granted : .notDetermined
+                    state: accessibilityReady ? .granted : .notDetermined,
+                    requestedBefore: accessibilityRequestedBefore
                 ),
             ],
             liveTranscript: "",

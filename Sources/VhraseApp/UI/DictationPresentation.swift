@@ -1,6 +1,7 @@
 // Maps Vhrase's workflow and readiness state into consistent UI-facing copy and actions.
 
 import Foundation
+import SwiftUI
 
 /// Owns reusable display policy shared by Vhrase's compact and full-window UI surfaces.
 struct DictationPresentation {
@@ -11,6 +12,27 @@ struct DictationPresentation {
     let permissions: [PermissionSnapshot]
     let liveTranscript: String
     let recordingElapsedSeconds: Int
+    let delivery: TranscriptDelivery
+
+    init(
+        status: AppStatus,
+        settings: DictationSettings,
+        xaiAPIKey: String,
+        elevenLabsAPIKey: String,
+        permissions: [PermissionSnapshot],
+        liveTranscript: String,
+        recordingElapsedSeconds: Int,
+        delivery: TranscriptDelivery = .none
+    ) {
+        self.status = status
+        self.settings = settings
+        self.xaiAPIKey = xaiAPIKey
+        self.elevenLabsAPIKey = elevenLabsAPIKey
+        self.permissions = permissions
+        self.liveTranscript = liveTranscript
+        self.recordingElapsedSeconds = recordingElapsedSeconds
+        self.delivery = delivery
+    }
 
     var selectedProviderHasKey: Bool {
         switch settings.provider {
@@ -29,6 +51,25 @@ struct DictationPresentation {
 
     var coreRecordingReady: Bool {
         selectedProviderHasKey && permissionIsReady(.microphone)
+    }
+
+    /// Reports whether the selected shortcut can receive global key events with the current permissions.
+    var selectedShortcutReady: Bool {
+        settings.hotkeyPreset != .fn
+            || permissionIsReady(.inputMonitoring)
+            || permissionIsReady(.accessibility)
+    }
+
+    var needsAccessibilityForPaste: Bool {
+        settings.pasteAfterTranscription && !permissionIsReady(.accessibility)
+    }
+
+    var pastePermissionActionTitle: String? {
+        guard needsAccessibilityForPaste,
+              let snapshot = permissionSnapshot(.accessibility) else {
+            return nil
+        }
+        return snapshot.requestedBefore ? "Open Accessibility" : "Enable Paste"
     }
 
     var workflowControlsAreDisabled: Bool {
@@ -56,7 +97,13 @@ struct DictationPresentation {
     var statusShortTitle: String {
         switch status {
         case .idle:
-            coreRecordingReady ? "Ready" : "Needs setup"
+            if !coreRecordingReady {
+                "Needs setup"
+            } else if !selectedShortcutReady {
+                "Shortcut setup"
+            } else {
+                "Ready"
+            }
         case .preparing:
             "Starting"
         case .recording:
@@ -69,6 +116,48 @@ struct DictationPresentation {
             "Done"
         case .failed:
             "Failed"
+        }
+    }
+
+    var displayStatusTitle: String {
+        switch status {
+        case .idle:
+            if !coreRecordingReady {
+                "Needs setup"
+            } else if !selectedShortcutReady {
+                "Shortcut setup"
+            } else {
+                "Ready"
+            }
+        case .preparing:
+            "Starting"
+        case .recording:
+            "Listening"
+        case .transcribing:
+            "Transcribing"
+        case .adjusting:
+            "Cleaning up"
+        case .completed:
+            delivery.completionTitle
+        case .failed:
+            "Couldn't finish"
+        }
+    }
+
+    var statusTint: Color {
+        switch status {
+        case .recording:
+            VhraseTheme.statusRecording
+        case .completed:
+            delivery == .none ? VhraseTheme.statusWarning : VhraseTheme.statusSuccess
+        case .failed:
+            VhraseTheme.statusFailure
+        case .preparing, .transcribing, .adjusting:
+            VhraseTheme.statusProcessing
+        case .idle:
+            coreRecordingReady && selectedShortcutReady
+                ? VhraseTheme.inkSecondary
+                : VhraseTheme.statusWarning
         }
     }
 
@@ -89,6 +178,8 @@ struct DictationPresentation {
                 "key.fill"
             } else if !permissionIsReady(.microphone) {
                 "mic.slash.fill"
+            } else if !selectedShortcutReady {
+                "keyboard.badge.ellipsis"
             } else {
                 "checkmark.circle"
             }
@@ -100,7 +191,7 @@ struct DictationPresentation {
             return message
         }
         if !selectedProviderHasKey, !isRecording {
-            return "Add \(settings.provider.title) API key in Setup before recording."
+            return "Add \(settings.provider.title) API key in System before recording."
         }
         if !permissionIsReady(.microphone), status.canStartRecording {
             return "Grant Microphone access before recording."

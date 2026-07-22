@@ -51,15 +51,14 @@ bash scripts/doctor.sh
 ```
 
 The doctor reports whether `opencc` is available for unconditional final transcript `s2hk` conversion.
-It reports credential presence from a nonempty launch environment override or the macOS Keychain without printing secret values.
+It reports credential presence from macOS Keychain or an environment fallback without printing secret values.
 
 ## Credentials
 
-Vhrase saves generic-password items under the Keychain service `Vhrase`, using `XAI_API_KEY`, `ELEVENLABS_API_KEY`, and `AI_GATEWAY_API_KEY` as account names.
-A nonempty environment value takes precedence over the corresponding saved item for that process.
-`./scripts/build-and-run.sh` launches Vhrase with an explicit import argument, so nonempty supported environment values are also synchronized into Keychain before later Finder or menu-bar cold launches.
-An absent environment variable never removes or replaces an existing Keychain item, and editable fields contain only saved Keychain values when no override is active.
-Environment-backed fields are disabled for editing during that process so SwiftUI placeholder updates cannot erase the synchronized item.
+Vhrase saves generic-password items under the Keychain service `Vhrase`, using `XAI_API_KEY`, `ELEVENLABS_API_KEY`, and `LLM_API_KEY` as account names.
+A saved item takes precedence over its environment fallback.
+`./scripts/build-and-run.sh` launches Vhrase with an explicit import argument, so a nonempty supported environment value is imported when its matching Keychain item is empty.
+An absent environment variable never removes or replaces an existing Keychain item, and editable fields always contain the saved Keychain value.
 
 ## Customization Contract
 
@@ -95,7 +94,7 @@ bash scripts/live-stt-smoke.sh --provider elevenlabs --mode realtime
 ```
 
 The live smoke test creates a provider-and-mode-named WAV under `.cache/live-stt-smoke/` with macOS `say`, submits it to the selected provider, and checks that the transcript contains `custom dictation`.
-It resolves a nonempty `XAI_API_KEY` or `ELEVENLABS_API_KEY` environment override before the matching `Vhrase` Keychain item, and it may consume provider STT usage.
+It resolves the matching `Vhrase` Keychain item first, then uses a nonempty `XAI_API_KEY` or `ELEVENLABS_API_KEY` environment value only as a fallback, and it may consume provider STT usage.
 Upload smokes compile `scripts/live-stt-smoke.swift`, while realtime smokes use `uv` with the system Python, `websockets`, and `scripts/live-realtime-stt-smoke.py`.
 ElevenLabs model IDs are fixed to `scribe_v2` for upload and `scribe_v2_realtime` for realtime, matching the app rather than exposing drift-prone model flags.
 xAI realtime smoke audio is paced in exact 3,200-byte (100 ms) PCM frames and its fallback transcript commits complete utterances only on `speech_final`.
@@ -120,6 +119,6 @@ python3 scripts/live-adjustment-smoke.py --list-models
 python3 scripts/live-adjustment-smoke.py --require-screenshot
 ```
 
-The adjustment smoke test resolves a nonempty `AI_GATEWAY_API_KEY` environment override before the matching `Vhrase` Keychain item, reads nonsecret `adjustmentBaseURL` and `adjustmentModel` values from app defaults when present, captures `.cache/live-adjustment-smoke/screen.png` with macOS `screencapture`, sends the screenshot plus a sample transcript to `/chat/completions`, and checks that the adjusted text contains `OpenAI`.
+The adjustment smoke test resolves the matching `Vhrase` Keychain item before using a nonempty `LLM_API_KEY` environment fallback, reads nonsecret `adjustmentBaseURL` and `adjustmentModel` values from app defaults when present, captures `.cache/live-adjustment-smoke/screen.png` with macOS `screencapture`, sends the screenshot plus a sample transcript to `/chat/completions`, and checks that the adjusted text contains `OpenAI`.
 Unlike the app's opt-in disposable screenshot path, this explicit development smoke keeps its named screenshot artifact for inspection; pass `--no-screenshot` to avoid capture.
 The model-list check verifies that the current key can see configured language models before spending time debugging prompt or screenshot behavior.

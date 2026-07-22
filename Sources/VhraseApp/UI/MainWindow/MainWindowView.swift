@@ -1,70 +1,146 @@
-// Hosts Vhrase's native sidebar-detail control center and its window-level actions.
+// Hosts Vhrase's sidebar control center and its selection-driven recording surfaces.
 
 import SwiftUI
 
+enum MainWindowTab: String, CaseIterable, Hashable, Identifiable {
+    case dictate
+    case capture
+    case output
+    case history
+    case system
+
+    var id: String { rawValue }
+
+    init(storedRawValue: String) {
+        self = MainWindowTab(rawValue: storedRawValue) ?? .dictate
+    }
+
+    var title: String {
+        switch self {
+        case .dictate: "Dictate"
+        case .history: "History"
+        case .capture: "Capture"
+        case .output: "Output"
+        case .system: "System"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .dictate: "Record and review"
+        case .history: "Saved transcripts"
+        case .capture: "Speech and shortcut"
+        case .output: "Delivery and cleanup"
+        case .system: "Access and readiness"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .dictate: "waveform"
+        case .history: "clock.arrow.circlepath"
+        case .capture: "mic.and.signal.meter"
+        case .output: "text.badge.checkmark"
+        case .system: "wrench.and.screwdriver"
+        }
+    }
+}
+
 struct MainWindowView: View {
     @ObservedObject var appState: AppState
-    @Environment(\.openSettings) var openSettings
-    @AppStorage("mainWindow.selectedTab") var selectedTab = MainWindowTab.dictation
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("mainWindow.selectedTab") private var selectedTabRawValue = MainWindowTab.dictate.rawValue
     @State var isCapturingHotkey = false
     @State var isClearHistoryConfirmationPresented = false
+    @State var isOpenCCInstallConfirmationPresented = false
     @State var historyQuery = ""
-    @State var apiKeySaveTask: Task<Void, Never>?
-    @State var pendingAPIKeySaves: Set<SecretKey> = []
     @FocusState var focusedSecretField: String?
+    @Namespace var navigationSelection
+
+    var selectedTab: MainWindowTab {
+        get { MainWindowTab(storedRawValue: selectedTabRawValue) }
+        nonmutating set { selectedTabRawValue = newValue.rawValue }
+    }
 
     var body: some View {
         NavigationSplitView {
             sidebar
-                .navigationSplitViewColumnWidth(min: 190, ideal: 215, max: 250)
+                .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 270)
         } detail: {
             content
+                .id(selectedTab)
+                .transition(tabTransition)
                 .navigationTitle(selectedTab.title)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(VhraseTheme.canvas)
         }
-        .frame(minWidth: 860, minHeight: 640)
-        .accentColor(AppTheme.accent)
-        .toolbar {
-            if selectedTab != .dictation {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        handleRecordButton()
-                    } label: {
-                        Label(recordButtonTitle, systemImage: recordButtonSystemImage)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(recordButtonTint)
-                    .disabled(presentation.recordAction == .disabled)
-                    .help(recordButtonSubtitle)
-                    .accessibilityHint(recordButtonSubtitle)
-                }
+        .frame(minWidth: 1020, minHeight: 680)
+        .tint(VhraseTheme.accent)
+        .animation(
+            VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
+            value: selectedTab
+        )
+        .confirmationDialog(
+            "Install OpenCC?",
+            isPresented: $isOpenCCInstallConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Install with Homebrew") {
+                appState.installOpenCC()
             }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Vhrase will run “brew install opencc”. Homebrew may download OpenCC and its required packages.")
         }
         .onAppear {
+            if selectedTabRawValue != selectedTab.rawValue {
+                selectedTabRawValue = selectedTab.rawValue
+            }
             appState.refreshPermissions()
         }
-        .onChange(of: selectedTab) { _, newTab in
-            if newTab != .customize {
+        .onChange(of: selectedTab) { oldTab, newTab in
+            if newTab != .capture {
                 cancelShortcutCaptureIfNeeded()
+            }
+            if oldTab == .system {
+                appState.flushPendingAPIKeySave()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                appState.refreshPermissions()
             }
         }
         .onDisappear {
             cancelShortcutCaptureIfNeeded()
-            flushPendingAPIKeySave()
+            appState.flushPendingAPIKeySave()
         }
+    }
+
+    private var tabTransition: AnyTransition {
+        guard !reduceMotion else {
+            return .identity
+        }
+        return .asymmetric(
+            insertion: .move(edge: .trailing).combined(with: .opacity),
+            removal: .move(edge: .leading).combined(with: .opacity)
+        )
     }
 
     @ViewBuilder
     private var content: some View {
         switch selectedTab {
-        case .dictation:
+        case .dictate:
             dictationTab
-        case .customize:
-            customizeTab
-        case .setup:
-            setupTab
         case .history:
             historyTab
+        case .capture:
+            captureTab
+        case .output:
+            outputTab
+        case .system:
+            systemTab
         }
     }
 }

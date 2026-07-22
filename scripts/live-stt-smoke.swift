@@ -1,4 +1,4 @@
-// Exercises Vhrase's upload STT providers with environment overrides or saved Keychain credentials.
+// Exercises Vhrase's upload STT providers with saved Keychain credentials or environment fallbacks.
 
 import Foundation
 import Security
@@ -182,12 +182,8 @@ struct LiveSTTSmoke {
         return args.removeFirst()
     }
 
-    /// Reads a nonempty environment override before the generic-password item saved by Vhrase.
+    /// Reads the generic-password item saved by Vhrase before its environment fallback.
     private static func keyValue(for name: String) throws -> String {
-        if let value = ProcessInfo.processInfo.environment[name], !value.isEmpty {
-            return value
-        }
-
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: "Vhrase",
@@ -198,7 +194,7 @@ struct LiveSTTSmoke {
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound {
-            return ""
+            return ProcessInfo.processInfo.environment[name] ?? ""
         }
         guard status == errSecSuccess else {
             let message = (SecCopyErrorMessageString(status, nil) as String?) ?? "OSStatus \(status)"
@@ -208,7 +204,7 @@ struct LiveSTTSmoke {
               let value = String(data: data, encoding: .utf8) else {
             throw SmokeError.keychain("Keychain returned invalid credential data.")
         }
-        return value
+        return value.isEmpty ? ProcessInfo.processInfo.environment[name] ?? "" : value
     }
 
     private static func transcribe(

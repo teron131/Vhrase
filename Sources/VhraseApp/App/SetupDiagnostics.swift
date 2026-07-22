@@ -37,11 +37,22 @@ struct SetupDiagnostics {
                 systemImage: "mic.fill"
             ))
         }
-        if settings.hotkeyPreset == .fn, permissionState(for: .inputMonitoring)?.isReady != true {
+        let accessibilityIsReady = permissionState(for: .accessibility)?.isReady == true
+        let inputMonitoringIsReady = permissionState(for: .inputMonitoring)?.isReady == true
+        if settings.pasteAfterTranscription, !accessibilityIsReady {
+            diagnostics.append(diagnostic(
+                id: "accessibility-permission",
+                title: settings.hotkeyPreset == .fn ? "Shortcut and paste insertion" : "Paste insertion",
+                detail: settings.hotkeyPreset == .fn
+                    ? "Grant Accessibility once so Fn/Globe works globally and transcripts paste into other apps."
+                    : "Grant Accessibility so transcripts paste into other apps.",
+                systemImage: "cursorarrow.motionlines"
+            ))
+        } else if settings.hotkeyPreset == .fn, !inputMonitoringIsReady, !accessibilityIsReady {
             diagnostics.append(diagnostic(
                 id: "input-monitoring-permission",
                 title: "Fn/Globe shortcut",
-                detail: "Grant Input Monitoring so Fn/Globe works outside Vhrase.",
+                detail: "Grant Input Monitoring for the copy-only Fn/Globe shortcut.",
                 systemImage: "keyboard"
             ))
         }
@@ -61,16 +72,6 @@ struct SetupDiagnostics {
                 title: "Screenshot context",
                 detail: "Grant Screen Recording or turn screenshot off.",
                 systemImage: "rectangle.on.rectangle"
-            ))
-        }
-        if settings.pasteAfterTranscription,
-           permissionState(for: .accessibility)?.isReady != true {
-            diagnostics.append(SetupDiagnostic(
-                id: "accessibility-permission",
-                title: "Paste insertion",
-                detail: "Accessibility may be needed to paste into other apps.",
-                systemImage: "cursorarrow.motionlines",
-                severity: .info
             ))
         }
         if !chineseConversionIsAvailable {

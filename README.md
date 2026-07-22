@@ -16,13 +16,13 @@ macOS may request one Keychain or trust authorization during that setup; later b
 The local identity can be removed later with Keychain Access if Vhrase development is no longer needed.
 
 The first recording can trigger macOS microphone permission.
-Input Monitoring is only needed when Fn/Globe is the global shortcut.
+Input Monitoring is only needed for a copy-only Fn/Globe workflow when Accessibility is unavailable.
 Screenshot context is off by default, and Screen Recording permission is only needed when you explicitly enable it for LLM cleanup.
 Accessibility permission can be needed when paste insertion targets another app.
 These are feature-specific macOS privacy prompts and are separate from the one-time local signing setup.
 API keys entered in Vhrase are stored as generic-password items in macOS Keychain under the `Vhrase` service.
-A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `AI_GATEWAY_API_KEY` launch-environment value overrides its saved Keychain item for that process.
-The development run command securely synchronizes those nonempty overrides into Vhrase's Keychain so later Finder and menu-bar launches keep working without shell inheritance.
+A saved Keychain credential takes precedence. A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `LLM_API_KEY` launch-environment value is used only when the matching saved item is empty.
+The development run command securely imports a nonempty fallback into an empty matching Keychain item so later Finder and menu-bar launches keep working without shell inheritance.
 
 ## Source Layout
 
@@ -30,7 +30,7 @@ The development run command securely synchronizes those nonempty overrides into 
 
 - `App`: SwiftUI entrypoint and app-state orchestration.
 - `Domain`: validated settings, shortcuts, workflow status, and transcript contracts.
-- `UI`: main window, menu-bar pop-up, and settings surfaces.
+- `UI`: main window, menu-bar pop-up, and recorder HUD surfaces.
 - `Transcription/Audio`: microphone capture and PCM conversion.
 - `Transcription/Upload`: multipart upload provider adapters.
 - `Transcription/Realtime`: WebSocket sessions and ordered transcript accumulation.
@@ -53,4 +53,4 @@ bash scripts/verify.sh
 bash scripts/verify.sh --launch
 ```
 
-The run script stops stale Vhrase processes, rebuilds and signs `dist/Vhrase.app`, and launches the menu-bar app bundle instead of the raw Swift executable. Vhrase presents its main window on first launch; later launches stay out of the Dock until you explicitly open Home, History, or Settings.
+The run script stops stale Vhrase processes, rebuilds and signs `dist/Vhrase.app`, and launches the menu-bar app bundle instead of the raw Swift executable. Vhrase presents its main window on first launch; later launches stay out of the Dock until you open it from the menu bar.

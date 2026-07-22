@@ -3,12 +3,26 @@
 import Foundation
 
 final class TranscriptHistoryStore {
-    private let defaults = UserDefaults.standard
-    private let key = "transcriptHistory"
-    private let limit = 30
+    private let defaults: UserDefaults
+    private let historyKey = "transcriptHistory"
+    private let savingKey = "saveTranscriptHistory"
+    private let limit: Int
+
+    init(defaults: UserDefaults = .standard, limit: Int = 30) {
+        self.defaults = defaults
+        self.limit = limit
+    }
+
+    var savesHistory: Bool {
+        defaults.object(forKey: savingKey) == nil || defaults.bool(forKey: savingKey)
+    }
+
+    func setSavingEnabled(_ isEnabled: Bool) {
+        defaults.set(isEnabled, forKey: savingKey)
+    }
 
     func load() -> [TranscriptHistoryItem] {
-        guard let data = defaults.data(forKey: key) else {
+        guard let data = defaults.data(forKey: historyKey) else {
             return []
         }
 
@@ -21,6 +35,10 @@ final class TranscriptHistoryStore {
     }
 
     func prepend(_ item: TranscriptHistoryItem, to history: [TranscriptHistoryItem]) -> [TranscriptHistoryItem] {
+        guard savesHistory else {
+            return history
+        }
+
         let next = [item] + history.filter { $0.id != item.id }
         let trimmed = Array(next.prefix(limit))
         save(trimmed)
@@ -34,13 +52,13 @@ final class TranscriptHistoryStore {
     }
 
     func clear() {
-        defaults.removeObject(forKey: key)
+        defaults.removeObject(forKey: historyKey)
     }
 
     private func save(_ history: [TranscriptHistoryItem]) {
         do {
             let data = try JSONEncoder().encode(history)
-            defaults.set(data, forKey: key)
+            defaults.set(data, forKey: historyKey)
         } catch {
             NSLog("Vhrase history encode failed: \(error.localizedDescription)")
         }

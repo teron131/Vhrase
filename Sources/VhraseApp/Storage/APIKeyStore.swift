@@ -1,4 +1,4 @@
-// Stores Vhrase API credentials in the macOS Keychain and synchronizes explicit launch-environment overrides.
+// Stores editable Vhrase API credentials in Keychain and uses launch-environment values only to fill missing keys.
 
 import Foundation
 import Security
@@ -6,7 +6,7 @@ import Security
 enum SecretKey: String, CaseIterable {
     case xaiAPIKey = "XAI_API_KEY"
     case elevenLabsAPIKey = "ELEVENLABS_API_KEY"
-    case llmAPIKey = "AI_GATEWAY_API_KEY"
+    case llmAPIKey = "LLM_API_KEY"
 
     var title: String {
         switch self {
@@ -37,12 +37,12 @@ final class APIKeyStore {
         environment[key.rawValue] ?? ""
     }
 
-    /// Persists only nonempty supported launch overrides so later GUI launches retain their credentials.
+    /// Imports nonempty launch credentials only when the matching Keychain item is still empty.
     func importEnvironmentValues() throws -> Set<SecretKey> {
         var imported: Set<SecretKey> = []
         for key in SecretKey.allCases {
             let value = environmentValue(for: key)
-            guard !value.isEmpty else {
+            guard !value.isEmpty, try savedValue(for: key).isEmpty else {
                 continue
             }
             try save(value, for: key)
@@ -51,19 +51,13 @@ final class APIKeyStore {
         return imported
     }
 
-    /// Ignores editable-field writes while a launch override owns the effective credential.
+    /// Persists user input even when the launch environment supplies a fallback credential.
     func saveEditableValue(_ value: String, for key: SecretKey) throws {
-        guard environmentValue(for: key).isEmpty else {
-            return
-        }
         try save(value, for: key)
     }
 
-    /// Skips Keychain access when an environment override already supplies the effective credential.
+    /// Reads the editable Keychain value without substituting environment fallback text into the field.
     func savedValueForEditing(for key: SecretKey) throws -> String {
-        guard environmentValue(for: key).isEmpty else {
-            return ""
-        }
         return try savedValue(for: key)
     }
 
@@ -95,13 +89,19 @@ final class APIKeyStore {
         }
     }
 
-    /// Resolves a launch environment override before an explicitly supplied saved value.
+    /// Resolves an explicitly saved credential before its launch-environment fallback.
     func effectiveValue(
         for key: SecretKey,
         savedValue: String
     ) -> String {
-        let environmentValue = environmentValue(for: key)
-        return environmentValue.isEmpty ? savedValue : environmentValue
+        savedValue.isEmpty ? environmentValue(for: key) : savedValue
+    }
+
+    func usesEnvironmentFallback(
+        for key: SecretKey,
+        savedValue: String
+    ) -> Bool {
+        savedValue.isEmpty && !environmentValue(for: key).isEmpty
     }
 
     /// Saves or removes one credential and reports Keychain failures without including the secret value.
