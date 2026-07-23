@@ -4,7 +4,6 @@ import SwiftUI
 
 enum VhraseFont {
     static let pageTitle = Font.system(.largeTitle, design: .default, weight: .semibold)
-    static let display = Font.system(.largeTitle, design: .default, weight: .semibold)
     static let timer = Font.system(.title2, design: .rounded, weight: .semibold).monospacedDigit()
     static let title = Font.system(.title3, design: .default, weight: .semibold)
     static let statValue = Font.system(.title2, design: .rounded, weight: .semibold).monospacedDigit()

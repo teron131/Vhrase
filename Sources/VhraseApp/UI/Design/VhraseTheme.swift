@@ -16,10 +16,23 @@ enum VhraseTheme {
     static let statusWarning = adaptiveColor(light: 0xC77700, dark: 0xFFB224)
     static let statusFailure = adaptiveColor(light: 0xC62828, dark: 0xFF5147)
     static let statusProcessing = adaptiveColor(light: 0x7A5CFF, dark: 0x9D86FF)
+    static let workflowAccent = adaptiveColor(light: 0x76567F, dark: 0xB88BC4)
 
     static let heroCornerRadius: CGFloat = 16
     static let sectionCornerRadius: CGFloat = 12
     static let fieldCornerRadius: CGFloat = 9
+
+    /// Maps a setup diagnostic's severity to its semantic status color across all surfaces.
+    static func diagnosticColor(_ severity: SetupDiagnosticSeverity) -> Color {
+        switch severity {
+        case .ready:
+            statusSuccess
+        case .attention:
+            statusWarning
+        case .info:
+            .secondary
+        }
+    }
 
     private static func adaptiveColor(light: UInt32, dark: UInt32) -> Color {
         Color(

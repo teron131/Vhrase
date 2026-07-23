@@ -28,10 +28,10 @@ enum AppStatus: Equatable, Sendable {
     var title: String {
         switch self {
         case .idle: "Ready"
-        case .preparing: "Starting..."
-        case .recording: "Recording..."
-        case .transcribing: "Transcribing..."
-        case .adjusting: "Adjusting..."
+        case .preparing: "Starting…"
+        case .recording: "Recording…"
+        case .transcribing: "Transcribing…"
+        case .adjusting: "Adjusting…"
         case .completed: "Complete"
         case .failed(let message): "Failed: \(message)"
         }

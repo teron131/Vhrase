@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <title>Vhrase app icon</title>
+  <desc>A large nine-bar lavender speech waveform with a subtle glow on an aubergine background.</desc>
+  <defs>
+    <radialGradient id="background" cx="50%" cy="44%" r="72%">
+      <stop offset="0" stop-color="#211827"/>
+      <stop offset="0.58" stop-color="#151119"/>
+      <stop offset="1" stop-color="#0e0c11"/>
+    </radialGradient>
+    <linearGradient id="waveform" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e3d9ed"/>
+      <stop offset="0.5" stop-color="#c5acd3"/>
+      <stop offset="1" stop-color="#a77db8"/>
+    </linearGradient>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#background)"/>
+  <g transform="translate(512 512) scale(1.65) translate(-512 -512)">
+    <g fill="#b88bc4" opacity="0.34" filter="url(#glow)">
+      <rect x="352" y="462" width="20" height="100" rx="10"/>
+      <rect x="392" y="382" width="20" height="260" rx="10"/>
+      <rect x="432" y="437" width="20" height="150" rx="10"/>
+      <rect x="472" y="332" width="20" height="360" rx="10"/>
+      <rect x="512" y="407" width="20" height="210" rx="10"/>
+      <rect x="552" y="457" width="20" height="110" rx="10"/>
+      <rect x="592" y="357" width="20" height="310" rx="10"/>
+      <rect x="632" y="422" width="20" height="180" rx="10"/>
+      <rect x="672" y="472" width="20" height="80" rx="10"/>
+    </g>
+    <g fill="url(#waveform)">
+      <rect x="352" y="462" width="20" height="100" rx="10"/>
+      <rect x="392" y="382" width="20" height="260" rx="10"/>
+      <rect x="432" y="437" width="20" height="150" rx="10"/>
+      <rect x="472" y="332" width="20" height="360" rx="10"/>
+      <rect x="512" y="407" width="20" height="210" rx="10"/>
+      <rect x="552" y="457" width="20" height="110" rx="10"/>
+      <rect x="592" y="357" width="20" height="310" rx="10"/>
+      <rect x="632" y="422" width="20" height="180" rx="10"/>
+      <rect x="672" y="472" width="20" height="80" rx="10"/>
+    </g>
+  </g>
+</svg>

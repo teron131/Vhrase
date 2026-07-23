@@ -19,7 +19,7 @@ enum OpenCCInstallationState: Equatable {
 
 @MainActor
 final class AppState: ObservableObject {
-    private static let importEnvironmentCredentialsArgument = "--import-environment-credentials"
+    private static let developmentEnvironmentFileArgument = "--development-environment-file"
 
     @Published var status: AppStatus = .idle
     @Published var settings: DictationSettings
@@ -38,6 +38,11 @@ final class AppState: ObservableObject {
     @Published var targetAppLabel = ""
     @Published var customizationNotice = ""
     @Published var openCCInstallationState = OpenCCInstallationState.idle
+
+    /// Counts saved transcripts created today for the activity summaries across UI surfaces.
+    var transcriptsTodayCount: Int {
+        history.filter { Calendar.current.isDateInToday($0.createdAt) }.count
+    }
 
     private let settingsStore = SettingsStore()
     private let historyStore = TranscriptHistoryStore()
@@ -63,37 +68,46 @@ final class AppState: ObservableObject {
     private var pendingAPIKeySaves: Set<SecretKey> = []
 
     init() {
-        let apiKeys = APIKeyStore()
+        let developmentEnvironmentFileURL = Self.developmentEnvironmentFileURL(
+            arguments: CommandLine.arguments
+        )
+        var credentialNotices: [String] = []
+        let apiKeys: APIKeyStore
+        if let developmentEnvironmentFileURL {
+            do {
+                apiKeys = APIKeyStore(
+                    environment: try APIKeyStore.developmentEnvironment(
+                        fileURL: developmentEnvironmentFileURL
+                    )
+                )
+            } catch {
+                apiKeys = APIKeyStore()
+                credentialNotices.append(
+                    "Could not read development credentials: \(error.localizedDescription)"
+                )
+            }
+        } else {
+            apiKeys = APIKeyStore()
+        }
         self.apiKeys = apiKeys
         settings = settingsStore.load()
-        var credentialNotices: [String] = []
-        if CommandLine.arguments.contains(Self.importEnvironmentCredentialsArgument) {
-            do {
-                let importedKeys = try apiKeys.importEnvironmentValues()
-                if !importedKeys.isEmpty {
-                    credentialNotices.append("Launch credentials imported into macOS Keychain.")
-                }
-            } catch {
-                credentialNotices.append(error.localizedDescription)
-            }
-        }
-        do {
-            xaiAPIKey = try apiKeys.savedValueForEditing(for: .xaiAPIKey)
-        } catch {
+
+        if developmentEnvironmentFileURL != nil {
             xaiAPIKey = ""
-            credentialNotices.append(error.localizedDescription)
-        }
-        do {
-            elevenLabsAPIKey = try apiKeys.savedValueForEditing(for: .elevenLabsAPIKey)
-        } catch {
             elevenLabsAPIKey = ""
-            credentialNotices.append(error.localizedDescription)
-        }
-        do {
-            llmAPIKey = try apiKeys.savedValueForEditing(for: .llmAPIKey)
-        } catch {
             llmAPIKey = ""
-            credentialNotices.append(error.localizedDescription)
+        } else {
+            func loadSavedAPIKey(_ key: SecretKey) -> String {
+                do {
+                    return try apiKeys.savedValueForEditing(for: key)
+                } catch {
+                    credentialNotices.append(error.localizedDescription)
+                    return ""
+                }
+            }
+            xaiAPIKey = loadSavedAPIKey(.xaiAPIKey)
+            elevenLabsAPIKey = loadSavedAPIKey(.elevenLabsAPIKey)
+            llmAPIKey = loadSavedAPIKey(.llmAPIKey)
         }
         history = historyStore.load()
         savesTranscriptHistory = historyStore.savesHistory
@@ -102,6 +116,18 @@ final class AppState: ObservableObject {
         customizationNotice = credentialNotices.joined(separator: " ")
         refreshPermissions()
         registerHotkey()
+    }
+
+    /// Reads the development environment path paired with the launch-only argument.
+    private static func developmentEnvironmentFileURL(arguments: [String]) -> URL? {
+        guard let argumentIndex = arguments.firstIndex(of: developmentEnvironmentFileArgument) else {
+            return nil
+        }
+        let pathIndex = arguments.index(after: argumentIndex)
+        guard arguments.indices.contains(pathIndex) else {
+            return nil
+        }
+        return URL(fileURLWithPath: arguments[pathIndex])
     }
 
     var effectiveXAIAPIKey: String {
@@ -525,7 +551,7 @@ final class AppState: ObservableObject {
 
         let model = settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
         let baseURL = settings.adjustmentBaseURL
-        customizationNotice = "Checking LLM model: \(model)..."
+        customizationNotice = "Checking LLM model: \(model)…"
         Task {
             do {
                 try await LLMModelAccessClient(

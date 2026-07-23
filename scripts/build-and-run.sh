@@ -6,10 +6,11 @@ set -euo pipefail
 MODE="${1:-run}"
 APP_NAME="Vhrase"
 BUNDLE_ID="local.codex.Vhrase"
-IMPORT_CREDENTIALS_ARGUMENT="--import-environment-credentials"
+DEVELOPMENT_ENVIRONMENT_ARGUMENT="--development-environment-file"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+ENV_FILE="$ROOT_DIR/.env"
 
 stop_running_app() {
   pkill -x "$APP_NAME" >/dev/null 2>&1 || true
@@ -28,18 +29,7 @@ build_app() {
 }
 
 open_app() {
-  /usr/bin/open -n "$APP_BUNDLE" --args "$IMPORT_CREDENTIALS_ARGUMENT"
-}
-
-# Confirms every nonempty supported launch override has a Keychain item without reading secret values.
-credential_sync_complete() {
-  local key_name
-  for key_name in XAI_API_KEY ELEVENLABS_API_KEY LLM_API_KEY; do
-    if [[ -z "${!key_name:-}" ]]; then
-      continue
-    fi
-    security find-generic-password -s Vhrase -a "$key_name" >/dev/null 2>&1 || return 1
-  done
+  /usr/bin/open -n "$APP_BUNDLE" --args "$DEVELOPMENT_ENVIRONMENT_ARGUMENT" "$ENV_FILE"
 }
 
 stop_running_app
@@ -50,7 +40,7 @@ case "$MODE" in
     open_app
     ;;
   --debug|debug)
-    lldb -- "$APP_BINARY" "$IMPORT_CREDENTIALS_ARGUMENT"
+    lldb -- "$APP_BINARY" "$DEVELOPMENT_ENVIRONMENT_ARGUMENT" "$ENV_FILE"
     ;;
   --logs|logs)
     open_app
@@ -63,12 +53,12 @@ case "$MODE" in
   --verify|verify)
     open_app
     for _ in {1..20}; do
-      if pgrep -x "$APP_NAME" >/dev/null 2>&1 && credential_sync_complete; then
+      if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
         exit 0
       fi
       sleep 0.1
     done
-    echo "$APP_NAME did not start or finish its launch credential import." >&2
+    echo "$APP_NAME did not start." >&2
     exit 1
     ;;
   *)

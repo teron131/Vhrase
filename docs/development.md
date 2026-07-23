@@ -26,7 +26,7 @@ bash scripts/verify.sh
 
 The verification script runs focused Swift checks, generates and validates a nonempty mono 16 kHz Int16 PCM fixture at `.cache/audio-smoke/vhrase-smoke.wav`, compiles the live STT helpers, builds and signs the app bundle, validates its metadata, and runs the readiness doctor in strict mode.
 The generated fixture is offline proof of the audio format path; verification never submits it to a provider or consumes account usage.
-Credential readiness checks inspect environment-variable and Keychain item presence without requesting or printing secret values, so verification does not produce one password prompt per credential.
+Credential checks validate environment resolution without requesting or printing secret values.
 
 For stable macOS privacy permissions during local development, create the local codesigning identity once:
 
@@ -56,9 +56,18 @@ It reports credential presence from macOS Keychain or an environment fallback wi
 ## Credentials
 
 Vhrase saves generic-password items under the Keychain service `Vhrase`, using `XAI_API_KEY`, `ELEVENLABS_API_KEY`, and `LLM_API_KEY` as account names.
-A saved item takes precedence over its environment fallback.
-`./scripts/build-and-run.sh` launches Vhrase with an explicit import argument, so a nonempty supported environment value is imported when its matching Keychain item is empty.
-An absent environment variable never removes or replaces an existing Keychain item, and editable fields always contain the saved Keychain value.
+Normal Finder launches read those saved values, with a launch-environment value as fallback when the matching item is empty.
+`./scripts/build-and-run.sh` instead launches in development mode, which skips every Keychain read and resolves credentials from the shell first and the ignored repository `.env` file second.
+Use this non-executable `.env` format:
+
+```dotenv
+XAI_API_KEY=
+ELEVENLABS_API_KEY=
+LLM_API_KEY=
+```
+
+Development values remain in memory and are never imported into Keychain.
+Enter a value in Vhrase's System screen when it should be available to normal Finder launches.
 
 ## Customization Contract
 

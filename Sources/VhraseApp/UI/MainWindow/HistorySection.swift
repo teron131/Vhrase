@@ -30,6 +30,7 @@ extension MainWindowView {
                     } label: {
                         Label("Clear", systemImage: "trash")
                     }
+                    .buttonStyle(.link)
                     .disabled(appState.history.isEmpty)
                 }
 

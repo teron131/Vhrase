@@ -6,6 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_DIR="$ROOT/dist/Vhrase.app"
 APP_EXEC="$APP_DIR/Contents/MacOS/Vhrase"
+APP_ICON="$APP_DIR/Contents/Resources/Vhrase.icns"
 PLIST="$APP_DIR/Contents/Info.plist"
 
 usage() {
@@ -98,6 +99,12 @@ if [[ -f "$PLIST" ]] && plutil -lint "$PLIST" >/dev/null 2>&1; then
   check ok "Info.plist"
 else
   check missing "Info.plist"
+fi
+
+if [[ -s "$APP_ICON" ]]; then
+  check ok "app icon"
+else
+  check missing "app icon" "$APP_ICON"
 fi
 
 if [[ -d "$APP_DIR" ]] && codesign --verify --deep --strict "$APP_DIR" >/dev/null 2>&1; then

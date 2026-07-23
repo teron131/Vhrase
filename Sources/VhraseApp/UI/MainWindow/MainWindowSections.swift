@@ -46,6 +46,14 @@ extension MainWindowView {
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
                                 }
+
+                                if tab == .dictate, appState.isRecording {
+                                    Spacer(minLength: 4)
+                                    Circle()
+                                        .fill(VhraseTheme.statusRecording)
+                                        .frame(width: 7, height: 7)
+                                        .accessibilityHidden(true)
+                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 7)
@@ -55,11 +63,25 @@ extension MainWindowView {
                                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                                         .fill(VhraseTheme.accentSubtle)
                                         .matchedGeometryEffect(id: "navigation-selection", in: navigationSelection)
+                                } else if hoveredTab == tab {
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(Color.primary.opacity(0.05))
                                 }
                             }
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .onHover { isHovered in
+                            if isHovered {
+                                hoveredTab = tab
+                            } else if hoveredTab == tab {
+                                hoveredTab = nil
+                            }
+                        }
+                        .animation(
+                            VhraseMotion.respectingReduceMotion(VhraseMotion.settle, reduceMotion: reduceMotion),
+                            value: hoveredTab
+                        )
                         .accessibilityValue(selectedTab == tab ? "Selected" : "")
                         .accessibilityHint(tab.detail)
                     }
@@ -137,7 +159,7 @@ extension MainWindowView {
                     .revealOnAppear(delay: 0.16)
             }
             .frame(maxWidth: 1040, alignment: .topLeading)
-            .padding(36)
+            .padding(32)
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .background(alignment: .topLeading) {
@@ -160,7 +182,7 @@ extension MainWindowView {
             )
 
             Text(presentation.displayStatusTitle)
-                .font(VhraseFont.display)
+                .font(VhraseFont.pageTitle)
                 .tracking(-0.5)
                 .multilineTextAlignment(.center)
                 .contentTransition(.interpolate)
@@ -270,7 +292,7 @@ extension MainWindowView {
             HStack(spacing: 18) {
                 activityMetric(
                     "Today",
-                    value: "\(transcriptsTodayCount)",
+                    value: "\(appState.transcriptsTodayCount)",
                     detail: "completed dictations"
                 )
                 Divider()
@@ -329,16 +351,15 @@ extension MainWindowView {
                 )
                 .revealOnAppear()
 
-                HStack(alignment: .top, spacing: 20) {
-                    providerControls
-                        .frame(maxWidth: .infinity)
-                        .hoverLift()
-                        .revealOnAppear(delay: 0.06)
-                    buttonCustomizationCard
-                        .frame(maxWidth: .infinity)
-                        .hoverLift()
-                        .revealOnAppear(delay: 0.12)
+                workflowEditor(
+                    "Capture workflow",
+                    description: "Select a stage to configure it. Each setting lives in one place.",
+                    nodes: capturePipelineNodes,
+                    selection: $selectedCapturePipelineStage
+                ) {
+                    captureWorkflowStageEditor
                 }
+                .revealOnAppear(delay: 0.04)
             }
             .frame(maxWidth: 1040, alignment: .topLeading)
             .padding(32)
@@ -350,29 +371,26 @@ extension MainWindowView {
     var outputTab: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                pageHeader(
-                    "Output",
-                    description: "Decide where transcripts go and how Vhrase shapes the final wording.",
-                    systemImage: MainWindowTab.output.systemImage
-                )
+                HStack(alignment: .center, spacing: 16) {
+                    pageHeader(
+                        "Output",
+                        description: "Shape the transcript after recognition, then choose where it goes.",
+                        systemImage: MainWindowTab.output.systemImage
+                    )
+                    Spacer()
+                    customizationActions
+                }
                 .revealOnAppear()
 
-                HStack(alignment: .top, spacing: 20) {
-                    VStack(spacing: 16) {
-                        deliveryControls
-                        llmCleanupControls
-                    }
-                    .frame(width: 340)
-
-                    VStack(spacing: 16) {
-                        vocabularyControls
-                        if appState.settings.adjustWithLLM {
-                            writingInstructionsCard
-                        }
-                        customizationTransferBar
-                    }
-                    .frame(maxWidth: .infinity)
+                workflowEditor(
+                    "Output workflow",
+                    description: "Corrections run first, LLM enhancement is optional, and delivery completes the path.",
+                    nodes: outputPipelineNodes,
+                    selection: $selectedOutputPipelineStage
+                ) {
+                    outputWorkflowStageEditor
                 }
+                .revealOnAppear(delay: 0.04)
             }
             .frame(maxWidth: 1040, alignment: .topLeading)
             .padding(32)
@@ -381,9 +399,13 @@ extension MainWindowView {
         .disabled(presentation.workflowControlsAreDisabled)
     }
 
-    var providerControls: some View {
+    var transcriptionStageSettings: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Speech recognition", description: "Select the service, response mode, and spoken language.")
+            workflowStageHeader(
+                "Transcribe",
+                description: "Choose the speech service and tune how it recognizes your words.",
+                systemImage: "waveform"
+            )
 
             labeledPicker("Provider") {
                 Picker("Provider", selection: persistedBinding(\.provider)) {
@@ -405,17 +427,27 @@ extension MainWindowView {
                 .pickerStyle(.segmented)
             }
 
-            compactField("Language", text: persistedBinding(\.language))
-
             DisclosureGroup("Advanced provider settings") {
                 VStack(alignment: .leading, spacing: 12) {
                     providerSpecificControls
                 }
                 .padding(.top, 10)
             }
+
+            Divider()
+
+            editorTile(
+                "Preferred terms",
+                systemImage: "tag",
+                text: persistedBinding(\.keyterms),
+                height: 126
+            )
+
+            Text(keytermGuidance)
+                .font(.caption)
+                .foregroundStyle(appState.transcriptionConfigurationIssue == nil ? Color.secondary : Color.red)
         }
         .toggleStyle(.switch)
-        .contentSection()
     }
 
     @ViewBuilder
@@ -516,9 +548,13 @@ extension MainWindowView {
         }
     }
 
-    var deliveryControls: some View {
+    var deliveryStageSettings: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Delivery", description: "Choose what happens after a transcript is ready.")
+            workflowStageHeader(
+                "Deliver",
+                description: "Choose the destination for the finished transcript and whether to retain it.",
+                systemImage: "text.insert"
+            )
 
             settingsToggle(
                 "Paste into the active app",
@@ -538,36 +574,46 @@ extension MainWindowView {
             )
         }
         .toggleStyle(.switch)
-        .contentSection()
     }
 
-    var llmCleanupControls: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("LLM cleanup", description: "Optionally refine wording after speech recognition finishes.")
+    var enhancementStageSettings: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            workflowStageHeader(
+                "Enhance",
+                description: "Optionally send the corrected transcript through your LLM before delivery.",
+                systemImage: "wand.and.stars"
+            )
 
             settingsToggle(
-                "Clean up with an LLM",
+                "Enhance with an LLM",
                 detail: "Apply your writing instructions before delivery.",
                 isOn: persistedBinding(\.adjustWithLLM)
             )
 
-            settingsToggle(
-                "Use screen context",
-                detail: "Send a screenshot to your configured LLM endpoint to improve context.",
-                isOn: persistedBinding(\.includeScreenshot)
-            )
-                .disabled(!appState.settings.adjustWithLLM)
-
-            settingsToggle(
-                "Use local cleanup if the LLM fails",
-                detail: "Return a locally normalized transcript instead of blocking delivery.",
-                isOn: persistedBinding(\.useLocalAdjustmentFallback)
-            )
-                .disabled(!appState.settings.adjustWithLLM)
-
             if appState.settings.adjustWithLLM {
+                Divider()
+
                 compactField("Model", text: persistedBinding(\.adjustmentModel))
                 compactField("Base URL", text: persistedBinding(\.adjustmentBaseURL))
+
+                settingsToggle(
+                    "Use screen context",
+                    detail: "Send a screenshot to the configured LLM endpoint for additional context.",
+                    isOn: persistedBinding(\.includeScreenshot)
+                )
+
+                settingsToggle(
+                    "Use local cleanup if the LLM fails",
+                    detail: "Return a locally normalized transcript instead of blocking delivery.",
+                    isOn: persistedBinding(\.useLocalAdjustmentFallback)
+                )
+
+                editorTile(
+                    "Writing instructions",
+                    systemImage: "text.alignleft",
+                    text: persistedBinding(\.adjustmentPrompt),
+                    height: 150
+                )
 
                 Button {
                     appState.checkLLMModelAccess()
@@ -575,6 +621,15 @@ extension MainWindowView {
                     Label("Check model access", systemImage: "checkmark.seal")
                 }
                 .buttonStyle(.bordered)
+            } else {
+                Label(
+                    "This stage is bypassed. Corrected text goes directly to delivery.",
+                    systemImage: "arrow.right"
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if !appState.customizationNotice.isEmpty {
@@ -585,12 +640,15 @@ extension MainWindowView {
             }
         }
         .toggleStyle(.switch)
-        .contentSection()
     }
 
-    var buttonCustomizationCard: some View {
+    var triggerStageSettings: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Global shortcut", description: "Start and finish dictation without leaving the app you are writing in.")
+            workflowStageHeader(
+                "Trigger",
+                description: "Set the global shortcut that starts and finishes dictation.",
+                systemImage: "keyboard"
+            )
 
             VStack(spacing: 14) {
                 KeyCap(text: appState.settings.hotkeyDisplay, prominence: .hero)
@@ -622,8 +680,10 @@ extension MainWindowView {
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 154)
-            .padding(16)
-            .background(VhraseTheme.accentSubtle, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.vertical, 20)
+            .overlay(alignment: .bottom) {
+                Divider()
+            }
             .animation(
                 VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
                 value: isCapturingHotkey
@@ -662,51 +722,63 @@ extension MainWindowView {
                 .pickerStyle(.segmented)
             }
         }
-        .contentSection()
     }
 
-    var vocabularyControls: some View {
+    var listeningStageSettings: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sectionHeader("Vocabulary", description: "Teach speech providers your preferred spellings and exact substitutions.")
+            workflowStageHeader(
+                "Listen",
+                description: "Tell recognition which language to expect while Vhrase listens through the system input device.",
+                systemImage: "mic.fill"
+            )
 
-            HStack(alignment: .top, spacing: 16) {
-                editorTile(
-                    "Preferred terms",
-                    systemImage: "tag",
-                    text: persistedBinding(\.keyterms),
-                    height: 110
-                )
-                editorTile(
-                    "Replacements",
-                    systemImage: "arrow.left.arrow.right",
-                    text: persistedBinding(\.replacementRules),
-                    height: 110
-                )
-            }
+            compactField("Language hint", text: persistedBinding(\.language))
 
-            Text(keytermGuidance)
+            Text("Use a language code such as en, yue, or zh. Leave it blank to let the provider detect the language.")
                 .font(.caption)
-                .foregroundStyle(appState.transcriptionConfigurationIssue == nil ? Color.secondary : Color.red)
+                .foregroundStyle(.secondary)
+
+            Divider()
+
+            HStack(spacing: 12) {
+                Label("Vhrase uses the current macOS input device.", systemImage: "mic.and.signal.meter")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    selectedTab = .system
+                    appState.refreshPermissions()
+                } label: {
+                    Label("Review microphone access", systemImage: "arrow.up.right")
+                }
+                .buttonStyle(.bordered)
+            }
         }
-        .contentSection()
     }
 
-    var writingInstructionsCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Writing instructions", description: "Tell the cleanup model how the final transcript should read.")
+    var correctionStageSettings: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            workflowStageHeader(
+                "Correct",
+                description: "Apply exact substitutions before optional LLM enhancement.",
+                systemImage: "text.badge.checkmark"
+            )
 
             editorTile(
-                "Instructions",
-                systemImage: "text.alignleft",
-                text: persistedBinding(\.adjustmentPrompt),
-                height: 130
+                "Replacement rules",
+                systemImage: "arrow.left.arrow.right",
+                text: persistedBinding(\.replacementRules),
+                height: 220
             )
+
+            Text("Enter one rule per line, for example: spoken form => preferred form. Matching ignores case and accents.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        .contentSection()
     }
 
-    var customizationTransferBar: some View {
-        HStack(spacing: 10) {
+    var customizationActions: some View {
+        HStack(spacing: 8) {
             Button {
                 appState.importCustomization()
             } label: {
@@ -717,14 +789,10 @@ extension MainWindowView {
             } label: {
                 Label("Export", systemImage: "square.and.arrow.up")
             }
-            Spacer()
-            Text(appState.settings.customizationSummary)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
         }
         .buttonStyle(.bordered)
-        .padding(.horizontal, 4)
+        .controlSize(.small)
+        .help("Import or export language, vocabulary, replacements, and writing preferences")
     }
 
     var systemTab: some View {
@@ -784,10 +852,10 @@ extension MainWindowView {
         HStack(alignment: .center, spacing: 14) {
             Image(systemName: primarySetupDiagnostic.systemImage)
                 .font(.system(size: 25, weight: .semibold))
-                .foregroundStyle(diagnosticColor(primarySetupDiagnostic.severity))
+                .foregroundStyle(VhraseTheme.diagnosticColor(primarySetupDiagnostic.severity))
                 .frame(width: 48, height: 48)
                 .background(
-                    diagnosticColor(primarySetupDiagnostic.severity).opacity(0.12),
+                    VhraseTheme.diagnosticColor(primarySetupDiagnostic.severity).opacity(0.12),
                     in: Circle()
                 )
                 .accessibilityHidden(true)
@@ -917,7 +985,7 @@ extension MainWindowView {
             ForEach(appState.setupDiagnostics) { diagnostic in
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: diagnostic.systemImage)
-                        .foregroundStyle(diagnosticColor(diagnostic.severity))
+                        .foregroundStyle(VhraseTheme.diagnosticColor(diagnostic.severity))
                         .frame(width: 22)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(diagnostic.title)

@@ -252,14 +252,14 @@ struct DictationPresentation {
             return "Set Up Microphone"
         }
         if status.isProcessing {
-            return "Processing..."
+            return "Processing…"
         }
         return "Start Recording"
     }
 
     func recordButtonSubtitle(style: RecordSubtitleStyle) -> String {
         if isPreparing {
-            return "Starting microphone..."
+            return "Starting microphone…"
         }
         if !selectedProviderHasKey {
             switch style {
@@ -344,7 +344,7 @@ struct DictationPresentation {
     }
 
     private var recordingPlaceholderText: String {
-        settings.transcriptionMode == .realtime ? "Listening for realtime transcript..." : "Recording audio for upload transcription..."
+        settings.transcriptionMode == .realtime ? "Listening for realtime transcript…" : "Recording audio for upload transcription…"
     }
 
     private func relativeDateLabel(
