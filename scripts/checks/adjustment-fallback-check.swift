@@ -115,6 +115,7 @@ struct AdjustmentFallbackCheck {
         let body = try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any]
         precondition(body?["model"] as? String == "gpt-5.6-luna")
         precondition(body?["stream"] as? Bool == false)
+        precondition(body?["reasoning_effort"] as? String == "low")
     }
 
     /// Protects remote transport and URL composition policy without making a network request.

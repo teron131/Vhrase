@@ -129,6 +129,7 @@ def request_chat_adjustment(
     )
     payload = {
         "model": model,
+        "reasoning_effort": "low",
         "messages": [
             {
                 "role": "user",

@@ -66,6 +66,7 @@ final class AppState: ObservableObject {
     private var lastHotkeyPressDate: Date?
     private var apiKeySaveTask: Task<Void, Never>?
     private var pendingAPIKeySaves: Set<SecretKey> = []
+    private var shouldLoadSavedAPIKeysAfterLaunch = false
 
     init() {
         let developmentEnvironmentFileURL = Self.developmentEnvironmentFileURL(
@@ -91,24 +92,10 @@ final class AppState: ObservableObject {
         }
         self.apiKeys = apiKeys
         settings = settingsStore.load()
-
-        if developmentEnvironmentFileURL != nil {
-            xaiAPIKey = ""
-            elevenLabsAPIKey = ""
-            llmAPIKey = ""
-        } else {
-            func loadSavedAPIKey(_ key: SecretKey) -> String {
-                do {
-                    return try apiKeys.savedValueForEditing(for: key)
-                } catch {
-                    credentialNotices.append(error.localizedDescription)
-                    return ""
-                }
-            }
-            xaiAPIKey = loadSavedAPIKey(.xaiAPIKey)
-            elevenLabsAPIKey = loadSavedAPIKey(.elevenLabsAPIKey)
-            llmAPIKey = loadSavedAPIKey(.llmAPIKey)
-        }
+        xaiAPIKey = ""
+        elevenLabsAPIKey = ""
+        llmAPIKey = ""
+        shouldLoadSavedAPIKeysAfterLaunch = developmentEnvironmentFileURL == nil
         history = historyStore.load()
         savesTranscriptHistory = historyStore.savesHistory
         lastTranscript = history.first?.text ?? ""
@@ -116,6 +103,42 @@ final class AppState: ObservableObject {
         customizationNotice = credentialNotices.joined(separator: " ")
         refreshPermissions()
         registerHotkey()
+    }
+
+    /// Loads Keychain credentials after the menu-bar lifecycle is established without blocking AppKit launch.
+    func loadSavedAPIKeysAfterLaunch() {
+        guard shouldLoadSavedAPIKeysAfterLaunch else {
+            return
+        }
+        shouldLoadSavedAPIKeysAfterLaunch = false
+
+        let apiKeys = apiKeys
+        Task {
+            let loaded = await Task.detached {
+                var values: [SecretKey: String] = [:]
+                var notices: [String] = []
+
+                for key in SecretKey.allCases {
+                    do {
+                        values[key] = try apiKeys.savedValueForEditing(for: key)
+                    } catch {
+                        notices.append(error.localizedDescription)
+                    }
+                }
+                return (values: values, notices: notices)
+            }.value
+
+            xaiAPIKey = loaded.values[.xaiAPIKey, default: ""]
+            elevenLabsAPIKey = loaded.values[.elevenLabsAPIKey, default: ""]
+            llmAPIKey = loaded.values[.llmAPIKey, default: ""]
+
+            let keychainNotice = loaded.notices.joined(separator: " ")
+            if !keychainNotice.isEmpty {
+                customizationNotice = [customizationNotice, keychainNotice]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " ")
+            }
+        }
     }
 
     /// Reads the development environment path paired with the launch-only argument.

@@ -23,6 +23,7 @@ ElevenLabs charges a 20% premium when keyterm prompting is used, so Vhrase surfa
 
 LLM adjustment uses `POST {adjustmentBaseURL}/chat/completions`.
 The default base URL is `https://ai-gateway.vercel.sh/v1`, and the saved LLM API key uses the `LLM_API_KEY` Keychain account.
+Every LLM completion request fixes `reasoning_effort` to `low`, including the model-access check.
 Screenshot context is off by default and, when explicitly enabled, captures only the main display into a disposable cache directory, sends it as base64 PNG OpenAI-compatible `image_url` content to the configured adjustment endpoint, and removes the complete capture directory immediately afterward.
 Configured keyterms are included as preferred vocabulary spellings in the prompt, and replacement rules are applied before the LLM call.
 
