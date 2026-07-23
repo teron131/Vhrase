@@ -2,7 +2,7 @@
 
 Vhrase is a small native macOS menu bar app for configurable cloud speech-to-text and optional context-aware cleanup.
 
-It records microphone audio, transcribes with xAI or ElevenLabs, can stream in realtime, stores a local transcript history, and can use an OpenAI-compatible model to clean up the transcript before safe copy or target-app paste.
+It records microphone audio, transcribes with xAI or ElevenLabs, can stream in realtime, stores a local transcript history, and can use an OpenAI-compatible model to clean up the transcript before returning it to the originating app.
 
 ## Quick Start
 
@@ -16,9 +16,9 @@ macOS may request one Keychain or trust authorization during that setup; later b
 The local identity can be removed later with Keychain Access if Vhrase development is no longer needed.
 
 The first recording can trigger macOS microphone permission.
-Input Monitoring is only needed for a copy-only Fn/Globe workflow when Accessibility is unavailable.
+Accessibility returns finalized text to the originating app and also enables the global Fn/Globe shortcut.
+Input Monitoring is only an optional fallback when Fn/Globe does not respond reliably.
 Screenshot context is off by default, and Screen Recording permission is only needed when you explicitly enable it for LLM cleanup.
-Accessibility permission can be needed when paste insertion targets another app.
 These are feature-specific macOS privacy prompts and are separate from the one-time local signing setup.
 API keys entered in Vhrase are stored as generic-password items in macOS Keychain under the `Vhrase` service.
 A saved Keychain credential takes precedence. A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `LLM_API_KEY` launch-environment value is used only when the matching saved item is empty.

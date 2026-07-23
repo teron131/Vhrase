@@ -180,10 +180,18 @@ esac
 
 INPUT_STATUS="$(permission_status kTCCServiceListenEvent)"
 ACCESSIBILITY_STATUS="$(permission_status kTCCServiceAccessibility)"
+if [[ "$ACCESSIBILITY_STATUS" == "2" ]]; then
+  check ok "text insertion access" "granted by Accessibility"
+elif [[ "$ACCESSIBILITY_STATUS" =~ ^[0134]$ ]]; then
+  check warn "text insertion access" "grant Accessibility so transcripts return to the originating app"
+else
+  check warn "text insertion access" "unknown to the shell; confirm Accessibility in Vhrase"
+fi
+
 if [[ "$INPUT_STATUS" == "2" || "$ACCESSIBILITY_STATUS" == "2" ]]; then
   check ok "Fn/Globe event access" "granted by Accessibility or Input Monitoring"
 elif [[ "$INPUT_STATUS" =~ ^[0134]$ || "$ACCESSIBILITY_STATUS" =~ ^[0134]$ ]]; then
-  check warn "Fn/Globe event access" "grant Accessibility for paste, or Input Monitoring for copy-only use"
+  check warn "Fn/Globe event access" "grant Accessibility, or Input Monitoring if the shortcut still does not respond"
 else
   check warn "Fn/Globe event access" "unknown to the shell; confirm Accessibility or Input Monitoring in Vhrase"
 fi

@@ -94,8 +94,8 @@ struct MenuPopoverView: View {
                 appState.lastDelivery.completionDetail,
                 systemImage: appState.lastDelivery.completionSystemImage,
                 color: statusColor,
-                actionTitle: completedPastePermissionActionTitle,
-                action: handlePastePermissionAction
+                actionTitle: completedInsertionPermissionActionTitle,
+                action: handleInsertionPermissionAction
             )
         } else if let message = presentation.statusMessage {
             NoticeCard(
@@ -388,15 +388,15 @@ struct MenuPopoverView: View {
             )
     }
 
-    private var completedPastePermissionActionTitle: String? {
+    private var completedInsertionPermissionActionTitle: String? {
         guard appState.status == .completed,
               appState.lastDelivery == .copied else {
             return nil
         }
-        return presentation.pastePermissionActionTitle
+        return presentation.insertionPermissionActionTitle
     }
 
-    private func handlePastePermissionAction() {
+    private func handleInsertionPermissionAction() {
         guard let snapshot = presentation.permissionSnapshot(.accessibility) else {
             return
         }

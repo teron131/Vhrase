@@ -269,8 +269,8 @@ extension MainWindowView {
                     appState.lastAdjustmentWarning,
                     systemImage: "exclamationmark.triangle",
                     color: VhraseTheme.statusWarning,
-                    actionTitle: presentation.pastePermissionActionTitle,
-                    action: handlePastePermissionAction
+                    actionTitle: presentation.insertionPermissionActionTitle,
+                    action: handleInsertionPermissionAction
                 )
             }
         }
@@ -374,7 +374,7 @@ extension MainWindowView {
                 HStack(alignment: .center, spacing: 16) {
                     pageHeader(
                         "Output",
-                        description: "Shape the transcript after recognition, then choose where it goes.",
+                        description: "Shape the transcript after recognition, then choose what to retain.",
                         systemImage: MainWindowTab.output.systemImage
                     )
                     Spacer()
@@ -552,14 +552,14 @@ extension MainWindowView {
         VStack(alignment: .leading, spacing: 14) {
             workflowStageHeader(
                 "Deliver",
-                description: "Choose the destination for the finished transcript and whether to retain it.",
+                description: "Control clipboard and history retention after the transcript returns to your app.",
                 systemImage: "text.insert"
             )
 
             settingsToggle(
-                "Paste into the active app",
-                detail: "Insert the final text where you were typing. If access is unavailable, Vhrase copies it instead.",
-                isOn: persistedBinding(\.pasteAfterTranscription)
+                "Keep a copy on the clipboard",
+                detail: "Vhrase always returns text to the app where you started dictating. Keep the same text ready to paste elsewhere.",
+                isOn: persistedBinding(\.keepTranscriptOnClipboard)
             )
 
             Divider()

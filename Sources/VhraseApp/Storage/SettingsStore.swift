@@ -28,7 +28,10 @@ final class SettingsStore {
             xaiSmartTurnEnabled: bool("xaiSmartTurnEnabled", fallback.xaiSmartTurnEnabled),
             xaiSmartTurnThreshold: boundedDouble("xaiSmartTurnThreshold", fallback.xaiSmartTurnThreshold, range: 0...1),
             xaiSmartTurnTimeout: boundedInt("xaiSmartTurnTimeout", fallback.xaiSmartTurnTimeout, range: 1...5_000),
-            pasteAfterTranscription: bool("pasteAfterTranscription", fallback.pasteAfterTranscription),
+            keepTranscriptOnClipboard: bool(
+                "keepTranscriptOnClipboard",
+                fallback.keepTranscriptOnClipboard
+            ),
             adjustWithLLM: bool("adjustWithLLM", fallback.adjustWithLLM),
             useLocalAdjustmentFallback: bool("useLocalAdjustmentFallback", fallback.useLocalAdjustmentFallback),
             adjustmentBaseURL: nonEmptyString("adjustmentBaseURL", fallback.adjustmentBaseURL),
@@ -62,7 +65,7 @@ final class SettingsStore {
         defaults.set(settings.xaiSmartTurnEnabled, forKey: "xaiSmartTurnEnabled")
         defaults.set(settings.xaiSmartTurnThreshold, forKey: "xaiSmartTurnThreshold")
         defaults.set(settings.xaiSmartTurnTimeout, forKey: "xaiSmartTurnTimeout")
-        defaults.set(settings.pasteAfterTranscription, forKey: "pasteAfterTranscription")
+        defaults.set(settings.keepTranscriptOnClipboard, forKey: "keepTranscriptOnClipboard")
         defaults.set(settings.adjustWithLLM, forKey: "adjustWithLLM")
         defaults.set(settings.useLocalAdjustmentFallback, forKey: "useLocalAdjustmentFallback")
         defaults.set(settings.adjustmentBaseURL, forKey: "adjustmentBaseURL")

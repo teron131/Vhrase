@@ -754,7 +754,7 @@ final class AppState: ObservableObject {
             try await finalizeTranscript(
                 result,
                 adjustment: .localDemo,
-                configuration: configuration.withPasteDisabled()
+                configuration: configuration.withCopyOnlyDelivery()
             )
         } catch {
             clearRecordingContext()
@@ -987,38 +987,46 @@ final class AppState: ObservableObject {
             cleanup: finalized.cleanup
         )
         var warnings = [finalized.warning].filter { !$0.isEmpty }
-        let copied: Bool
-        do {
-            try inserter.copy(finalized.text)
-            copied = true
-        } catch {
-            copied = false
-            warnings.append(error.localizedDescription)
-        }
-        var didPaste = false
-        if configuration.settings.pasteAfterTranscription, copied {
+        var delivery: TranscriptDelivery?
+        var copyFallbackReason: String?
+
+        switch configuration.deliveryPlan {
+        case .copyOnly:
+            break
+        case .insert(let keepOnClipboard):
             refreshPermissions()
             if permissionState(for: .accessibility)?.isReady != true {
-                warnings.append("Copied the transcript because Accessibility permission is unavailable.")
+                copyFallbackReason = "Copied the transcript because Accessibility permission is unavailable."
             } else if let targetApp,
                await appContext.activate(targetApp) {
                 do {
-                    try inserter.paste()
-                    didPaste = true
+                    let clipboardRetained = try await inserter.paste(
+                        finalized.text,
+                        keepOnClipboard: keepOnClipboard
+                    )
+                    delivery = .pasteCommandSent(
+                        clipboardRetained: clipboardRetained
+                    )
                 } catch {
-                    warnings.append(error.localizedDescription)
+                    copyFallbackReason = error.localizedDescription
                 }
             } else {
-                warnings.append("Copied the transcript because the target app was unavailable.")
+                copyFallbackReason = "Copied the transcript because the target app was unavailable."
             }
         }
-        if didPaste {
-            lastDelivery = .pasteCommandSent
-        } else if copied {
-            lastDelivery = .copied
-        } else {
-            lastDelivery = .none
+
+        if delivery == nil {
+            if let copyFallbackReason {
+                warnings.append(copyFallbackReason)
+            }
+            do {
+                try inserter.copy(finalized.text)
+                delivery = .copied
+            } catch {
+                warnings.append(error.localizedDescription)
+            }
         }
+        lastDelivery = delivery ?? .none
         lastAdjustmentWarning = warnings.joined(separator: " ")
         clearRecordingContext()
         status = .completed
@@ -1065,13 +1073,32 @@ final class AppState: ObservableObject {
 }
 
 private struct RecordingConfiguration {
-    var settings: DictationSettings
+    let settings: DictationSettings
     let providerAPIKey: String
     let llmAPIKey: String
+    private(set) var deliveryPlan: DeliveryPlan
 
-    func withPasteDisabled() -> RecordingConfiguration {
+    init(
+        settings: DictationSettings,
+        providerAPIKey: String,
+        llmAPIKey: String
+    ) {
+        self.settings = settings
+        self.providerAPIKey = providerAPIKey
+        self.llmAPIKey = llmAPIKey
+        deliveryPlan = .insert(
+            keepOnClipboard: settings.keepTranscriptOnClipboard
+        )
+    }
+
+    func withCopyOnlyDelivery() -> RecordingConfiguration {
         var copy = self
-        copy.settings.pasteAfterTranscription = false
+        copy.deliveryPlan = .copyOnly
         return copy
     }
+}
+
+private enum DeliveryPlan {
+    case insert(keepOnClipboard: Bool)
+    case copyOnly
 }

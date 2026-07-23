@@ -67,7 +67,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
     var xaiSmartTurnEnabled: Bool
     var xaiSmartTurnThreshold: Double
     var xaiSmartTurnTimeout: Int
-    var pasteAfterTranscription: Bool
+    var keepTranscriptOnClipboard: Bool
     var adjustWithLLM: Bool
     var useLocalAdjustmentFallback: Bool
     var adjustmentBaseURL: String
@@ -99,7 +99,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
         xaiSmartTurnEnabled: false,
         xaiSmartTurnThreshold: 0.5,
         xaiSmartTurnTimeout: 1500,
-        pasteAfterTranscription: true,
+        keepTranscriptOnClipboard: false,
         adjustWithLLM: true,
         useLocalAdjustmentFallback: true,
         adjustmentBaseURL: "https://ai-gateway.vercel.sh/v1",
@@ -172,15 +172,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
 }
 
 struct CustomizationSnapshot: Codable, Equatable, Sendable {
-    static let currentVersion = 2
-
-    let version: Int
     let settings: DictationSettings
-
-    init(version: Int = Self.currentVersion, settings: DictationSettings) {
-        self.version = version
-        self.settings = settings
-    }
 }
 
 private struct ConfigurationValidationError: LocalizedError {

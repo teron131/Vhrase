@@ -32,7 +32,7 @@ struct CustomizationTransfer {
         return true
     }
 
-    /// Reads and validates a bounded snapshot before requiring review of expanded remote or system behavior.
+    /// Reads and validates a bounded snapshot before reviewing expanded data retention or system behavior.
     func importSettings(replacing current: DictationSettings) throws -> ImportOutcome {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
@@ -71,14 +71,8 @@ struct CustomizationTransfer {
         return data
     }
 
-    /// Rejects stale or unsafe customization contracts before they can change persisted app behavior.
+    /// Rejects unsafe customization values before they can change persisted app behavior.
     private func validate(_ snapshot: CustomizationSnapshot) throws {
-        guard snapshot.version == CustomizationSnapshot.currentVersion else {
-            throw CustomizationImportError.unsupportedVersion(
-                found: snapshot.version,
-                expected: CustomizationSnapshot.currentVersion
-            )
-        }
         try TranscriptionContract.validate(settings: snapshot.settings)
         _ = try LLMEndpoint.validatedBaseURL(snapshot.settings.adjustmentBaseURL)
     }
@@ -102,7 +96,7 @@ struct CustomizationTransfer {
         return alert.runModal() == .alertFirstButtonReturn
     }
 
-    /// Describes only imported changes that can send more data or control another application.
+    /// Describes imported changes that expand remote sharing, clipboard retention, or system control.
     private func sensitiveChanges(
         from current: DictationSettings,
         to imported: DictationSettings
@@ -122,8 +116,8 @@ struct CustomizationTransfer {
         if !current.includeScreenshot, imported.includeScreenshot {
             changes.append("Include a main-display screenshot in LLM cleanup requests.")
         }
-        if !current.pasteAfterTranscription, imported.pasteAfterTranscription {
-            changes.append("Paste finalized text into the recorded target application.")
+        if !current.keepTranscriptOnClipboard, imported.keepTranscriptOnClipboard {
+            changes.append("Keep finalized text on the clipboard after insertion.")
         }
         if current.hotkeyPreset != imported.hotkeyPreset || current.customHotkey != imported.customHotkey {
             changes.append("Change the global shortcut to \(imported.hotkeyDisplay).")
@@ -135,7 +129,6 @@ struct CustomizationTransfer {
 private enum CustomizationImportError: LocalizedError {
     case notRegularFile
     case fileTooLarge(maximumBytes: Int)
-    case unsupportedVersion(found: Int, expected: Int)
 
     var errorDescription: String? {
         switch self {
@@ -143,8 +136,6 @@ private enum CustomizationImportError: LocalizedError {
             "Customization import requires a regular JSON file."
         case .fileTooLarge(let maximumBytes):
             "Customization file exceeds the \(maximumBytes / 1_048_576) MiB limit."
-        case .unsupportedVersion(let found, let expected):
-            "Customization version \(found) is unsupported. Export a version \(expected) file from this Vhrase release."
         }
     }
 }
