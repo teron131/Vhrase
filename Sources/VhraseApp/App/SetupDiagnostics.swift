@@ -38,22 +38,14 @@ struct SetupDiagnostics {
             ))
         }
         let accessibilityIsReady = permissionState(for: .accessibility)?.isReady == true
-        let inputMonitoringIsReady = permissionState(for: .inputMonitoring)?.isReady == true
-        if settings.pasteAfterTranscription, !accessibilityIsReady {
+        if !accessibilityIsReady {
             diagnostics.append(diagnostic(
                 id: "accessibility-permission",
-                title: settings.hotkeyPreset == .fn ? "Shortcut and paste insertion" : "Paste insertion",
+                title: settings.hotkeyPreset == .fn ? "Shortcut and text insertion" : "Text insertion",
                 detail: settings.hotkeyPreset == .fn
-                    ? "Grant Accessibility once so Fn/Globe works globally and transcripts paste into other apps."
-                    : "Grant Accessibility so transcripts paste into other apps.",
+                    ? "Grant Accessibility once so Fn/Globe works globally and transcripts return to the original app."
+                    : "Grant Accessibility so transcripts return to the original app.",
                 systemImage: "cursorarrow.motionlines"
-            ))
-        } else if settings.hotkeyPreset == .fn, !inputMonitoringIsReady, !accessibilityIsReady {
-            diagnostics.append(diagnostic(
-                id: "input-monitoring-permission",
-                title: "Fn/Globe shortcut",
-                detail: "Grant Input Monitoring for the copy-only Fn/Globe shortcut.",
-                systemImage: "keyboard"
             ))
         }
         if settings.adjustWithLLM, llmAPIKey.isEmpty {

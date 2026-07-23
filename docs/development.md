@@ -71,9 +71,9 @@ Enter a value in Vhrase's System screen when it should be available to normal Fi
 
 ## Customization Contract
 
-Customization exports use the current version 2 JSON contract and intentionally exclude API keys.
-Import accepts only regular files up to 1 MiB, rejects every version except the current one, and validates local settings, provider keyterms, and the LLM endpoint before mutating persisted state.
-Endpoint or shortcut changes and newly enabled LLM cleanup, screenshot context, or automatic paste require an explicit warning confirmation that lists the sensitive changes.
+Customization exports use a JSON settings snapshot and intentionally exclude API keys.
+Import accepts only regular files up to 1 MiB and validates local settings, provider keyterms, and the LLM endpoint before mutating persisted state.
+Endpoint or shortcut changes and newly enabled LLM cleanup, screenshot context, or clipboard retention require an explicit warning confirmation that lists the sensitive changes.
 
 ## Bundle
 

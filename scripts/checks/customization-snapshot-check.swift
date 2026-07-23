@@ -12,17 +12,20 @@ struct CustomizationSnapshotCheck {
         settings.keyterms = "OpenAI\nxAI"
         settings.replacementRules = "open AI => OpenAI"
         settings.adjustmentPrompt = "Keep identifiers intact."
+        settings.keepTranscriptOnClipboard = true
 
         let snapshot = CustomizationSnapshot(settings: settings)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(snapshot)
         let json = String(decoding: data, as: UTF8.self)
-        precondition(json.contains("\"version\" : \(CustomizationSnapshot.currentVersion)"))
+        precondition(!json.contains("\"version\""))
         precondition(!json.localizedCaseInsensitiveContains("apiKey"))
         precondition(!json.localizedCaseInsensitiveContains("XAI_API_KEY"))
         precondition(!json.localizedCaseInsensitiveContains("ELEVENLABS_API_KEY"))
         precondition(!json.localizedCaseInsensitiveContains("LLM_API_KEY"))
+        precondition(json.contains("\"keepTranscriptOnClipboard\" : true"))
+        precondition(!json.contains("pasteAfterTranscription"))
 
         let decoded = try JSONDecoder().decode(CustomizationSnapshot.self, from: data)
         precondition(decoded == snapshot)
@@ -40,6 +43,7 @@ struct CustomizationSnapshotCheck {
         let store = SettingsStore(defaults: defaults)
         store.save(settings)
         precondition(store.load().language.isEmpty)
+        precondition(store.load().keepTranscriptOnClipboard)
         defaults.removePersistentDomain(forName: suiteName)
         print("customization snapshot ok")
     }

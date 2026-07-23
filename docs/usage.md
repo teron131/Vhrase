@@ -18,14 +18,14 @@ Use the bundle for normal operation so macOS associates privacy permissions with
 
 1. Open **System** in the sidebar.
 2. Add xAI and/or ElevenLabs credentials in System for normal Finder launches, or add them to the ignored `.env` file for prompt-free development builds.
-3. Request Microphone access, which is the only permission required to record.
-4. Grant Accessibility when automatic paste is enabled; it also enables the global Fn/Globe shortcut, so a second keyboard permission is unnecessary.
-5. Grant Input Monitoring only for a copy-only Fn/Globe workflow, and Screen Recording only when screenshot context is enabled.
+3. Request Microphone access.
+4. Grant Accessibility so Vhrase can return finalized text to the originating app; it also enables the global Fn/Globe shortcut.
+5. Grant Input Monitoring only if Fn/Globe does not respond reliably, and Screen Recording only when screenshot context is enabled.
 
 The System screen reports saved or environment-backed credentials separately and routes unavailable permissions to the matching macOS privacy pane.
 Normal launches prefer saved Keychain values, while the development runner skips Keychain and resolves shell or `.env` values in memory without printing them.
 Credential fields remain editable; editing one explicitly saves that value to Keychain.
-Microphone, Input Monitoring, Screen Recording, and Accessibility can each produce one native prompt when their feature is first enabled. Vhrase requests either Accessibility or Input Monitoring for Fn/Globe, never both for the same workflow, and does not request optional permissions preemptively.
+Microphone, Input Monitoring, Screen Recording, and Accessibility can each produce one native prompt when their feature is first enabled. Accessibility covers insertion and normally covers Fn/Globe; Vhrase does not request optional permissions preemptively.
 
 ## Dictate
 
@@ -34,9 +34,9 @@ ElevenLabs uses `scribe_v2` for Upload and `scribe_v2_realtime` for Realtime; th
 Start from the menu, **Dictate**, or the configured global shortcut.
 Toggle mode presses once to start and once to stop; Hold mode records while the shortcut is held and processes when it is released.
 
-Vhrase remembers the external app that was active when recording began.
-After transcription, it always copies the result and pastes only after Accessibility is available and the recorded target app has been restored and confirmed.
-If that target is unavailable, the transcript stays on the clipboard and Vhrase reports why it did not paste.
+Vhrase remembers the external app that was active when recording began and returns the finalized transcript after restoring and confirming that target.
+The Output setting controls whether the transcript remains on the clipboard after insertion. When it is off, Vhrase restores the previous clipboard contents after sending the paste command.
+If Accessibility or the target app is unavailable, the transcript stays on the clipboard as a safety fallback and Vhrase reports why it did not insert.
 
 ## Surfaces
 
@@ -63,8 +63,8 @@ ElevenLabs keyterm prompting carries a 20% usage premium, which **Capture** call
 
 Use **Check model access** in **Output** to send a minimal request through the configured model without running a transcription.
 Import and Export move customization settings between machines without including API keys.
-Imports accept only regular current-version JSON files up to 1 MiB and validate local settings, provider keyterm limits, and the LLM endpoint before changing anything.
-Before persisting an import, Vhrase shows the exact sensitive changes for review when the file changes the LLM endpoint or global shortcut, enables LLM cleanup or screenshot context, or enables automatic paste.
+Imports accept only regular JSON files up to 1 MiB and validate local settings, provider keyterm limits, and the LLM endpoint before changing anything.
+Before persisting an import, Vhrase shows the exact sensitive changes for review when the file changes the LLM endpoint or global shortcut, enables LLM cleanup or screenshot context, or retains finalized text on the clipboard.
 
 ## Local Demo And Audio Smoke
 

@@ -40,30 +40,19 @@ struct ReadinessSummaryCheck {
             microphoneReady: true,
             screenReady: true,
             includeScreenshot: false,
-            accessibilityReady: false,
-            pasteAfterTranscription: true
+            accessibilityReady: false
         )
-        precondition(missingAccessibility.needsAccessibilityForPaste)
-        precondition(missingAccessibility.pastePermissionActionTitle == "Enable Paste")
+        precondition(missingAccessibility.needsAccessibilityForInsertion)
+        precondition(missingAccessibility.insertionPermissionActionTitle == "Enable Insertion")
         let requestedAccessibility = presentation(
             keyReady: true,
             microphoneReady: true,
             screenReady: true,
             includeScreenshot: false,
             accessibilityReady: false,
-            accessibilityRequestedBefore: true,
-            pasteAfterTranscription: true
+            accessibilityRequestedBefore: true
         )
-        precondition(requestedAccessibility.pastePermissionActionTitle == "Open Accessibility")
-        let copyOnlyWorkflow = presentation(
-            keyReady: true,
-            microphoneReady: true,
-            screenReady: true,
-            includeScreenshot: false,
-            accessibilityReady: false,
-            pasteAfterTranscription: false
-        )
-        precondition(!copyOnlyWorkflow.needsAccessibilityForPaste)
+        precondition(requestedAccessibility.insertionPermissionActionTitle == "Open Accessibility")
         precondition(
             presentation(
                 keyReady: true,
@@ -102,18 +91,16 @@ struct ReadinessSummaryCheck {
                 microphoneReady: true,
                 screenReady: true,
                 includeScreenshot: false,
-                accessibilityReady: false,
-                pasteAfterTranscription: true
+                accessibilityReady: false
             ).readinessTitle == "Needs attention"
         )
         precondition(
-            presentation(
+            !presentation(
                 keyReady: true,
                 microphoneReady: true,
                 screenReady: true,
                 includeScreenshot: false,
-                accessibilityReady: false,
-                pasteAfterTranscription: false
+                accessibilityReady: false
             ).selectedWorkflowReady
         )
 
@@ -128,12 +115,10 @@ struct ReadinessSummaryCheck {
         inputMonitoringReady: Bool = true,
         hotkeyPreset: HotkeyPreset = .controlOptionSpace,
         accessibilityReady: Bool = true,
-        accessibilityRequestedBefore: Bool = false,
-        pasteAfterTranscription: Bool = true
+        accessibilityRequestedBefore: Bool = false
     ) -> DictationPresentation {
         var settings = DictationSettings.defaults
         settings.includeScreenshot = includeScreenshot
-        settings.pasteAfterTranscription = pasteAfterTranscription
         settings.hotkeyPreset = hotkeyPreset
         return DictationPresentation(
             status: .idle,

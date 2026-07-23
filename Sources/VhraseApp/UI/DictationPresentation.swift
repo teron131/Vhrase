@@ -46,7 +46,7 @@ struct DictationPresentation {
     var selectedWorkflowReady: Bool {
         coreRecordingReady
             && (!settings.adjustWithLLM || !settings.includeScreenshot || permissionIsReady(.screenRecording))
-            && (!settings.pasteAfterTranscription || permissionIsReady(.accessibility))
+            && permissionIsReady(.accessibility)
     }
 
     var coreRecordingReady: Bool {
@@ -60,16 +60,16 @@ struct DictationPresentation {
             || permissionIsReady(.accessibility)
     }
 
-    var needsAccessibilityForPaste: Bool {
-        settings.pasteAfterTranscription && !permissionIsReady(.accessibility)
+    var needsAccessibilityForInsertion: Bool {
+        !permissionIsReady(.accessibility)
     }
 
-    var pastePermissionActionTitle: String? {
-        guard needsAccessibilityForPaste,
+    var insertionPermissionActionTitle: String? {
+        guard needsAccessibilityForInsertion,
               let snapshot = permissionSnapshot(.accessibility) else {
             return nil
         }
-        return snapshot.requestedBefore ? "Open Accessibility" : "Enable Paste"
+        return snapshot.requestedBefore ? "Open Accessibility" : "Enable Insertion"
     }
 
     var workflowControlsAreDisabled: Bool {
@@ -383,8 +383,10 @@ extension TranscriptDelivery {
 
     var completionDetail: String {
         switch self {
-        case .pasteCommandSent:
-            "The transcript was copied and the paste command was sent."
+        case .pasteCommandSent(let clipboardRetained):
+            clipboardRetained
+                ? "The paste command was sent, and the transcript remains on the clipboard."
+                : "The paste command was sent without keeping the transcript on the clipboard."
         case .copied:
             "The transcript was copied to the clipboard."
         case .none:

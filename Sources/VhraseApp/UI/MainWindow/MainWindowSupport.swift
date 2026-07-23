@@ -128,6 +128,13 @@ extension MainWindowView {
         if appState.settings.useLocalAdjustmentFallback {
             enhancementDetails.append("Local fallback")
         }
+        var deliveryDetails: [String] = []
+        if appState.settings.keepTranscriptOnClipboard {
+            deliveryDetails.append("Kept on clipboard")
+        }
+        if appState.savesTranscriptHistory {
+            deliveryDetails.append("Saved to history")
+        }
 
         let replacementCount = appState.settings.replacements.count
         return [
@@ -156,10 +163,12 @@ extension MainWindowView {
             ),
             PipelineFlowNode(
                 id: .deliver,
-                systemImage: appState.settings.pasteAfterTranscription ? "text.insert" : "doc.on.clipboard",
+                systemImage: "text.insert",
                 title: "Deliver",
-                detail: appState.settings.pasteAfterTranscription ? "Paste into active app" : "Copy to clipboard",
-                badge: appState.savesTranscriptHistory ? "Saved to history" : nil
+                detail: "Return to active app",
+                badge: deliveryDetails.isEmpty
+                    ? nil
+                    : deliveryDetails.joined(separator: " · ")
             ),
         ]
     }
@@ -356,8 +365,6 @@ extension MainWindowView {
         return switch primarySetupDiagnostic.id {
         case "ready", "opencc-s2hk":
             "Ready to dictate"
-        case "input-monitoring-permission":
-            "Enable Fn/Globe"
         case "screen-permission", "accessibility-permission":
             "Recording is ready"
         default:
@@ -373,12 +380,10 @@ extension MainWindowView {
                 true
             case .inputMonitoring:
                 appState.settings.hotkeyPreset == .fn
-                    && !appState.settings.pasteAfterTranscription
-                    && !presentation.permissionIsReady(.accessibility)
             case .screenRecording:
                 appState.settings.adjustWithLLM && appState.settings.includeScreenshot
             case .accessibility:
-                appState.settings.pasteAfterTranscription
+                true
             }
         }
     }
@@ -399,8 +404,8 @@ extension MainWindowView {
             : VhraseTheme.statusWarning
     }
 
-    /// Requests or opens the macOS permission required to paste finalized transcripts into other apps.
-    func handlePastePermissionAction() {
+    /// Requests or opens the macOS permission required to insert finalized transcripts into other apps.
+    func handleInsertionPermissionAction() {
         guard let snapshot = presentation.permissionSnapshot(.accessibility) else {
             return
         }
@@ -415,7 +420,7 @@ extension MainWindowView {
         return switch primarySetupDiagnostic.id {
         case "ready":
             "The selected provider and required permissions are ready."
-        case "opencc-s2hk", "input-monitoring-permission", "screen-permission", "accessibility-permission":
+        case "opencc-s2hk", "screen-permission", "accessibility-permission":
             "Core recording works. \(primarySetupDiagnostic.detail)"
         default:
             primarySetupDiagnostic.detail
@@ -430,19 +435,15 @@ extension MainWindowView {
             "Add Key"
         case "microphone-permission":
             "Request Access"
-        case "input-monitoring-permission":
-            presentation.permissionSnapshot(.inputMonitoring)?.requestedBefore == true
-                ? "Open Settings"
-                : "Enable Shortcut"
         case "screen-permission":
             "Open Settings"
         case "accessibility-permission":
             if presentation.permissionSnapshot(.accessibility)?.requestedBefore == true {
                 "Open Settings"
             } else if appState.settings.hotkeyPreset == .fn {
-                "Enable Shortcut & Paste"
+                "Enable Shortcut & Insertion"
             } else {
-                "Enable Paste"
+                "Enable Insertion"
             }
         case "opencc-s2hk":
             if appState.openCCInstallationState == .installing {
@@ -480,10 +481,6 @@ extension MainWindowView {
                 appState.handlePermissionAction(snapshot)
             } else {
                 appState.setupPermissionsOnce()
-            }
-        case "input-monitoring-permission":
-            if let snapshot = presentation.permissionSnapshot(.inputMonitoring) {
-                appState.handlePermissionAction(snapshot)
             }
         case "screen-permission":
             if let snapshot = presentation.permissionSnapshot(.screenRecording) {

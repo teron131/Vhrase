@@ -32,7 +32,7 @@ enum TranscriptCleanup: String, Codable, Equatable, Sendable {
 enum TranscriptDelivery: Equatable, Sendable {
     case none
     case copied
-    case pasteCommandSent
+    case pasteCommandSent(clipboardRetained: Bool)
 }
 
 struct TranscriptHistoryItem: Identifiable, Codable, Equatable, Sendable {

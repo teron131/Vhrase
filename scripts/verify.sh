@@ -50,7 +50,9 @@ APP_DOMAIN_SOURCES=(
 )
 APP_PRESENTATION_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"
+  Sources/VhraseApp/App/SetupDiagnostics.swift
   Sources/VhraseApp/System/PermissionManager.swift
+  Sources/VhraseApp/Transcription/ProviderContracts.swift
   Sources/VhraseApp/UI/Design/VhraseTheme.swift
   Sources/VhraseApp/UI/Design/WaveformLevelResponse.swift
   Sources/VhraseApp/UI/DictationPresentation.swift
@@ -60,6 +62,7 @@ APP_PRESENTATION_CHECKS=(
   scripts/checks/permission-request-plan-check.swift
   scripts/checks/record-button-state-check.swift
   scripts/checks/readiness-summary-check.swift
+  scripts/checks/setup-diagnostics-check.swift
   scripts/checks/history-metadata-check.swift
   scripts/checks/waveform-response-check.swift
   scripts/checks/status-popup-content-check.swift
@@ -114,6 +117,12 @@ APP_CREDENTIAL_CHECK_SOURCES=(
 APP_CREDENTIAL_CHECKS=(
   scripts/checks/api-key-resolution-check.swift
 )
+APP_INSERTION_CHECK_SOURCES=(
+  Sources/VhraseApp/System/TextInsertion.swift
+)
+APP_INSERTION_CHECKS=(
+  scripts/checks/text-insertion-check.swift
+)
 
 mkdir -p "$ROOT/.cache/checks"
 run_compiled_check() {
@@ -139,6 +148,9 @@ for check_script in "${APP_FINALIZATION_CHECKS[@]}"; do
 done
 for check_script in "${APP_CREDENTIAL_CHECKS[@]}"; do
   run_compiled_check "$check_script" "${APP_CREDENTIAL_CHECK_SOURCES[@]}"
+done
+for check_script in "${APP_INSERTION_CHECKS[@]}"; do
+  run_compiled_check "$check_script" "${APP_INSERTION_CHECK_SOURCES[@]}"
 done
 
 echo "==> Compiling live STT smoke client"
