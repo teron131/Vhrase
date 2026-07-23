@@ -528,18 +528,39 @@ extension MainWindowView {
         _ title: String,
         systemImage: String,
         text: Binding<String>,
-        height: CGFloat
+        height: CGFloat,
+        instruction: String? = nil,
+        placeholder: String? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Label(title, systemImage: systemImage)
                 .font(.subheadline.weight(.medium))
-            TextEditor(text: text)
-                .font(.body.monospaced())
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: height, maxHeight: height)
-                .padding(8)
-                .insetField()
-                .accessibilityLabel(title)
+
+            if let instruction {
+                Text(instruction)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: text)
+                    .font(.body.monospaced())
+                    .scrollContentBackground(.hidden)
+                    .accessibilityLabel(title)
+                    .accessibilityHint(instruction ?? "")
+
+                if text.wrappedValue.isEmpty, let placeholder {
+                    Text(placeholder)
+                        .font(.body.monospaced())
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 5)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(minHeight: height, maxHeight: height)
+            .padding(8)
+            .insetField()
         }
     }
 
@@ -706,5 +727,71 @@ extension MainWindowView {
                 appState.updateAPIKey(key, value: value)
             }
         )
+    }
+
+    /// Ends credential editing and commits any pending Keychain update.
+    func finishAPIKeyEditing() {
+        focusedSecretField = nil
+        credentialFocusMonitor.stop()
+        appState.flushPendingAPIKeySave()
+    }
+}
+
+/// Owns the AppKit event monitor used to dismiss credential focus.
+@MainActor
+final class CredentialFocusMonitor {
+    private var eventMonitor: Any?
+
+    /// Starts one local monitor and reports clicks that land outside every text input.
+    func start(onOutsideClick: @escaping () -> Void) {
+        guard eventMonitor == nil else {
+            return
+        }
+
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+            guard let contentView = event.window?.contentView else {
+                return event
+            }
+
+            let location = contentView.convert(event.locationInWindow, from: nil)
+            guard !Self.containsTextInput(at: location, in: contentView) else {
+                return event
+            }
+
+            DispatchQueue.main.async {
+                onOutsideClick()
+            }
+            return event
+        }
+    }
+
+    /// Removes the local monitor when credential editing ends.
+    func stop() {
+        guard let eventMonitor else {
+            return
+        }
+        NSEvent.removeMonitor(eventMonitor)
+        self.eventMonitor = nil
+    }
+
+    private static func containsTextInput(
+        at location: NSPoint,
+        in contentView: NSView
+    ) -> Bool {
+        func containsTextInput(in view: NSView) -> Bool {
+            if view is NSTextField || view is NSTextView {
+                let localLocation = view.convert(location, from: contentView)
+                if view.bounds.contains(localLocation) {
+                    return true
+                }
+            }
+
+            for subview in view.subviews where containsTextInput(in: subview) {
+                return true
+            }
+            return false
+        }
+
+        return containsTextInput(in: contentView)
     }
 }

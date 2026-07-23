@@ -228,35 +228,8 @@ echo "==> Running local readiness doctor"
 bash scripts/doctor.sh --strict
 
 if [[ "$RUN_LAUNCH_CHECK" == "1" ]]; then
-  echo "==> Running bundled app smoke check"
-  if pgrep -x Vhrase >/dev/null 2>&1; then
-    echo "Quit the running Vhrase instance before using --launch." >&2
-    exit 1
-  fi
-  /usr/bin/open -n "$APP_DIR"
-  APP_IS_RUNNING="false"
-  for _ in {1..10}; do
-    APP_IS_RUNNING="$(osascript -e 'application id "local.codex.Vhrase" is running')"
-    if [[ "$APP_IS_RUNNING" == "true" ]] && pgrep -x Vhrase >/dev/null 2>&1; then
-      break
-    fi
-    sleep 1
-  done
-  if [[ "$APP_IS_RUNNING" != "true" ]]; then
-    echo "Vhrase did not report as running after launch." >&2
-    exit 1
-  fi
-  osascript -e 'tell application id "local.codex.Vhrase" to quit' >/dev/null || true
-  for _ in {1..10}; do
-    if ! pgrep -x Vhrase >/dev/null 2>&1; then
-      break
-    fi
-    sleep 0.5
-  done
-  if pgrep -x Vhrase >/dev/null 2>&1; then
-    echo "Vhrase did not quit after the bundled launch check." >&2
-    exit 1
-  fi
+  echo "==> Running menu-bar launch check"
+  bash scripts/check-menu-bar.sh "$APP_DIR"
 fi
 
 echo "==> Verification complete"

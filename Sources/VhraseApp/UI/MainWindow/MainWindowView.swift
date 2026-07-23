@@ -58,6 +58,7 @@ struct MainWindowView: View {
     @State var hoveredTab: MainWindowTab?
     @State var selectedCapturePipelineStage = PipelineStage.transcribe
     @State var selectedOutputPipelineStage = PipelineStage.enhance
+    @State var credentialFocusMonitor = CredentialFocusMonitor()
     @FocusState var focusedSecretField: String?
     @Namespace var navigationSelection
 
@@ -107,7 +108,12 @@ struct MainWindowView: View {
                 cancelShortcutCaptureIfNeeded()
             }
             if oldTab == .system {
-                appState.flushPendingAPIKeySave()
+                finishAPIKeyEditing()
+            }
+        }
+        .onChange(of: focusedSecretField) { _, field in
+            if field != nil {
+                credentialFocusMonitor.start(onOutsideClick: finishAPIKeyEditing)
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -117,7 +123,7 @@ struct MainWindowView: View {
         }
         .onDisappear {
             cancelShortcutCaptureIfNeeded()
-            appState.flushPendingAPIKeySave()
+            finishAPIKeyEditing()
         }
     }
 

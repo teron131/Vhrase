@@ -461,6 +461,14 @@ private struct LLMChatRequest: Encodable {
     let model: String
     let messages: [LLMChatMessage]
     let stream: Bool
+    let reasoningEffort = "low"
+
+    private enum CodingKeys: String, CodingKey {
+        case model
+        case messages
+        case stream
+        case reasoningEffort = "reasoning_effort"
+    }
 }
 
 private struct LLMChatMessage: Encodable {

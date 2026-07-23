@@ -21,7 +21,7 @@ enum SecretKey: String, CaseIterable {
 }
 
 /// Persists secrets as generic-password items and never reads the retired plaintext preference keys.
-final class APIKeyStore {
+final class APIKeyStore: Sendable {
     private let service: String
     private let environment: [String: String]
 

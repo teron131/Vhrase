@@ -427,11 +427,14 @@ extension MainWindowView {
                 .pickerStyle(.segmented)
             }
 
-            DisclosureGroup("Advanced provider settings") {
-                VStack(alignment: .leading, spacing: 12) {
-                    providerSpecificControls
-                }
-                .padding(.top, 10)
+            VStack(alignment: .leading, spacing: 12) {
+                Label(
+                    "\(appState.settings.provider.title) options",
+                    systemImage: "slider.horizontal.3"
+                )
+                .font(.subheadline.weight(.medium))
+
+                providerSpecificControls
             }
 
             Divider()
@@ -440,7 +443,9 @@ extension MainWindowView {
                 "Preferred terms",
                 systemImage: "tag",
                 text: persistedBinding(\.keyterms),
-                height: 126
+                height: 126,
+                instruction: "Enter one term or short phrase per line. Press Return to add another.",
+                placeholder: "OpenAI\nVhrase\nJane Doe"
             )
 
             Text(keytermGuidance)
@@ -939,7 +944,7 @@ extension MainWindowView {
                 .gridColumnAlignment(.leading)
                 .focused($focusedSecretField, equals: key.rawValue)
                 .onSubmit {
-                    appState.flushPendingAPIKeySave()
+                    finishAPIKeyEditing()
                 }
         }
     }
