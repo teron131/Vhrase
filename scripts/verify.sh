@@ -112,7 +112,7 @@ APP_CREDENTIAL_CHECK_SOURCES=(
   Sources/VhraseApp/Storage/APIKeyStore.swift
 )
 APP_CREDENTIAL_CHECKS=(
-  scripts/checks/api-key-import-check.swift
+  scripts/checks/api-key-resolution-check.swift
 )
 
 mkdir -p "$ROOT/.cache/checks"

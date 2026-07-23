@@ -108,7 +108,7 @@ struct StatusPopupView: View {
                 hudButton("Cancel recording", systemImage: "xmark", tint: .secondary) {
                     appState.cancelRecording()
                 }
-                hudButton("Finish recording", systemImage: "checkmark", tint: .white, fill: VhraseTheme.statusRecording) {
+                hudButton("Finish recording", systemImage: "checkmark", tint: .white, fill: VhraseTheme.accent) {
                     appState.toggleRecording()
                 }
                 .accessibilityHint("Stops recording and transcribes the captured audio")
@@ -166,7 +166,7 @@ struct StatusPopupView: View {
     private var detailText: String {
         switch appState.status {
         case .preparing:
-            "Starting microphone..."
+            "Starting microphone…"
         case .recording:
             presentation.compactLiveTranscriptText
         case .transcribing:

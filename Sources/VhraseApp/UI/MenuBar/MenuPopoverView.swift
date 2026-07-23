@@ -115,6 +115,13 @@ struct MenuPopoverView: View {
 
                 Spacer()
 
+                if appState.isRecording {
+                    Text(presentation.elapsedTime)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                }
+
                 if !appState.targetAppLabel.isEmpty {
                     Text("→ \(appState.targetAppLabel)")
                         .font(.caption)
@@ -158,8 +165,12 @@ struct MenuPopoverView: View {
                 .accessibilityHint("Opens all saved transcripts")
             }
 
+            if !appState.lastTranscript.isEmpty {
+                lastTranscriptRow
+            }
+
             HStack(spacing: 0) {
-                menuMetric("Today", value: "\(transcriptsTodayCount)")
+                menuMetric("Today", value: "\(appState.transcriptsTodayCount)")
 
                 Divider()
                     .frame(height: 28)
@@ -172,7 +183,7 @@ struct MenuPopoverView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(appState.savesTranscriptHistory ? "On" : "Off")
                         .font(.callout.weight(.semibold))
-                    Text("History")
+                    Text("Saving")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -181,6 +192,32 @@ struct MenuPopoverView: View {
             .padding(10)
             .insetField(cornerRadius: 9)
         }
+    }
+
+    private var lastTranscriptRow: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(appState.lastTranscript)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+
+            Button {
+                appState.copyLastTranscript()
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Copy last transcript")
+            .accessibilityLabel("Copy last transcript")
+        }
+        .padding(10)
+        .insetField(cornerRadius: 9)
     }
 
     private func menuMetric(_ title: String, value: String) -> some View {
@@ -235,7 +272,7 @@ struct MenuPopoverView: View {
         } label: {
             HStack(alignment: .top, spacing: 9) {
                 Image(systemName: primarySetupDiagnostic.systemImage)
-                    .foregroundStyle(diagnosticColor(primarySetupDiagnostic.severity))
+                    .foregroundStyle(VhraseTheme.diagnosticColor(primarySetupDiagnostic.severity))
                     .frame(width: 18)
                     .accessibilityHidden(true)
 
@@ -258,7 +295,7 @@ struct MenuPopoverView: View {
             }
             .padding(10)
             .background(
-                diagnosticColor(primarySetupDiagnostic.severity).opacity(0.1),
+                VhraseTheme.diagnosticColor(primarySetupDiagnostic.severity).opacity(0.1),
                 in: RoundedRectangle(cornerRadius: 10, style: .continuous)
             )
             .contentShape(Rectangle())
@@ -300,10 +337,6 @@ struct MenuPopoverView: View {
             .help("Quit Vhrase")
             .accessibilityLabel("Quit Vhrase")
         }
-    }
-
-    private var transcriptsTodayCount: Int {
-        appState.history.filter { Calendar.current.isDateInToday($0.createdAt) }.count
     }
 
     private var showsLiveWorkflow: Bool {
@@ -399,17 +432,6 @@ struct MenuPopoverView: View {
         openWindow(id: "main")
         DispatchQueue.main.async {
             NSApplication.shared.activate()
-        }
-    }
-
-    private func diagnosticColor(_ severity: SetupDiagnosticSeverity) -> Color {
-        switch severity {
-        case .ready:
-            return VhraseTheme.statusSuccess
-        case .attention:
-            return VhraseTheme.statusWarning
-        case .info:
-            return .secondary
         }
     }
 

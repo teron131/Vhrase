@@ -33,22 +33,39 @@ final class APIKeyStore {
         self.environment = environment
     }
 
-    func environmentValue(for key: SecretKey) -> String {
-        environment[key.rawValue] ?? ""
-    }
+    /// Resolves supported development credentials without executing or expanding the environment file.
+    static func developmentEnvironment(
+        fileURL: URL,
+        baseEnvironment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> [String: String] {
+        var environment = baseEnvironment
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return environment
+        }
 
-    /// Imports nonempty launch credentials only when the matching Keychain item is still empty.
-    func importEnvironmentValues() throws -> Set<SecretKey> {
-        var imported: Set<SecretKey> = []
-        for key in SecretKey.allCases {
-            let value = environmentValue(for: key)
-            guard !value.isEmpty, try savedValue(for: key).isEmpty else {
+        let contents = try String(contentsOf: fileURL, encoding: .utf8)
+        let supportedKeys = Set(SecretKey.allCases.map(\.rawValue))
+        for rawLine in contents.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty, !line.hasPrefix("#"),
+                  let separator = line.firstIndex(of: "=") else {
                 continue
             }
-            try save(value, for: key)
-            imported.insert(key)
+
+            let key = String(line[..<separator]).trimmingCharacters(in: .whitespaces)
+            guard supportedKeys.contains(key), environment[key, default: ""].isEmpty else {
+                continue
+            }
+
+            let valueStart = line.index(after: separator)
+            let rawValue = String(line[valueStart...]).trimmingCharacters(in: .whitespaces)
+            environment[key] = unquotedEnvironmentValue(rawValue)
         }
-        return imported
+        return environment
+    }
+
+    func environmentValue(for key: SecretKey) -> String {
+        environment[key.rawValue] ?? ""
     }
 
     /// Persists user input even when the launch environment supplies a fallback credential.
@@ -151,6 +168,14 @@ final class APIKeyStore {
             throw KeychainSaveError(key: key, action: "remove", status: status)
         }
     }
+}
+
+private func unquotedEnvironmentValue(_ value: String) -> String {
+    guard value.count >= 2, let first = value.first, let last = value.last,
+          (first == "\"" && last == "\"") || (first == "'" && last == "'") else {
+        return value
+    }
+    return String(value.dropFirst().dropLast())
 }
 
 private struct KeychainReadError: LocalizedError {

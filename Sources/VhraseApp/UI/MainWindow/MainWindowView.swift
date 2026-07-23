@@ -55,6 +55,9 @@ struct MainWindowView: View {
     @State var isClearHistoryConfirmationPresented = false
     @State var isOpenCCInstallConfirmationPresented = false
     @State var historyQuery = ""
+    @State var hoveredTab: MainWindowTab?
+    @State var selectedCapturePipelineStage = PipelineStage.transcribe
+    @State var selectedOutputPipelineStage = PipelineStage.enhance
     @FocusState var focusedSecretField: String?
     @Namespace var navigationSelection
 

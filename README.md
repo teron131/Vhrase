@@ -22,7 +22,8 @@ Accessibility permission can be needed when paste insertion targets another app.
 These are feature-specific macOS privacy prompts and are separate from the one-time local signing setup.
 API keys entered in Vhrase are stored as generic-password items in macOS Keychain under the `Vhrase` service.
 A saved Keychain credential takes precedence. A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `LLM_API_KEY` launch-environment value is used only when the matching saved item is empty.
-The development run command securely imports a nonempty fallback into an empty matching Keychain item so later Finder and menu-bar launches keep working without shell inheritance.
+The development run command uses shell and ignored `.env` values in memory without reading or modifying Keychain, which prevents rebuilt development binaries from producing repeated credential prompts.
+Normal Finder and menu-bar launches continue to use saved Keychain credentials.
 
 ## Source Layout
 

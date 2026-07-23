@@ -4,7 +4,7 @@
 
 Vhrase stores API keys as macOS Keychain generic-password items under service `Vhrase`, with the environment-variable name as the account name.
 A saved Keychain credential takes precedence. A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `LLM_API_KEY` environment value is used only when the matching saved item is empty.
-Development launches import nonempty fallbacks only into empty matching Keychain accounts so a later GUI cold launch does not depend on shell-environment inheritance.
+Development launches resolve shell and ignored `.env` fallbacks in memory without reading or modifying Keychain.
 Credential fields always edit the saved Keychain value; clearing one reveals the environment fallback when it exists.
 
 ## Speech-To-Text

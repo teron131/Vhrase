@@ -50,6 +50,172 @@ extension MainWindowView {
         }
     }
 
+    /// Keeps workflow navigation and its sole editor in one open, divider-led composition.
+    func workflowEditor<Editor: View>(
+        _ title: String,
+        description: String,
+        nodes: [PipelineFlowNode],
+        selection: Binding<PipelineStage>,
+        @ViewBuilder editor: () -> Editor
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text(description)
+                    .font(.caption)
+                    .foregroundStyle(VhraseTheme.inkSecondary)
+            }
+
+            HStack(alignment: .top, spacing: 0) {
+                PipelineFlowView(nodes: nodes, selection: selection)
+                    .frame(width: 242)
+                    .padding(.trailing, 24)
+                    .padding(.vertical, 18)
+
+                Divider()
+
+                editor()
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding(.leading, 32)
+                    .padding(.vertical, 18)
+                    .id(selection.wrappedValue)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+            }
+            .overlay(alignment: .top) {
+                Divider()
+            }
+            .animation(
+                VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
+                value: selection.wrappedValue
+            )
+        }
+    }
+
+    /// Maps each Capture setting to its one owning stage.
+    var capturePipelineNodes: [PipelineFlowNode] {
+        [
+            PipelineFlowNode(
+                id: .trigger,
+                systemImage: "keyboard",
+                title: "Trigger",
+                detail: "\(appState.settings.hotkeyDisplay) · \(appState.settings.shortcutBehavior.title)"
+            ),
+            PipelineFlowNode(
+                id: .listen,
+                systemImage: "mic.fill",
+                title: "Listen",
+                detail: appState.settings.language.isEmpty ? "Auto language" : appState.settings.language
+            ),
+            PipelineFlowNode(
+                id: .transcribe,
+                systemImage: "waveform",
+                title: "Transcribe",
+                detail: "\(appState.settings.provider.title) · \(appState.settings.transcriptionMode.title)",
+                badge: appState.settings.keytermList.isEmpty
+                    ? nil
+                    : "\(appState.settings.keytermList.count) preferred terms"
+            ),
+        ]
+    }
+
+    /// Maps finalization settings onto Correct → Enhance → Deliver without repeating Capture controls.
+    var outputPipelineNodes: [PipelineFlowNode] {
+        var enhancementDetails: [String] = []
+        if appState.settings.includeScreenshot {
+            enhancementDetails.append("Screen context")
+        }
+        if appState.settings.useLocalAdjustmentFallback {
+            enhancementDetails.append("Local fallback")
+        }
+
+        let replacementCount = appState.settings.replacements.count
+        return [
+            PipelineFlowNode(
+                id: .correct,
+                systemImage: "text.badge.checkmark",
+                title: "Correct",
+                detail: replacementCount == 0
+                    ? "No exact replacements"
+                    : "\(replacementCount) exact \(replacementCount == 1 ? "replacement" : "replacements")",
+                isActive: replacementCount > 0,
+                isOptional: true
+            ),
+            PipelineFlowNode(
+                id: .enhance,
+                systemImage: "wand.and.stars",
+                title: "Enhance",
+                detail: appState.settings.adjustWithLLM
+                    ? (appState.settings.adjustmentModel.isEmpty ? "LLM enabled" : appState.settings.adjustmentModel)
+                    : "Raw transcript passes through",
+                badge: enhancementDetails.isEmpty
+                    ? nil
+                    : enhancementDetails.joined(separator: " · "),
+                isActive: appState.settings.adjustWithLLM,
+                isOptional: true
+            ),
+            PipelineFlowNode(
+                id: .deliver,
+                systemImage: appState.settings.pasteAfterTranscription ? "text.insert" : "doc.on.clipboard",
+                title: "Deliver",
+                detail: appState.settings.pasteAfterTranscription ? "Paste into active app" : "Copy to clipboard",
+                badge: appState.savesTranscriptHistory ? "Saved to history" : nil
+            ),
+        ]
+    }
+
+    /// Routes Capture selection to one full stage editor.
+    @ViewBuilder var captureWorkflowStageEditor: some View {
+        switch selectedCapturePipelineStage {
+        case .trigger:
+            triggerStageSettings
+        case .listen:
+            listeningStageSettings
+        case .transcribe:
+            transcriptionStageSettings
+        default:
+            EmptyView()
+        }
+    }
+
+    /// Routes Output selection to one full finalization-stage editor.
+    @ViewBuilder var outputWorkflowStageEditor: some View {
+        switch selectedOutputPipelineStage {
+        case .correct:
+            correctionStageSettings
+        case .enhance:
+            enhancementStageSettings
+        case .deliver:
+            deliveryStageSettings
+        default:
+            EmptyView()
+        }
+    }
+
+    /// Introduces the currently selected stage before its controls.
+    func workflowStageHeader(
+        _ title: String,
+        description: String,
+        systemImage: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(VhraseTheme.workflowAccent)
+                .frame(width: 24, height: 24)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(VhraseFont.headline)
+                Text(description)
+                    .font(VhraseFont.caption)
+                    .foregroundStyle(VhraseTheme.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     func settingsToggle(
         _ title: String,
         detail: String,
@@ -86,10 +252,6 @@ extension MainWindowView {
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    var transcriptsTodayCount: Int {
-        appState.history.filter { Calendar.current.isDateInToday($0.createdAt) }.count
     }
 
     var transcriptWorkspaceTitle: String {
@@ -517,17 +679,6 @@ extension MainWindowView {
         }
         isCapturingHotkey = false
         appState.cancelShortcutCapture()
-    }
-
-    func diagnosticColor(_ severity: SetupDiagnosticSeverity) -> Color {
-        switch severity {
-        case .ready:
-            return VhraseTheme.statusSuccess
-        case .attention:
-            return VhraseTheme.statusWarning
-        case .info:
-            return .secondary
-        }
     }
 
     func persistedBinding<Value>(

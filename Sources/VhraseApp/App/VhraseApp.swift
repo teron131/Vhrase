@@ -31,8 +31,10 @@ struct VhraseApp: App {
             }
         }
 
-        MenuBarExtra("Vhrase", systemImage: appState.isRecording ? "mic.fill" : "mic") {
+        MenuBarExtra {
             MenuPopoverView(appState: appState)
+        } label: {
+            VhraseMenuBarIcon()
         }
         .menuBarExtraStyle(.window)
 
@@ -96,6 +98,23 @@ struct VhraseApp: App {
                 window.makeKeyAndOrderFront(nil)
             }
         }
+    }
+}
+
+/// Reuses the app icon's asymmetric waveform as a crisp monochrome menu-bar mark.
+private struct VhraseMenuBarIcon: View {
+    private let barHeights: [CGFloat] = [0.28, 0.72, 0.42, 1, 0.58, 0.31, 0.86, 0.5, 0.22]
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 1) {
+            ForEach(barHeights.indices, id: \.self) { index in
+                Capsule()
+                    .frame(width: 1, height: 14 * barHeights[index])
+            }
+        }
+        .frame(width: 17, height: 14)
+        .foregroundStyle(.primary)
+        .accessibilityLabel("Vhrase")
     }
 }
 
