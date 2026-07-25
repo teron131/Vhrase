@@ -4,20 +4,20 @@
 import PackageDescription
 
 let package = Package(
-    name: "Vhrase",
-    platforms: [
-        .macOS(.v14)
-    ],
-    products: [
-        .executable(
-            name: "Vhrase",
-            targets: ["VhraseApp"]
-        )
-    ],
-    targets: [
-        .executableTarget(
-            name: "VhraseApp",
-            path: "Sources/VhraseApp"
-        )
-    ]
+  name: "Vhrase",
+  platforms: [
+    .macOS(.v14)
+  ],
+  products: [
+    .executable(
+      name: "Vhrase",
+      targets: ["VhraseApp"]
+    )
+  ],
+  targets: [
+    .executableTarget(
+      name: "VhraseApp",
+      path: "Sources/VhraseApp"
+    )
+  ]
 )
