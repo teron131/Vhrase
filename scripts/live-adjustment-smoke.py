@@ -81,7 +81,9 @@ def capture_screenshot(cache_dir: Path) -> str | None:
     )
     if result.returncode != 0 or not path.exists() or path.stat().st_size == 0:
         return None
-    return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+    return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode(
+        "ascii"
+    )
 
 
 def endpoint(base_url: str, path: str) -> str:

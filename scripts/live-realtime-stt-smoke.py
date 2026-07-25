@@ -249,7 +249,11 @@ async def transcribe_elevenlabs(args: argparse.Namespace, pcm: bytes) -> str:
                 "transcriber_error",
                 "unaccepted_terms",
             }:
-                detail = event.get("error") or event.get("text") or "ElevenLabs realtime error"
+                detail = (
+                    event.get("error")
+                    or event.get("text")
+                    or "ElevenLabs realtime error"
+                )
                 raise RuntimeError(f"{message_type}: {detail}")
 
 
