@@ -79,7 +79,7 @@ extension MainWindowView {
   var historyStatsCard: some View {
     HStack(spacing: 18) {
       HistoryMetric(
-        value: "\(historyTodayCount)",
+        value: "\(appState.transcriptsTodayCount)",
         label: "Today",
         detail: "saved dictations"
       )
@@ -136,10 +136,6 @@ extension MainWindowView {
       .buttonStyle(.borderedProminent)
       .tint(VhraseTheme.accent)
     }
-  }
-
-  private var historyTodayCount: Int {
-    appState.history.filter { Calendar.current.isDateInToday($0.createdAt) }.count
   }
 
   private var historyWeekCount: Int {

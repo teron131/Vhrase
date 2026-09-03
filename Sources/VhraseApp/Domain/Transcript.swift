@@ -44,24 +44,4 @@ struct TranscriptHistoryItem: Identifiable, Codable, Equatable, Sendable {
   let cleanup: TranscriptCleanup
   let targetAppName: String?
   let targetAppBundleIdentifier: String?
-
-  init(
-    id: UUID,
-    createdAt: Date,
-    text: String,
-    provider: String,
-    transcriptionMode: String,
-    cleanup: TranscriptCleanup,
-    targetAppName: String?,
-    targetAppBundleIdentifier: String?
-  ) {
-    self.id = id
-    self.createdAt = createdAt
-    self.text = text
-    self.provider = provider
-    self.transcriptionMode = transcriptionMode
-    self.cleanup = cleanup
-    self.targetAppName = targetAppName
-    self.targetAppBundleIdentifier = targetAppBundleIdentifier
-  }
 }

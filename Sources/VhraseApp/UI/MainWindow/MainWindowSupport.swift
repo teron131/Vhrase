@@ -354,9 +354,7 @@ extension MainWindowView {
   }
 
   var primarySetupDiagnostic: SetupDiagnostic {
-    appState.setupDiagnostics.first { $0.severity == .attention }
-      ?? appState.setupDiagnostics.first { $0.severity == .info }
-      ?? appState.setupDiagnostics.first
+    appState.setupDiagnostics.first
       ?? SetupDiagnostic(
         id: "ready",
         title: "Ready",
