@@ -17,13 +17,13 @@ Use the bundle for normal operation so macOS associates privacy permissions with
 ## First Setup
 
 1. Open **System** in the sidebar.
-2. Add xAI and/or ElevenLabs credentials in System for normal Finder launches, or add them to the ignored `.env` file for prompt-free development builds.
+2. Add xAI and/or ElevenLabs credentials in System, export them directly in `~/.zshrc`, or add them to the ignored `.env` file for prompt-free development builds.
 3. Request Microphone access.
 4. Grant Accessibility so Vhrase can return finalized text to the originating app; it also enables the global Fn/Globe shortcut.
 5. Grant Input Monitoring only if Fn/Globe does not respond reliably, and Screen Recording only when screenshot context is enabled.
 
 The System screen reports saved or environment-backed credentials separately and routes unavailable permissions to the matching macOS privacy pane.
-Normal launches prefer saved Keychain values, while the development runner skips Keychain and resolves shell or `.env` values in memory without printing them.
+Normal launches prefer saved Keychain values, then use launch-environment values or direct literal exports from `~/.zshrc`, while the development runner skips Keychain and can additionally resolve `.env` values in memory without printing them.
 Credential fields remain editable; editing one explicitly saves that value to Keychain.
 Microphone, Input Monitoring, Screen Recording, and Accessibility can each produce one native prompt when their feature is first enabled. Accessibility covers insertion and normally covers Fn/Globe; Vhrase does not request optional permissions preemptively.
 

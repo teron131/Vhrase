@@ -21,9 +21,9 @@ Input Monitoring is only an optional fallback when Fn/Globe does not respond rel
 Screenshot context is off by default, and Screen Recording permission is only needed when you explicitly enable it for LLM cleanup.
 These are feature-specific macOS privacy prompts and are separate from the one-time local signing setup.
 API keys entered in Vhrase are stored as generic-password items in macOS Keychain under the `Vhrase` service.
-A saved Keychain credential takes precedence. A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `LLM_API_KEY` launch-environment value is used only when the matching saved item is empty.
-The development run command uses shell and ignored `.env` values in memory without reading or modifying Keychain, which prevents rebuilt development binaries from producing repeated credential prompts.
-Normal Finder and menu-bar launches continue to use saved Keychain credentials.
+A saved Keychain credential takes precedence. A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `LLM_API_KEY` launch-environment value is used next, and a direct literal export in `~/.zshrc` fills any remaining key without executing shell code.
+The development run command additionally uses ignored `.env` values in memory without reading or modifying Keychain, which prevents rebuilt development binaries from producing repeated credential prompts.
+Normal Finder and menu-bar launches prefer saved Keychain credentials before using the in-memory environment fallbacks.
 
 ## Source Layout
 

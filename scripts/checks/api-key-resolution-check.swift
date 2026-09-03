@@ -1,4 +1,4 @@
-// Verifies development credentials resolve without Keychain access while saved values retain precedence.
+// Verifies safe file-based credentials resolve without Keychain access while saved values retain precedence.
 
 import Foundation
 
@@ -28,6 +28,27 @@ struct APIKeyResolutionCheck {
     precondition(environment[SecretKey.elevenLabsAPIKey.rawValue] == "file-elevenlabs")
     precondition(environment[SecretKey.llmAPIKey.rawValue] == "file-llm")
     precondition(environment["IGNORED_KEY"] == nil)
+
+    let zshrcURL = fixtureURL.appendingPathExtension("zshrc")
+    defer {
+      try? FileManager.default.removeItem(at: zshrcURL)
+    }
+    try """
+    export XAI_API_KEY="zshrc-xai"
+    export ELEVENLABS_API_KEY=zshrc-elevenlabs
+    LLM_API_KEY=not-exported
+    export LLM_API_KEY=$(ignored-command)
+    export IGNORED_KEY=ignored
+    """.write(to: zshrcURL, atomically: true, encoding: .utf8)
+
+    let zshrcEnvironment = try APIKeyStore.zshrcEnvironment(
+      fileURL: zshrcURL,
+      baseEnvironment: [SecretKey.xaiAPIKey.rawValue: "process-xai"]
+    )
+    precondition(zshrcEnvironment[SecretKey.xaiAPIKey.rawValue] == "process-xai")
+    precondition(zshrcEnvironment[SecretKey.elevenLabsAPIKey.rawValue] == "zshrc-elevenlabs")
+    precondition(zshrcEnvironment[SecretKey.llmAPIKey.rawValue] == nil)
+    precondition(zshrcEnvironment["IGNORED_KEY"] == nil)
 
     let missingEnvironment = try APIKeyStore.developmentEnvironment(
       fileURL: fixtureURL.appendingPathExtension("missing"),
