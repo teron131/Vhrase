@@ -73,23 +73,27 @@ final class AppState: ObservableObject {
       arguments: CommandLine.arguments
     )
     var credentialNotices: [String] = []
-    let apiKeys: APIKeyStore
+    var environment = ProcessInfo.processInfo.environment
+    do {
+      environment = try APIKeyStore.zshrcEnvironment(baseEnvironment: environment)
+    } catch {
+      credentialNotices.append(
+        "Could not read API keys from ~/.zshrc: \(error.localizedDescription)"
+      )
+    }
     if let developmentEnvironmentFileURL {
       do {
-        apiKeys = APIKeyStore(
-          environment: try APIKeyStore.developmentEnvironment(
-            fileURL: developmentEnvironmentFileURL
-          )
+        environment = try APIKeyStore.developmentEnvironment(
+          fileURL: developmentEnvironmentFileURL,
+          baseEnvironment: environment
         )
       } catch {
-        apiKeys = APIKeyStore()
         credentialNotices.append(
           "Could not read development credentials: \(error.localizedDescription)"
         )
       }
-    } else {
-      apiKeys = APIKeyStore()
     }
+    let apiKeys = APIKeyStore(environment: environment)
     self.apiKeys = apiKeys
     settings = settingsStore.load()
     xaiAPIKey = ""

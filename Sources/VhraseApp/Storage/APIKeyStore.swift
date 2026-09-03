@@ -1,4 +1,4 @@
-// Stores editable Vhrase API credentials in Keychain and uses launch-environment values only to fill missing keys.
+// Stores editable Vhrase API credentials in Keychain and resolves safe environment fallbacks for missing keys.
 
 import Foundation
 import Security
@@ -38,6 +38,33 @@ final class APIKeyStore: Sendable {
     fileURL: URL,
     baseEnvironment: [String: String] = ProcessInfo.processInfo.environment
   ) throws -> [String: String] {
+    try fileEnvironment(
+      fileURL: fileURL,
+      baseEnvironment: baseEnvironment,
+      requiresExportPrefix: false,
+      valueParser: unquotedEnvironmentValue
+    )
+  }
+
+  /// Reads direct literal API-key exports from zsh configuration without executing shell code.
+  static func zshrcEnvironment(
+    fileURL: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".zshrc"),
+    baseEnvironment: [String: String] = ProcessInfo.processInfo.environment
+  ) throws -> [String: String] {
+    try fileEnvironment(
+      fileURL: fileURL,
+      baseEnvironment: baseEnvironment,
+      requiresExportPrefix: true,
+      valueParser: literalZshEnvironmentValue
+    )
+  }
+
+  private static func fileEnvironment(
+    fileURL: URL,
+    baseEnvironment: [String: String],
+    requiresExportPrefix: Bool,
+    valueParser: (String) -> String?
+  ) throws -> [String: String] {
     var environment = baseEnvironment
     guard FileManager.default.fileExists(atPath: fileURL.path) else {
       return environment
@@ -46,21 +73,33 @@ final class APIKeyStore: Sendable {
     let contents = try String(contentsOf: fileURL, encoding: .utf8)
     let supportedKeys = Set(SecretKey.allCases.map(\.rawValue))
     for rawLine in contents.split(whereSeparator: \.isNewline) {
-      let line = rawLine.trimmingCharacters(in: .whitespaces)
-      guard !line.isEmpty, !line.hasPrefix("#"),
-        let separator = line.firstIndex(of: "=")
+      var assignment = rawLine.trimmingCharacters(in: .whitespaces)
+      guard !assignment.isEmpty, !assignment.hasPrefix("#") else {
+        continue
+      }
+      let hasExportPrefix = assignment.hasPrefix("export ") || assignment.hasPrefix("export\t")
+      if hasExportPrefix {
+        assignment = String(assignment.dropFirst("export".count))
+          .trimmingCharacters(in: .whitespaces)
+      } else if requiresExportPrefix {
+        continue
+      }
+      guard let separator = assignment.firstIndex(of: "=")
       else {
         continue
       }
 
-      let key = String(line[..<separator]).trimmingCharacters(in: .whitespaces)
+      let key = String(assignment[..<separator]).trimmingCharacters(in: .whitespaces)
       guard supportedKeys.contains(key), environment[key, default: ""].isEmpty else {
         continue
       }
 
-      let valueStart = line.index(after: separator)
-      let rawValue = String(line[valueStart...]).trimmingCharacters(in: .whitespaces)
-      environment[key] = unquotedEnvironmentValue(rawValue)
+      let valueStart = assignment.index(after: separator)
+      let rawValue = String(assignment[valueStart...]).trimmingCharacters(in: .whitespaces)
+      guard let value = valueParser(rawValue) else {
+        continue
+      }
+      environment[key] = value
     }
     return environment
   }
@@ -179,6 +218,33 @@ private func unquotedEnvironmentValue(_ value: String) -> String {
     return value
   }
   return String(value.dropFirst().dropLast())
+}
+
+private func literalZshEnvironmentValue(_ value: String) -> String? {
+  guard !value.isEmpty else {
+    return ""
+  }
+
+  if value.first == "'", value.last == "'" {
+    let literal = String(value.dropFirst().dropLast())
+    return literal.contains("'") ? nil : literal
+  }
+
+  if value.first == "\"", value.last == "\"" {
+    let literal = String(value.dropFirst().dropLast())
+    guard !literal.contains(where: { "$`\\".contains($0) }) else {
+      return nil
+    }
+    return literal
+  }
+
+  let shellSyntax = CharacterSet.whitespacesAndNewlines.union(
+    CharacterSet(charactersIn: "$`\\'\";|&<>(){}[]*?!~#")
+  )
+  guard value.rangeOfCharacter(from: shellSyntax) == nil else {
+    return nil
+  }
+  return value
 }
 
 private struct KeychainReadError: LocalizedError {

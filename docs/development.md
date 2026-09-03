@@ -56,8 +56,8 @@ It reports credential presence from macOS Keychain or an environment fallback wi
 ## Credentials
 
 Vhrase saves generic-password items under the Keychain service `Vhrase`, using `XAI_API_KEY`, `ELEVENLABS_API_KEY`, and `LLM_API_KEY` as account names.
-Normal Finder launches read those saved values, with a launch-environment value as fallback when the matching item is empty.
-`./scripts/build-and-run.sh` instead launches in development mode, which skips every Keychain read and resolves credentials from the shell first and the ignored repository `.env` file second.
+Normal Finder launches read saved Keychain values first, then use launch-environment values and direct literal exports from `~/.zshrc` as fallbacks.
+`./scripts/build-and-run.sh` instead launches in development mode, which skips every Keychain read and resolves credentials from the launch environment, `~/.zshrc`, and the ignored repository `.env` file in that order.
 Use this non-executable `.env` format:
 
 ```dotenv
@@ -66,8 +66,8 @@ ELEVENLABS_API_KEY=
 LLM_API_KEY=
 ```
 
-Development values remain in memory and are never imported into Keychain.
-Enter a value in Vhrase's System screen when it should be available to normal Finder launches.
+File-based values remain in memory and are never imported into Keychain.
+Vhrase reads only direct literal `export KEY=value` assignments from `~/.zshrc`; it does not execute commands, expand variables, or source other files.
 
 ## Customization Contract
 
