@@ -5,7 +5,6 @@ import Foundation
 enum SetupDiagnosticSeverity: Equatable, Sendable {
   case ready
   case attention
-  case info
 }
 
 struct SetupDiagnostic: Identifiable, Sendable {

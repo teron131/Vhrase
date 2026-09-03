@@ -197,13 +197,6 @@ final class AppState: ObservableObject {
     return false
   }
 
-  var canToggleRecording: Bool {
-    if case .preparing = status {
-      return true
-    }
-    return isRecording || status.canStartRecording
-  }
-
   var setupDiagnostics: [SetupDiagnostic] {
     SetupDiagnostics(
       settings: settings,
@@ -381,14 +374,13 @@ final class AppState: ObservableObject {
     savePendingAPIKeys()
   }
 
-  func saveSettingsOnly() {
-    settingsStore.save(settings)
-    registerHotkey()
-  }
-
   func updateSettings(_ update: (inout DictationSettings) -> Void) {
+    let previousSettings = settings
     update(&settings)
-    saveSettingsOnly()
+    guard settings != previousSettings else {
+      return
+    }
+    persistSettings(previous: previousSettings)
   }
 
   func beginShortcutCapture() {
@@ -564,8 +556,9 @@ final class AppState: ObservableObject {
       case .reviewCancelled:
         customizationNotice = "Customization import cancelled."
       case .imported(let importedSettings):
+        let previousSettings = settings
         settings = importedSettings
-        saveSettingsOnly()
+        persistSettings(previous: previousSettings)
         customizationNotice = "Customization imported."
       }
     } catch {
@@ -873,6 +866,16 @@ final class AppState: ObservableObject {
     saveAPIKeys(keys)
   }
 
+  /// Persists changed preferences and refreshes global listeners only when their key definition changed.
+  private func persistSettings(previous: DictationSettings) {
+    settingsStore.save(settings)
+    if settings.hotkeyPreset != previous.hotkeyPreset
+      || settings.customHotkey != previous.customHotkey
+    {
+      registerHotkey()
+    }
+  }
+
   /// Rejects stale continuations before they can mutate resources owned by a newer recording.
   private func ensureCurrentRecording(_ id: UUID) throws {
     try Task.checkCancellation()
@@ -977,7 +980,14 @@ final class AppState: ObservableObject {
     let startedAt = Date()
     recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
       Task { @MainActor in
-        self?.recordingElapsedSeconds = Int(Date().timeIntervalSince(startedAt))
+        guard let self else {
+          return
+        }
+        let elapsedSeconds = Int(Date().timeIntervalSince(startedAt))
+        guard elapsedSeconds != self.recordingElapsedSeconds else {
+          return
+        }
+        self.recordingElapsedSeconds = elapsedSeconds
       }
     }
   }

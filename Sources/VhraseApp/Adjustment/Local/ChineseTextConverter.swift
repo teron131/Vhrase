@@ -112,13 +112,13 @@ struct ChineseTextConverter: Sendable {
       encoding: .utf8
     )?
     .trimmingCharacters(in: .whitespacesAndNewlines)
+    let detail =
+      message.flatMap { $0.isEmpty ? nil : $0 }
+      ?? "OpenCC exited with status \(process.terminationStatus)."
     throw NSError(
       domain: "Vhrase.OpenCC",
       code: Int(process.terminationStatus),
-      userInfo: [
-        NSLocalizedDescriptionKey: message?.isEmpty == false
-          ? message! : "OpenCC exited with status \(process.terminationStatus)."
-      ]
+      userInfo: [NSLocalizedDescriptionKey: detail]
     )
   }
 

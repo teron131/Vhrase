@@ -96,31 +96,6 @@ struct DictationPresentation {
     "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) · \(settings.adjustWithLLM ? "LLM cleanup" : "Raw")"
   }
 
-  var statusShortTitle: String {
-    switch status {
-    case .idle:
-      if !coreRecordingReady {
-        "Needs setup"
-      } else if !selectedShortcutReady {
-        "Shortcut setup"
-      } else {
-        "Ready"
-      }
-    case .preparing:
-      "Starting"
-    case .recording:
-      "Recording"
-    case .transcribing:
-      "Transcribing"
-    case .adjusting:
-      "Adjusting"
-    case .completed:
-      "Done"
-    case .failed:
-      "Failed"
-    }
-  }
-
   var displayStatusTitle: String {
     switch status {
     case .idle:
@@ -312,10 +287,6 @@ struct DictationPresentation {
 
   func permissionIsReady(_ permission: AppPermission) -> Bool {
     permissionSnapshot(permission)?.state.isReady ?? false
-  }
-
-  func permissionStateTitle(_ permission: AppPermission) -> String {
-    permissionSnapshot(permission)?.displayTitle ?? "Unknown"
   }
 
   func permissionSnapshot(_ permission: AppPermission) -> PermissionSnapshot? {

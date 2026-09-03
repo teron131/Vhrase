@@ -106,7 +106,8 @@ private func perform(
     let responseText = String(data: data, encoding: .utf8)?
       .trimmingCharacters(in: .whitespacesAndNewlines)
     let fallback = HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
-    let detail = String((responseText?.isEmpty == false ? responseText! : fallback).prefix(1_000))
+    let responseDetail = responseText.flatMap { $0.isEmpty ? nil : $0 } ?? fallback
+    let detail = String(responseDetail.prefix(1_000))
     throw UploadTranscriptionError.httpFailure(
       providerName: providerName,
       statusCode: http.statusCode,

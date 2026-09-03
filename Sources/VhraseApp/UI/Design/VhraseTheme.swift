@@ -29,8 +29,6 @@ enum VhraseTheme {
       statusSuccess
     case .attention:
       statusWarning
-    case .info:
-      .secondary
     }
   }
 
