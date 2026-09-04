@@ -91,7 +91,11 @@ def endpoint(base_url: str, path: str) -> str:
 
 
 def open_json_request(request: urllib.request.Request, *, timeout: int) -> dict:
-    if urllib.parse.urlparse(request.full_url).scheme != "https":
+    parsed_url = urllib.parse.urlparse(request.full_url)
+    is_loopback = parsed_url.hostname in {"localhost", "127.0.0.1", "::1"}
+    if parsed_url.scheme != "https" and not (
+        parsed_url.scheme == "http" and is_loopback
+    ):
         raise ValueError(f"refusing non-HTTPS URL: {request.full_url}")
     with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
         return json.loads(response.read().decode("utf-8"))

@@ -17,15 +17,28 @@ struct RecordButtonStateCheck {
     precondition(presentation(status: .transcribing, keyReady: true).recordAction == .disabled)
     precondition(presentation(status: .adjusting, keyReady: true).recordAction == .disabled)
 
+    let invalidSettings = presentation(
+      status: .idle,
+      keyReady: true,
+      keyterms: String(repeating: "A", count: 51)
+    )
+    precondition(!invalidSettings.coreRecordingReady)
+    precondition(invalidSettings.displayStatusTitle == "Check settings")
+    precondition(invalidSettings.recordAction == .openSetup)
+    precondition(invalidSettings.recordButtonTitle == "Review Settings")
+    precondition(invalidSettings.statusMessage?.contains("found 51") == true)
+
     print("record button state ok")
   }
 
   private static func presentation(
     status: AppStatus,
-    keyReady: Bool
+    keyReady: Bool,
+    keyterms: String = ""
   ) -> DictationPresentation {
     var settings = DictationSettings.defaults
     settings.provider = .xai
+    settings.keyterms = keyterms
     return DictationPresentation(
       status: status,
       settings: settings,

@@ -23,6 +23,15 @@ struct SetupDiagnosticsCheck {
     precondition(missingInsertionAccess.contains { $0.id == "accessibility-permission" })
     precondition(!missingInsertionAccess.contains { $0.id == "input-monitoring-permission" })
 
+    var invalidSettings = settings
+    invalidSettings.keyterms = String(repeating: "A", count: 51)
+    let invalidConfiguration = diagnostics(
+      settings: invalidSettings,
+      accessibility: .granted,
+      inputMonitoring: .granted
+    )
+    precondition(invalidConfiguration.first?.id == "transcription-configuration")
+
     print("setup diagnostics ok")
   }
 

@@ -19,6 +19,11 @@ struct ShortcutBehaviorCheck {
       ShortcutBehavior.holdToRecord.action(for: .released, status: .recording) == .finishRecording)
     precondition(
       ShortcutBehavior.holdToRecord.action(for: .released, status: .transcribing) == .none)
+
+    var settings = DictationSettings.defaults
+    precondition(!settings.availableHotkeyPresets.contains(.custom))
+    settings.customHotkey = CustomHotkey(keyCode: 0, modifiers: 0, display: "Custom Test")
+    precondition(settings.availableHotkeyPresets.contains(.custom))
     print("shortcut behavior ok")
   }
 }

@@ -13,7 +13,9 @@ struct DictationPresentation {
   let liveTranscript: String
   let recordingElapsedSeconds: Int
   let delivery: TranscriptDelivery
+  let transcriptionConfigurationIssue: String?
 
+  /// Validates immutable settings once so every readiness label and action uses the same result.
   init(
     status: AppStatus,
     settings: DictationSettings,
@@ -32,6 +34,12 @@ struct DictationPresentation {
     self.liveTranscript = liveTranscript
     self.recordingElapsedSeconds = recordingElapsedSeconds
     self.delivery = delivery
+    do {
+      try TranscriptionContract.validate(settings: settings)
+      transcriptionConfigurationIssue = nil
+    } catch {
+      transcriptionConfigurationIssue = error.localizedDescription
+    }
   }
 
   var selectedProviderHasKey: Bool {
@@ -51,7 +59,9 @@ struct DictationPresentation {
   }
 
   var coreRecordingReady: Bool {
-    selectedProviderHasKey && permissionIsReady(.microphone)
+    selectedProviderHasKey
+      && permissionIsReady(.microphone)
+      && transcriptionConfigurationIssue == nil
   }
 
   /// Reports whether the selected shortcut can receive global key events with the current permissions.
@@ -99,8 +109,10 @@ struct DictationPresentation {
   var displayStatusTitle: String {
     switch status {
     case .idle:
-      if !coreRecordingReady {
+      if !selectedProviderHasKey || !permissionIsReady(.microphone) {
         "Needs setup"
+      } else if transcriptionConfigurationIssue != nil {
+        "Check settings"
       } else if !selectedShortcutReady {
         "Shortcut setup"
       } else {
@@ -155,6 +167,8 @@ struct DictationPresentation {
         "key.fill"
       } else if !permissionIsReady(.microphone) {
         "mic.slash.fill"
+      } else if transcriptionConfigurationIssue != nil {
+        "slider.horizontal.3"
       } else if !selectedShortcutReady {
         "keyboard.badge.ellipsis"
       } else {
@@ -173,6 +187,9 @@ struct DictationPresentation {
     if !permissionIsReady(.microphone), status.canStartRecording {
       return "Grant Microphone access before recording."
     }
+    if let transcriptionConfigurationIssue, status.canStartRecording {
+      return transcriptionConfigurationIssue
+    }
     return nil
   }
 
@@ -182,6 +199,9 @@ struct DictationPresentation {
     }
     if !permissionIsReady(.microphone) {
       return "mic.slash"
+    }
+    if transcriptionConfigurationIssue != nil {
+      return "slider.horizontal.3"
     }
     return "key"
   }
@@ -212,6 +232,9 @@ struct DictationPresentation {
     if !permissionIsReady(.microphone) {
       return "mic.slash.fill"
     }
+    if transcriptionConfigurationIssue != nil {
+      return "slider.horizontal.3"
+    }
     return "mic.fill"
   }
 
@@ -227,6 +250,9 @@ struct DictationPresentation {
     }
     if !permissionIsReady(.microphone) {
       return "Set Up Microphone"
+    }
+    if transcriptionConfigurationIssue != nil {
+      return "Review Settings"
     }
     if status.isProcessing {
       return "Processing…"
@@ -248,6 +274,9 @@ struct DictationPresentation {
     }
     if !permissionIsReady(.microphone) {
       return "Microphone permission is required"
+    }
+    if let transcriptionConfigurationIssue {
+      return transcriptionConfigurationIssue
     }
     if status.isProcessing {
       switch style {

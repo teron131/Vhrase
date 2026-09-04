@@ -1,6 +1,7 @@
 // Stores editable Vhrase API credentials in Keychain and resolves safe environment fallbacks for missing keys.
 
 import Foundation
+import LocalAuthentication
 import Security
 
 enum SecretKey: String, CaseIterable {
@@ -108,22 +109,15 @@ final class APIKeyStore: Sendable {
     environment[key.rawValue] ?? ""
   }
 
-  /// Persists user input even when the launch environment supplies a fallback credential.
-  func saveEditableValue(_ value: String, for key: SecretKey) throws {
-    try save(value, for: key)
-  }
-
-  /// Reads the editable Keychain value without substituting environment fallback text into the field.
-  func savedValueForEditing(for key: SecretKey) throws -> String {
-    return try savedValue(for: key)
-  }
-
-  /// Reads only the editable Keychain value so environment credentials never enter persisted UI state.
+  /// Reads only the editable Keychain value without prompting, keeping launch nonblocking and environment fallbacks out of persisted UI state.
   func savedValue(for key: SecretKey) throws -> String {
     var result: CFTypeRef?
+    let authenticationContext = LAContext()
+    authenticationContext.interactionNotAllowed = true
     var query = keychainQuery(for: key)
     query[kSecReturnData] = true
     query[kSecMatchLimit] = kSecMatchLimitOne
+    query[kSecUseAuthenticationContext] = authenticationContext
 
     let status = SecItemCopyMatching(query as CFDictionary, &result)
     switch status {

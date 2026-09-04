@@ -124,7 +124,7 @@ final class AppState: ObservableObject {
 
         for key in SecretKey.allCases {
           do {
-            values[key] = try apiKeys.savedValueForEditing(for: key)
+            values[key] = try apiKeys.savedValue(for: key)
           } catch {
             notices.append(error.localizedDescription)
           }
@@ -327,7 +327,7 @@ final class AppState: ObservableObject {
     }
     do {
       for key in keys {
-        try apiKeys.saveEditableValue(savedAPIKey(for: key), for: key)
+        try apiKeys.save(savedAPIKey(for: key), for: key)
       }
       customizationNotice = "API keys saved in macOS Keychain."
     } catch {
@@ -341,6 +341,10 @@ final class AppState: ObservableObject {
 
   /// Updates one editable credential and debounces its Keychain write for 500 milliseconds.
   func updateAPIKey(_ key: SecretKey, value: String) {
+    guard value != savedAPIKey(for: key) else {
+      return
+    }
+
     switch key {
     case .xaiAPIKey:
       xaiAPIKey = value
@@ -413,6 +417,14 @@ final class AppState: ObservableObject {
 
   func rejectShortcutCapture(_ message: String) {
     customizationNotice = message
+  }
+
+  /// Clears a transient action message without dismissing a newer replacement.
+  func dismissCustomizationNotice(_ notice: String) {
+    guard customizationNotice == notice else {
+      return
+    }
+    customizationNotice = ""
   }
 
   func disableShortcut() {

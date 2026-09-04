@@ -118,6 +118,13 @@ struct DictationSettings: Codable, Equatable, Sendable {
     return customHotkey?.display ?? "Custom"
   }
 
+  /// Omits the Custom choice until Vhrase has a captured shortcut it can actually register.
+  var availableHotkeyPresets: [HotkeyPreset] {
+    HotkeyPreset.allCases.filter { preset in
+      preset != .custom || customHotkey != nil
+    }
+  }
+
   var keytermList: [String] {
     keyterms
       .split(whereSeparator: \.isNewline)

@@ -138,6 +138,35 @@ extension MainWindowView {
     .background(.bar)
   }
 
+  var actionNoticeBanner: some View {
+    HStack(spacing: 9) {
+      Image(systemName: "info.circle.fill")
+        .foregroundStyle(VhraseTheme.accent)
+        .accessibilityHidden(true)
+
+      Text(appState.customizationNotice)
+        .font(.callout)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .textSelection(.enabled)
+
+      Button {
+        appState.dismissCustomizationNotice(appState.customizationNotice)
+      } label: {
+        Image(systemName: "xmark")
+      }
+      .buttonStyle(.plain)
+      .help("Dismiss")
+      .accessibilityLabel("Dismiss notification")
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 10)
+    .background(.bar)
+    .overlay(alignment: .bottom) {
+      Divider()
+    }
+    .accessibilityElement(children: .contain)
+  }
+
   var dictationTab: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
@@ -147,21 +176,17 @@ extension MainWindowView {
             "Speak naturally, review the result, and keep writing without changing apps.",
           systemImage: MainWindowTab.dictate.systemImage
         )
-        .revealOnAppear()
 
         HStack(alignment: .top, spacing: 24) {
           recordPanel
             .frame(width: 310)
             .hoverLift()
-            .revealOnAppear()
 
           transcriptCard
             .frame(maxWidth: .infinity)
             .hoverLift()
-            .revealOnAppear(delay: 0.08)
         }
         quickActionsCard
-          .revealOnAppear(delay: 0.16)
       }
       .frame(maxWidth: 1040, alignment: .topLeading)
       .padding(32)
@@ -359,7 +384,6 @@ extension MainWindowView {
           description: "Choose how Vhrase listens and which shortcut follows you across apps.",
           systemImage: MainWindowTab.capture.systemImage
         )
-        .revealOnAppear()
 
         workflowEditor(
           "Capture workflow",
@@ -369,7 +393,6 @@ extension MainWindowView {
         ) {
           captureWorkflowStageEditor
         }
-        .revealOnAppear(delay: 0.04)
       }
       .frame(maxWidth: 1040, alignment: .topLeading)
       .padding(32)
@@ -390,7 +413,6 @@ extension MainWindowView {
           Spacer()
           customizationActions
         }
-        .revealOnAppear()
 
         workflowEditor(
           "Output workflow",
@@ -401,7 +423,6 @@ extension MainWindowView {
         ) {
           outputWorkflowStageEditor
         }
-        .revealOnAppear(delay: 0.04)
       }
       .frame(maxWidth: 1040, alignment: .topLeading)
       .padding(32)
@@ -657,13 +678,6 @@ extension MainWindowView {
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
       }
-
-      if !appState.customizationNotice.isEmpty {
-        Label(appState.customizationNotice, systemImage: "info.circle")
-          .font(.callout)
-          .foregroundStyle(.secondary)
-          .textSelection(.enabled)
-      }
     }
     .toggleStyle(.switch)
   }
@@ -735,7 +749,7 @@ extension MainWindowView {
 
       labeledPicker("Shortcut") {
         Picker("Shortcut", selection: persistedBinding(\.hotkeyPreset)) {
-          ForEach(HotkeyPreset.allCases) { preset in
+          ForEach(appState.settings.availableHotkeyPresets) { preset in
             Text(preset.display).tag(preset)
           }
         }
@@ -838,27 +852,22 @@ extension MainWindowView {
           description: "Manage provider credentials, macOS access, and optional capabilities.",
           systemImage: MainWindowTab.system.systemImage
         )
-        .revealOnAppear()
 
         setupOverviewCard
           .hoverLift()
-          .revealOnAppear()
 
         ViewThatFits(in: .horizontal) {
           HStack(alignment: .top, spacing: 20) {
             keysCard
               .frame(minWidth: 430, maxWidth: 460)
               .hoverLift()
-              .revealOnAppear(delay: 0.07)
 
             VStack(spacing: 16) {
               permissionsCard
                 .frame(minWidth: 470)
                 .hoverLift()
-                .revealOnAppear(delay: 0.12)
               diagnosticsFullCard
                 .hoverLift()
-                .revealOnAppear(delay: 0.17)
             }
             .frame(maxWidth: .infinity)
           }
@@ -866,13 +875,10 @@ extension MainWindowView {
           VStack(spacing: 16) {
             keysCard
               .hoverLift()
-              .revealOnAppear(delay: 0.07)
             permissionsCard
               .hoverLift()
-              .revealOnAppear(delay: 0.12)
             diagnosticsFullCard
               .hoverLift()
-              .revealOnAppear(delay: 0.17)
           }
           .frame(maxWidth: .infinity)
         }
@@ -976,6 +982,9 @@ extension MainWindowView {
         .textFieldStyle(.roundedBorder)
         .frame(minWidth: 280, maxWidth: .infinity)
         .gridColumnAlignment(.leading)
+        .transaction { transaction in
+          transaction.animation = nil
+        }
         .focused($focusedSecretField, equals: key.rawValue)
         .onSubmit {
           finishAPIKeyEditing()
@@ -995,10 +1004,18 @@ extension MainWindowView {
         } label: {
           Label("Refresh", systemImage: "arrow.clockwise")
         }
-        Button {
-          appState.setupPermissionsOnce()
-        } label: {
-          Label("Request Microphone", systemImage: "mic.badge.plus")
+        if let microphone = presentation.permissionSnapshot(.microphone),
+          !microphone.state.isReady
+        {
+          Button {
+            appState.handlePermissionAction(microphone)
+          } label: {
+            Label(
+              microphone.state == .notDetermined
+                ? "Request Microphone" : "Open Microphone Settings",
+              systemImage: "mic.badge.plus"
+            )
+          }
         }
       }
 
