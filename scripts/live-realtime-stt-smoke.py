@@ -219,7 +219,7 @@ async def transcribe_elevenlabs(args: argparse.Namespace, pcm: bytes) -> str:
             timeout = 0.35 if committed_segments else 20
             try:
                 message = await asyncio.wait_for(websocket.recv(), timeout=timeout)
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 return " ".join(committed_segments)
             event = json.loads(message)
             if args.verbose:
@@ -299,5 +299,6 @@ if __name__ == "__main__":
     try:
         raise SystemExit(asyncio.run(main()))
     except Exception as exc:
-        print(f"live-realtime-stt-smoke: {exc}", file=sys.stderr)
+        detail = str(exc) or exc.__class__.__name__
+        print(f"live-realtime-stt-smoke: {detail}", file=sys.stderr)
         raise SystemExit(1) from None

@@ -14,29 +14,6 @@ enum VhraseMotion {
   }
 }
 
-private struct RevealOnAppearModifier: ViewModifier {
-  let delay: Double
-
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var isVisible = false
-
-  func body(content: Content) -> some View {
-    content
-      .opacity(isVisible ? 1 : 0)
-      .offset(y: isVisible || reduceMotion ? 0 : 14)
-      .scaleEffect(isVisible || reduceMotion ? 1 : 0.985, anchor: .top)
-      .onAppear {
-        guard !reduceMotion else {
-          isVisible = true
-          return
-        }
-        withAnimation(VhraseMotion.stateSpring.delay(delay)) {
-          isVisible = true
-        }
-      }
-  }
-}
-
 private struct HoverLiftModifier: ViewModifier {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isHovered = false
@@ -58,11 +35,6 @@ private struct HoverLiftModifier: ViewModifier {
 }
 
 extension View {
-  /// Cascades a surface into view while preserving an immediate Reduce Motion path.
-  func revealOnAppear(delay: Double = 0) -> some View {
-    modifier(RevealOnAppearModifier(delay: delay))
-  }
-
   /// Gives pointer-driven surfaces a restrained physical lift without changing layout.
   func hoverLift() -> some View {
     modifier(HoverLiftModifier())

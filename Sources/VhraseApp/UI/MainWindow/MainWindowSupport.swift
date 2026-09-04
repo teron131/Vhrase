@@ -621,11 +621,15 @@ extension MainWindowView {
   var statusDetail: String {
     switch appState.status {
     case .idle:
+      let presentation = self.presentation
       if !presentation.selectedProviderHasKey {
         return "Add the selected provider key before recording."
       }
       if !presentation.permissionIsReady(.microphone) {
         return "Grant Microphone access before recording."
+      }
+      if let transcriptionConfigurationIssue = presentation.transcriptionConfigurationIssue {
+        return transcriptionConfigurationIssue
       }
       return "Ready for \(presentation.fullWorkflowSummary)."
     case .preparing:

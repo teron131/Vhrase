@@ -79,6 +79,11 @@ struct MainWindowView: View {
         .navigationTitle(selectedTab.title)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VhraseTheme.canvas)
+        .safeAreaInset(edge: .top, spacing: 0) {
+          if !appState.customizationNotice.isEmpty {
+            actionNoticeBanner
+          }
+        }
     }
     .frame(minWidth: 1020, minHeight: 680)
     .tint(VhraseTheme.accent)
@@ -127,6 +132,18 @@ struct MainWindowView: View {
     .onDisappear {
       cancelShortcutCaptureIfNeeded()
       finishAPIKeyEditing()
+    }
+    .task(id: appState.customizationNotice) {
+      let notice = appState.customizationNotice
+      guard !notice.isEmpty else {
+        return
+      }
+      do {
+        try await Task.sleep(for: .seconds(5))
+      } catch {
+        return
+      }
+      appState.dismissCustomizationNotice(notice)
     }
   }
 

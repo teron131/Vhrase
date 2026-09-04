@@ -35,7 +35,7 @@ struct PipelineFlowView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       ForEach(Array(nodes.enumerated()), id: \.element.id) { index, node in
-        nodeButton(node, index: index)
+        nodeButton(node)
         if index < nodes.count - 1 {
           connector(after: node)
         }
@@ -62,7 +62,7 @@ struct PipelineFlowView: View {
     .accessibilityLabel("Workflow stages")
   }
 
-  private func nodeButton(_ node: PipelineFlowNode, index: Int) -> some View {
+  private func nodeButton(_ node: PipelineFlowNode) -> some View {
     let isSelected = selection == node.id
     let isHovered = hoveredStage == node.id
     let background =
@@ -138,7 +138,6 @@ struct PipelineFlowView: View {
     .accessibilityLabel(node.title)
     .accessibilityValue(accessibilityValue(for: node, isSelected: isSelected))
     .accessibilityHint("Shows settings for this stage")
-    .revealOnAppear(delay: Double(index) * 0.05)
   }
 
   private func stageIcon(_ node: PipelineFlowNode, isSelected: Bool) -> some View {
