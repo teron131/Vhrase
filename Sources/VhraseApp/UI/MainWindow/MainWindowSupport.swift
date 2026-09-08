@@ -96,7 +96,9 @@ extension MainWindowView {
 
   /// Maps each Capture setting to its one owning stage.
   var capturePipelineNodes: [PipelineFlowNode] {
-    [
+    let language = appState.settings.recognitionLanguage
+    let keytermCount = appState.settings.keytermList.count
+    return [
       PipelineFlowNode(
         id: .trigger,
         systemImage: "keyboard",
@@ -107,8 +109,7 @@ extension MainWindowView {
         id: .listen,
         systemImage: "mic.fill",
         title: "Listen",
-        detail: appState.settings.recognitionLanguage.isEmpty
-          ? "Auto language" : appState.settings.recognitionLanguage
+        detail: language.isEmpty ? "Auto language" : language
       ),
       PipelineFlowNode(
         id: .transcribe,
@@ -116,9 +117,9 @@ extension MainWindowView {
         title: "Transcribe",
         detail:
           "\(appState.settings.provider.title) · \(appState.settings.transcriptionMode.title)",
-        badge: appState.settings.keytermList.isEmpty
+        badge: keytermCount == 0
           ? nil
-          : "\(appState.settings.keytermList.count) preferred terms"
+          : "\(keytermCount) preferred terms"
       ),
     ]
   }
@@ -365,8 +366,8 @@ extension MainWindowView {
       )
   }
 
-  var setupOverviewTitle: String {
-    return switch primarySetupDiagnostic.id {
+  func setupOverviewTitle(_ diagnostic: SetupDiagnostic) -> String {
+    return switch diagnostic.id {
     case "ready", "opencc-s2hk":
       "Ready to dictate"
     case "screen-permission", "accessibility-permission":
@@ -416,19 +417,19 @@ extension MainWindowView {
     appState.handlePermissionAction(snapshot)
   }
 
-  var setupOverviewDetail: String {
-    if primarySetupDiagnostic.id == "opencc-s2hk",
+  func setupOverviewDetail(_ diagnostic: SetupDiagnostic) -> String {
+    if diagnostic.id == "opencc-s2hk",
       let failureMessage = appState.openCCInstallationState.failureMessage
     {
       return failureMessage
     }
-    return switch primarySetupDiagnostic.id {
+    return switch diagnostic.id {
     case "ready":
       "The selected provider and required permissions are ready."
     case "opencc-s2hk", "screen-permission", "accessibility-permission":
-      "Core recording works. \(primarySetupDiagnostic.detail)"
+      "Core recording works. \(diagnostic.detail)"
     default:
-      primarySetupDiagnostic.detail
+      diagnostic.detail
     }
   }
 
@@ -717,21 +718,6 @@ extension MainWindowView {
     }
     isCapturingHotkey = false
     appState.cancelShortcutCapture()
-  }
-
-  func persistedBinding<Value>(
-    _ keyPath: WritableKeyPath<DictationSettings, Value>
-  ) -> Binding<Value> {
-    Binding(
-      get: {
-        appState.settings[keyPath: keyPath]
-      },
-      set: { value in
-        appState.updateSettings { settings in
-          settings[keyPath: keyPath] = value
-        }
-      }
-    )
   }
 
   func apiKeyBinding(_ key: SecretKey) -> Binding<String> {

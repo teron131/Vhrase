@@ -38,7 +38,7 @@ actor RealtimeTranscriptAccumulator {
           xaiLockedUtterance = ""
           latestPartial = ""
         } else if event.is_final == true {
-          xaiLockedUtterance = mergeLockedXAIText(text)
+          xaiLockedUtterance = mergeIncrementalText(xaiLockedUtterance, text)
           latestPartial = ""
         } else {
           latestPartial = text
@@ -172,16 +172,17 @@ actor RealtimeTranscriptAccumulator {
 
   private func joinedText() -> String {
     var segments = finalSegments
-    let uncommittedText = joinedUncommittedText()
+    let uncommittedText = mergeIncrementalText(xaiLockedUtterance, latestPartial)
     if !uncommittedText.isEmpty, segments.last != uncommittedText {
       segments.append(uncommittedText)
     }
     return segments.joined(separator: " ")
   }
 
-  private func mergeLockedXAIText(_ text: String) -> String {
-    let existing = xaiLockedUtterance.trimmingCharacters(in: .whitespacesAndNewlines)
-    let update = text.trimmingCharacters(in: .whitespacesAndNewlines)
+  /// Keeps the fuller prefix revision, joining only distinct incremental fragments with a space.
+  private func mergeIncrementalText(_ existing: String, _ update: String) -> String {
+    let existing = existing.trimmingCharacters(in: .whitespacesAndNewlines)
+    let update = update.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !existing.isEmpty else {
       return update
     }
@@ -195,24 +196,6 @@ actor RealtimeTranscriptAccumulator {
       return existing
     }
     return "\(existing) \(update)"
-  }
-
-  private func joinedUncommittedText() -> String {
-    let locked = xaiLockedUtterance.trimmingCharacters(in: .whitespacesAndNewlines)
-    let partial = latestPartial.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !locked.isEmpty else {
-      return partial
-    }
-    guard !partial.isEmpty, partial != locked else {
-      return locked
-    }
-    if partial.hasPrefix(locked) {
-      return partial
-    }
-    if locked.hasPrefix(partial) {
-      return locked
-    }
-    return "\(locked) \(partial)"
   }
 
   private func publishCurrentText() {
@@ -269,6 +252,7 @@ func waitForRealtimeResult(
   timeoutNanoseconds: UInt64 = 20_000_000_000
 ) async throws -> TranscriptionResult {
   try await withThrowingTaskGroup(of: TranscriptionResult.self) { group in
+    defer { group.cancelAll() }
     group.addTask {
       try await accumulator.waitForDone()
     }
@@ -284,19 +268,13 @@ func waitForRealtimeResult(
       )
     }
 
-    do {
-      guard let result = try await group.next() else {
-        throw NSError(
-          domain: "Vhrase.Realtime",
-          code: 3,
-          userInfo: [NSLocalizedDescriptionKey: "Realtime transcription ended without a result."]
-        )
-      }
-      group.cancelAll()
-      return result
-    } catch {
-      group.cancelAll()
-      throw error
+    guard let result = try await group.next() else {
+      throw NSError(
+        domain: "Vhrase.Realtime",
+        code: 3,
+        userInfo: [NSLocalizedDescriptionKey: "Realtime transcription ended without a result."]
+      )
     }
+    return result
   }
 }

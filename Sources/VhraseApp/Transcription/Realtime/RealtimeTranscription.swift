@@ -15,7 +15,7 @@ protocol RealtimeSpeechToTextClient: Sendable {
   ) throws -> RealtimeTranscriptionSession
 }
 
-final class XAIRealtimeTranscriptionClient: RealtimeSpeechToTextClient, @unchecked Sendable {
+final class XAIRealtimeTranscriptionClient: RealtimeSpeechToTextClient {
   private let apiKey: String
 
   init(apiKey: String) {
@@ -42,7 +42,7 @@ final class XAIRealtimeTranscriptionClient: RealtimeSpeechToTextClient, @uncheck
   }
 }
 
-final class ElevenLabsRealtimeTranscriptionClient: RealtimeSpeechToTextClient, @unchecked Sendable {
+final class ElevenLabsRealtimeTranscriptionClient: RealtimeSpeechToTextClient {
   private let apiKey: String
 
   init(apiKey: String) {

@@ -204,13 +204,8 @@ extension MainWindowView {
 
   var recordPanel: some View {
     VStack(spacing: 16) {
-      Picker("Speech provider", selection: persistedBinding(\.provider)) {
-        ForEach(STTProvider.allCases) { provider in
-          Text(provider.title).tag(provider)
-        }
-      }
-      .pickerStyle(.menu)
-      .disabled(presentation.workflowControlsAreDisabled)
+      ProviderPicker(selection: appState.settingsBinding(\.provider))
+        .disabled(presentation.workflowControlsAreDisabled)
 
       RecordHeroButton(
         presentation: presentation,
@@ -476,18 +471,13 @@ extension MainWindowView {
         systemImage: "waveform"
       )
 
-      labeledPicker("Provider") {
-        Picker("Provider", selection: persistedBinding(\.provider)) {
-          ForEach(STTProvider.allCases) { provider in
-            Text(provider.title).tag(provider)
-          }
-        }
-        .labelsHidden()
-        .pickerStyle(.segmented)
+      LabeledContent("Provider") {
+        ProviderPicker(selection: appState.settingsBinding(\.provider), style: .segmented)
+          .fixedSize()
       }
 
       labeledPicker("Mode") {
-        Picker("Mode", selection: persistedBinding(\.transcriptionMode)) {
+        Picker("Mode", selection: appState.settingsBinding(\.transcriptionMode)) {
           ForEach(appState.settings.provider.availableModes) { mode in
             Text(mode.title).tag(mode)
           }
@@ -522,7 +512,7 @@ extension MainWindowView {
       editorTile(
         "Shared vocabulary",
         systemImage: "tag",
-        text: persistedBinding(\.keyterms),
+        text: appState.settingsBinding(\.keyterms),
         height: 126,
         instruction:
           "One word or phrase per line. The same list is used by every provider; duplicates are ignored.",
@@ -540,9 +530,10 @@ extension MainWindowView {
               "Codex", "ChatGPT", "Anthropic", "Claude", "Vercel", "refactor", "schema", "JSON",
               "docstring", "backpropagation", "Monte Carlo",
             ]
-            let existing = Set(settings.keytermList.map { $0.lowercased() })
+            let keyterms = settings.keytermList
+            let existing = Set(keyterms.map { $0.lowercased() })
             let additions = terms.filter { !existing.contains($0.lowercased()) }
-            settings.keyterms = (settings.keytermList + additions).joined(separator: "\n")
+            settings.keyterms = (keyterms + additions).joined(separator: "\n")
           }
         }
         .buttonStyle(.link)
@@ -565,7 +556,7 @@ extension MainWindowView {
         "Smart transcription",
         detail:
           "Remove fillers, resolve spoken corrections, and format paragraphs and lists. Turn off when you need closer preservation of the spoken words.",
-        isOn: persistedBinding(\.geminiSmartTranscription))
+        isOn: appState.settingsBinding(\.geminiSmartTranscription))
       if appState.settings.geminiSmartTranscription, appState.settings.adjustWithLLM {
         HStack(alignment: .top, spacing: 12) {
           Text("LLM enhancement is also on. It will rewrite the Smart transcript a second time.")
@@ -580,17 +571,17 @@ extension MainWindowView {
     case .xai:
       settingsToggle(
         "Keep filler words", detail: "Include “um” and “uh”. Off removes them during recognition.",
-        isOn: persistedBinding(\.includeFillerWords))
+        isOn: appState.settingsBinding(\.includeFillerWords))
       settingsToggle(
         "Format numbers and currency",
         detail:
           "Uses the language in Listen settings. For example, “one hundred dollars” becomes “$100”.",
-        isOn: persistedBinding(\.xaiFormatText))
+        isOn: appState.settingsBinding(\.xaiFormatText))
 
       if appState.settings.transcriptionMode == .realtime {
         LabeledContent("Speech detection threshold") {
           HStack {
-            Slider(value: persistedBinding(\.xaiVADThreshold), in: 0...1, step: 0.01)
+            Slider(value: appState.settingsBinding(\.xaiVADThreshold), in: 0...1, step: 0.01)
             Text(appState.settings.xaiVADThreshold, format: .number.precision(.fractionLength(2)))
               .font(.callout.monospacedDigit())
           }.frame(maxWidth: 280)
@@ -601,7 +592,7 @@ extension MainWindowView {
         .font(.caption).foregroundStyle(.secondary)
         Stepper(
           "Endpointing: \(appState.settings.xaiRealtimeEndpointing) ms",
-          value: persistedBinding(\.xaiRealtimeEndpointing),
+          value: appState.settingsBinding(\.xaiRealtimeEndpointing),
           in: 0...5000,
           step: 100
         )
@@ -610,13 +601,13 @@ extension MainWindowView {
           "Smart Turn",
           detail:
             "Wait for a complete thought before ending a turn. This controls timing, not text cleanup.",
-          isOn: persistedBinding(\.xaiSmartTurnEnabled))
+          isOn: appState.settingsBinding(\.xaiSmartTurnEnabled))
 
         if appState.settings.xaiSmartTurnEnabled {
           LabeledContent("Smart Turn threshold") {
             HStack(spacing: 10) {
               Slider(
-                value: persistedBinding(\.xaiSmartTurnThreshold),
+                value: appState.settingsBinding(\.xaiSmartTurnThreshold),
                 in: 0...1,
                 step: 0.05
               )
@@ -631,7 +622,7 @@ extension MainWindowView {
           }
           Stepper(
             "Smart Turn timeout: \(appState.settings.xaiSmartTurnTimeout) ms",
-            value: persistedBinding(\.xaiSmartTurnTimeout),
+            value: appState.settingsBinding(\.xaiSmartTurnTimeout),
             in: 1...5000,
             step: 100
           )
@@ -651,11 +642,12 @@ extension MainWindowView {
       settingsToggle(
         "Clean up spoken disfluencies",
         detail: "Use Scribe's non-verbatim mode for more readable speech.",
-        isOn: persistedBinding(\.elevenLabsNoVerbatim))
+        isOn: appState.settingsBinding(\.elevenLabsNoVerbatim))
 
       if appState.settings.transcriptionMode == .realtime {
         labeledPicker("Commit strategy") {
-          Picker("Commit strategy", selection: persistedBinding(\.elevenLabsCommitStrategy)) {
+          Picker("Commit strategy", selection: appState.settingsBinding(\.elevenLabsCommitStrategy))
+          {
             ForEach(ElevenLabsCommitStrategy.allCases) { strategy in
               Text(strategy.title).tag(strategy)
             }
@@ -666,14 +658,14 @@ extension MainWindowView {
         if appState.settings.elevenLabsCommitStrategy == .vad {
           Stepper(
             "VAD silence: \(appState.settings.elevenLabsVADSilenceThreshold, specifier: "%.1f") s",
-            value: persistedBinding(\.elevenLabsVADSilenceThreshold),
+            value: appState.settingsBinding(\.elevenLabsVADSilenceThreshold),
             in: 0.3...3,
             step: 0.1
           )
           LabeledContent("VAD threshold") {
             HStack(spacing: 10) {
               Slider(
-                value: persistedBinding(\.elevenLabsVADThreshold),
+                value: appState.settingsBinding(\.elevenLabsVADThreshold),
                 in: 0.1...0.9,
                 step: 0.05
               )
@@ -688,13 +680,13 @@ extension MainWindowView {
           }
           Stepper(
             "Minimum speech: \(appState.settings.elevenLabsMinSpeechDuration) ms",
-            value: persistedBinding(\.elevenLabsMinSpeechDuration),
+            value: appState.settingsBinding(\.elevenLabsMinSpeechDuration),
             in: 50...2000,
             step: 50
           )
           Stepper(
             "Minimum silence: \(appState.settings.elevenLabsMinSilenceDuration) ms",
-            value: persistedBinding(\.elevenLabsMinSilenceDuration),
+            value: appState.settingsBinding(\.elevenLabsMinSilenceDuration),
             in: 50...2000,
             step: 50
           )
@@ -716,7 +708,7 @@ extension MainWindowView {
         "Keep a copy on the clipboard",
         detail:
           "Vhrase always returns text to the app where you started dictating. Keep the same text ready to paste elsewhere.",
-        isOn: persistedBinding(\.keepTranscriptOnClipboard)
+        isOn: appState.settingsBinding(\.keepTranscriptOnClipboard)
       )
 
       Divider()
@@ -745,31 +737,31 @@ extension MainWindowView {
       settingsToggle(
         "Enhance with an LLM",
         detail: "Apply your writing instructions before delivery.",
-        isOn: persistedBinding(\.adjustWithLLM)
+        isOn: appState.settingsBinding(\.adjustWithLLM)
       )
 
       if appState.settings.adjustWithLLM {
         Divider()
 
-        compactField("Model", text: persistedBinding(\.adjustmentModel))
-        compactField("Base URL", text: persistedBinding(\.adjustmentBaseURL))
+        compactField("Model", text: appState.settingsBinding(\.adjustmentModel))
+        compactField("Base URL", text: appState.settingsBinding(\.adjustmentBaseURL))
 
         settingsToggle(
           "Use screen context",
           detail: "Send a screenshot to the configured LLM endpoint for additional context.",
-          isOn: persistedBinding(\.includeScreenshot)
+          isOn: appState.settingsBinding(\.includeScreenshot)
         )
 
         settingsToggle(
           "Use local cleanup if the LLM fails",
           detail: "Return a locally normalized transcript instead of blocking delivery.",
-          isOn: persistedBinding(\.useLocalAdjustmentFallback)
+          isOn: appState.settingsBinding(\.useLocalAdjustmentFallback)
         )
 
         editorTile(
           "Writing instructions",
           systemImage: "text.alignleft",
-          text: persistedBinding(\.adjustmentPrompt),
+          text: appState.settingsBinding(\.adjustmentPrompt),
           height: 150
         )
 
@@ -859,7 +851,7 @@ extension MainWindowView {
       }
 
       labeledPicker("Shortcut") {
-        Picker("Shortcut", selection: persistedBinding(\.hotkeyPreset)) {
+        Picker("Shortcut", selection: appState.settingsBinding(\.hotkeyPreset)) {
           ForEach(appState.settings.availableHotkeyPresets) { preset in
             Text(preset.display).tag(preset)
           }
@@ -868,7 +860,7 @@ extension MainWindowView {
       }
 
       labeledPicker("Behavior") {
-        Picker("Behavior", selection: persistedBinding(\.shortcutBehavior)) {
+        Picker("Behavior", selection: appState.settingsBinding(\.shortcutBehavior)) {
           ForEach(ShortcutBehavior.allCases) { behavior in
             Text(behavior.title).tag(behavior)
           }
@@ -889,13 +881,13 @@ extension MainWindowView {
       )
 
       if appState.settings.provider == .gemini {
-        compactField("Language hints", text: persistedBinding(\.geminiLanguageHints))
+        compactField("Language hints", text: appState.settingsBinding(\.geminiLanguageHints))
         Text(
           "Optional BCP-47 codes separated by commas, such as en-US, yue-Hant-HK. Leave blank for automatic detection and code-switching."
         )
         .font(.caption).foregroundStyle(.secondary)
       } else {
-        compactField("Language", text: persistedBinding(\.language))
+        compactField("Language", text: appState.settingsBinding(\.language))
         Text(
           appState.settings.provider == .xai
             ? "Grok detects spoken language automatically. This code enables number and currency formatting when that option is on, such as en."
@@ -933,7 +925,7 @@ extension MainWindowView {
       editorTile(
         "Replacement rules",
         systemImage: "arrow.left.arrow.right",
-        text: persistedBinding(\.replacementRules),
+        text: appState.settingsBinding(\.replacementRules),
         height: 220
       )
 
@@ -1009,22 +1001,23 @@ extension MainWindowView {
   }
 
   var setupOverviewCard: some View {
-    HStack(alignment: .center, spacing: 14) {
-      Image(systemName: primarySetupDiagnostic.systemImage)
+    let diagnostic = primarySetupDiagnostic
+    return HStack(alignment: .center, spacing: 14) {
+      Image(systemName: diagnostic.systemImage)
         .font(.system(size: 25, weight: .semibold))
-        .foregroundStyle(VhraseTheme.diagnosticColor(primarySetupDiagnostic.severity))
+        .foregroundStyle(VhraseTheme.diagnosticColor(diagnostic.severity))
         .frame(width: 48, height: 48)
         .background(
-          VhraseTheme.diagnosticColor(primarySetupDiagnostic.severity).opacity(0.12),
+          VhraseTheme.diagnosticColor(diagnostic.severity).opacity(0.12),
           in: Circle()
         )
         .accessibilityHidden(true)
 
       VStack(alignment: .leading, spacing: 4) {
-        Text(setupOverviewTitle)
+        Text(setupOverviewTitle(diagnostic))
           .font(.title3.weight(.semibold))
           .tracking(-0.2)
-        Text(setupOverviewDetail)
+        Text(setupOverviewDetail(diagnostic))
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -1032,14 +1025,14 @@ extension MainWindowView {
 
       Spacer(minLength: 16)
 
-      if let actionTitle = setupDiagnosticActionTitle(primarySetupDiagnostic) {
+      if let actionTitle = setupDiagnosticActionTitle(diagnostic) {
         Button(actionTitle) {
           handleSetupDiagnostic(primarySetupDiagnostic)
         }
         .buttonStyle(.borderedProminent)
         .tint(VhraseTheme.accent)
         .disabled(
-          primarySetupDiagnostic.id == "opencc-s2hk"
+          diagnostic.id == "opencc-s2hk"
             && appState.openCCInstallationState == .installing
         )
       }

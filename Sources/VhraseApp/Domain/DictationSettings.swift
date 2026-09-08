@@ -174,11 +174,14 @@ struct DictationSettings: Codable, Equatable, Sendable {
   }
 
   var customizationSummary: String {
+    let language = recognitionLanguage
+    let keytermCount = keytermList.count
+    let replacementCount = replacements.count
     let languageLabel =
-      recognitionLanguage.isEmpty ? "Auto language" : recognitionLanguage
-    let keytermLabel = keytermList.count == 1 ? "1 keyterm" : "\(keytermList.count) keyterms"
+      language.isEmpty ? "Auto language" : language
+    let keytermLabel = keytermCount == 1 ? "1 keyterm" : "\(keytermCount) keyterms"
     let replacementLabel =
-      replacements.count == 1 ? "1 replacement" : "\(replacements.count) replacements"
+      replacementCount == 1 ? "1 replacement" : "\(replacementCount) replacements"
     let cleanupLabel =
       adjustWithLLM
       ? "LLM cleanup"
@@ -255,20 +258,15 @@ struct TextReplacement: Sendable {
   let source: String
   let target: String
 
+  /// Splits at the first occurrence of the highest-priority delimiter, preserving delimiters in the replacement text.
   init?(rule: String) {
     let separators = ["=>", "->", "="]
-    guard let separator = separators.first(where: { rule.contains($0) }) else {
+    guard let range = separators.lazy.compactMap({ rule.range(of: $0) }).first else {
       return nil
     }
 
-    let parts = rule.components(separatedBy: separator)
-    guard parts.count >= 2 else {
-      return nil
-    }
-
-    let source = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
-    let target = parts.dropFirst().joined(separator: separator).trimmingCharacters(
-      in: .whitespacesAndNewlines)
+    let source = rule[..<range.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+    let target = rule[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
     guard !source.isEmpty, !target.isEmpty else {
       return nil
     }

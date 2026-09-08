@@ -93,7 +93,7 @@ struct MenuPopoverView: View {
       NoticeCard(
         appState.lastDelivery.completionDetail,
         systemImage: appState.lastDelivery.completionSystemImage,
-        color: statusColor,
+        color: presentation.statusTint,
         actionTitle: completedInsertionPermissionActionTitle,
         action: handleInsertionPermissionAction
       )
@@ -109,9 +109,9 @@ struct MenuPopoverView: View {
   private var liveTranscriptPanel: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
-        Label(menuStatusTitle, systemImage: menuStatusSystemImage)
+        Label(presentation.displayStatusTitle, systemImage: menuStatusSystemImage)
           .font(.caption.weight(.semibold))
-          .foregroundStyle(statusColor)
+          .foregroundStyle(presentation.statusTint)
 
         Spacer()
 
@@ -241,17 +241,11 @@ struct MenuPopoverView: View {
 
       Spacer()
 
-      Picker("Provider", selection: persistedBinding(\.provider)) {
-        ForEach(STTProvider.allCases) { provider in
-          Text(provider.title).tag(provider)
-        }
-      }
-      .labelsHidden()
-      .pickerStyle(.menu)
-      .fixedSize()
-      .accessibilityLabel("Transcription provider")
+      ProviderPicker(selection: appState.settingsBinding(\.provider))
+        .fixedSize()
+        .accessibilityLabel("Transcription provider")
 
-      Picker("Mode", selection: persistedBinding(\.transcriptionMode)) {
+      Picker("Mode", selection: appState.settingsBinding(\.transcriptionMode)) {
         ForEach(appState.settings.provider.availableModes) { mode in
           Text(mode.title).tag(mode)
         }
@@ -267,20 +261,21 @@ struct MenuPopoverView: View {
   }
 
   private var setupSummary: some View {
-    Button {
+    let diagnostic = primarySetupDiagnostic
+    return Button {
       openMainWindow(.system)
     } label: {
       HStack(alignment: .top, spacing: 9) {
-        Image(systemName: primarySetupDiagnostic.systemImage)
-          .foregroundStyle(VhraseTheme.diagnosticColor(primarySetupDiagnostic.severity))
+        Image(systemName: diagnostic.systemImage)
+          .foregroundStyle(VhraseTheme.diagnosticColor(diagnostic.severity))
           .frame(width: 18)
           .accessibilityHidden(true)
 
         VStack(alignment: .leading, spacing: 2) {
-          Text(primarySetupDiagnostic.title)
+          Text(diagnostic.title)
             .font(.callout.weight(.medium))
             .foregroundStyle(.primary)
-          Text(primarySetupDiagnostic.detail)
+          Text(diagnostic.detail)
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(2)
@@ -295,7 +290,7 @@ struct MenuPopoverView: View {
       }
       .padding(10)
       .background(
-        VhraseTheme.diagnosticColor(primarySetupDiagnostic.severity).opacity(0.1),
+        VhraseTheme.diagnosticColor(diagnostic.severity).opacity(0.1),
         in: RoundedRectangle(cornerRadius: 10, style: .continuous)
       )
       .contentShape(Rectangle())
@@ -367,10 +362,6 @@ struct MenuPopoverView: View {
     }
   }
 
-  private var menuStatusTitle: String {
-    presentation.displayStatusTitle
-  }
-
   private var menuStatusSystemImage: String {
     appState.status == .completed
       ? appState.lastDelivery.completionSystemImage : presentation.statusSystemImage
@@ -403,10 +394,6 @@ struct MenuPopoverView: View {
     appState.handlePermissionAction(snapshot)
   }
 
-  private var statusColor: Color {
-    presentation.statusTint
-  }
-
   private var statusMessageColor: Color {
     if case .failed = appState.status {
       return VhraseTheme.statusFailure
@@ -435,18 +422,4 @@ struct MenuPopoverView: View {
     }
   }
 
-  private func persistedBinding<Value>(
-    _ keyPath: WritableKeyPath<DictationSettings, Value>
-  ) -> Binding<Value> {
-    Binding(
-      get: {
-        appState.settings[keyPath: keyPath]
-      },
-      set: { value in
-        appState.updateSettings { settings in
-          settings[keyPath: keyPath] = value
-        }
-      }
-    )
-  }
 }

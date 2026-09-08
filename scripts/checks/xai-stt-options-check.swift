@@ -176,6 +176,25 @@ struct XAISTTOptionsCheck {
         message: nil
       ))
     precondition(capture.latest == "First locked and drafting")
+    // Partial and locked updates share prefix semantics, including repeated and shorter revisions.
+    for isFinal in [false, true] {
+      for (text, expected) in [
+        (" First locked ", "First locked"),
+        (" First ", "First locked"),
+        (" \n ", "First locked"),
+      ] {
+        _ = await accumulator.handleXAI(
+          XAIRealtimeEvent(
+            type: "transcript.partial",
+            text: text,
+            is_final: isFinal,
+            speech_final: false,
+            duration: nil,
+            message: nil
+          ))
+        precondition(capture.latest == expected)
+      }
+    }
     _ = await accumulator.handleXAI(
       XAIRealtimeEvent(
         type: "transcript.partial",

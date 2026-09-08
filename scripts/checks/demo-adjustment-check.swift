@@ -19,6 +19,15 @@ struct DemoAdjustmentCheck {
       fallback.adjust("I think, you know, this is correct")
         == "I think, you know, this is correct."
     )
+    precondition(
+      fallback.adjust("use OPENAI, Open AI, XAI, x AI, ELEVENLABS and Eleven Labs!")
+        == "Use OpenAI, OpenAI, xAI, xAI, ElevenLabs and ElevenLabs!"
+    )
+    precondition(
+      fallback.adjust("keep reopenai, xair and elevenlabsx?")
+        == "Keep reopenai, xair and elevenlabsx?"
+    )
+    precondition(fallback.adjust(" \t\n ").isEmpty)
     print("demo adjustment preview ok")
   }
 }
