@@ -93,10 +93,6 @@ struct DictationPresentation {
     !status.canStartRecording
   }
 
-  var readinessTitle: String {
-    selectedWorkflowReady ? "Ready to record" : "Needs attention"
-  }
-
   var elapsedTime: String {
     let minutes = recordingElapsedSeconds / 60
     let seconds = recordingElapsedSeconds % 60

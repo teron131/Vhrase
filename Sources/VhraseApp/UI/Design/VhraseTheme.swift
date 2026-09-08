@@ -53,6 +53,23 @@ enum VhraseTheme {
   }
 }
 
+/// Gives action links the app accent instead of AppKit's system-blue link treatment.
+struct AccentLinkButtonStyle: ButtonStyle {
+  @Environment(\.isEnabled) private var isEnabled
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .foregroundStyle(
+        isEnabled
+          ? (configuration.role == .destructive ? VhraseTheme.statusFailure : VhraseTheme.accent)
+          : Color.secondary
+      )
+      .opacity(configuration.isPressed ? 0.7 : 1)
+      .contentShape(Rectangle())
+      .accessibilityAddTraits(.isLink)
+  }
+}
+
 private struct ContentSectionModifier: ViewModifier {
   func body(content: Content) -> some View {
     content

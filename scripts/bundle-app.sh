@@ -45,6 +45,7 @@ rm -rf "$APP_DIR"
 mkdir -p "$MACOS" "$RESOURCES"
 cp "$BINARY" "$MACOS/Vhrase"
 cp -R "$ROOT/.build/$BUILD_CONFIG/Vhrase_VhraseApp.bundle" "$RESOURCES/"
+cp "$ROOT/.build/checkouts/CSpeex/LICENSE.txt" "$RESOURCES/Speex-LICENSE.txt"
 render_app_icon
 
 cat > "$CONTENTS/Info.plist" <<'PLIST'
@@ -63,9 +64,9 @@ cat > "$CONTENTS/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.6.2</string>
+  <string>0.7.0</string>
   <key>CFBundleVersion</key>
-  <string>10</string>
+  <string>11</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>

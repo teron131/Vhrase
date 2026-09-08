@@ -34,6 +34,7 @@ final class AppState: ObservableObject {
   @Published var lastTranscriptionSeconds: Double?
   @Published var liveTranscript = ""
   @Published var recordingLevel = 0.0
+  let audioInputPreview = AudioInputPreview()
   @Published var recordingElapsedSeconds = 0
   @Published var permissions: [PermissionSnapshot] = []
   @Published var history: [TranscriptHistoryItem] = []
@@ -636,6 +637,7 @@ final class AppState: ObservableObject {
       return
     }
 
+    audioInputPreview.stop()
     let id = UUID()
     let recorder = AudioRecorder()
     recordingID = id
@@ -669,7 +671,7 @@ final class AppState: ObservableObject {
       session = startedSession
       try ensureCurrentRecording(id)
       realtimeSession = startedSession
-      try await recorder.start { chunk in
+      try await recorder.start(settings: configuration.settings) { chunk in
         startedSession?.sendAudioChunk(chunk.data)
         Task { @MainActor in
           guard self.recordingID == id else {
