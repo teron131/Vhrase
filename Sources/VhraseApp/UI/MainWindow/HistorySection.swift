@@ -265,6 +265,7 @@ private struct HistoryCardRow: View {
   let onDelete: () -> Void
 
   @State private var isHovered = false
+  @State private var isExpanded = false
   @FocusState private var focusedAction: Action?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -272,8 +273,16 @@ private struct HistoryCardRow: View {
     VStack(alignment: .leading, spacing: 10) {
       Text(item.text)
         .font(VhraseFont.transcript)
-        .lineLimit(3)
+        .lineLimit(isExpanded ? nil : 3)
         .textSelection(.enabled)
+
+      if item.text.count > 160 || item.text.contains("\n") {
+        Button(isExpanded ? "Show less" : "Read full transcript") {
+          isExpanded.toggle()
+        }
+        .buttonStyle(.link)
+        .font(.caption)
+      }
 
       HStack(spacing: 10) {
         Text(metadata)

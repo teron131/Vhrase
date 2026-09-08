@@ -1,22 +1,10 @@
-// Defines when the recorder HUD expands to expose live or finalized transcript output.
+// Keeps recorder geometry stable across live updates and reserves extra space only for actionable errors.
 
 import Foundation
 
 enum StatusPopupContentPolicy {
-  static func showsTranscript(
-    status: AppStatus,
-    hasLiveTranscript: Bool,
-    hasFinalTranscript: Bool
-  ) -> Bool {
-    switch status {
-    case .recording:
-      hasLiveTranscript
-    case .completed:
-      hasFinalTranscript
-    case .failed:
-      true
-    case .idle, .preparing, .transcribing, .adjusting:
-      false
-    }
+  static func size(for status: AppStatus) -> CGSize {
+    if case .failed = status { return CGSize(width: 340, height: 136) }
+    return CGSize(width: 144, height: 52)
   }
 }

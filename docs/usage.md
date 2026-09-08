@@ -1,5 +1,23 @@
 # Usage
 
+## Native transcription providers
+
+Select Gemini, xAI (Grok), or ElevenLabs in Capture → Transcribe, or switch providers directly from Dictate or the menu bar.
+Gemini uses `gemini-3.5-transcribe` directly with your `GEMINI_API_KEY`; it uploads the completed recording when you stop and requests `store: false`.
+Gemini realtime is not enabled in Vhrase; choosing Gemini switches capture to Upload while retaining realtime support for Grok and ElevenLabs.
+All providers read the same Shared vocabulary list, with duplicate lines ignored and provider limits checked before recording.
+“Add developer vocabulary” adds a small editable set including Vercel, refactor, backpropagation, and Monte Carlo without removing existing entries.
+
+Gemini Smart transcription removes fillers, applies spoken corrections, and formats text; turn it off when preservation matters more than formatting.
+If both Smart and LLM enhancement are enabled, Capture explains the second cleanup pass and offers “Use Smart only.”
+Listen accepts Gemini-specific BCP-47 language hints such as `en-US, yue-Hant-HK`; leave them blank for automatic detection.
+Grok's “Keep filler words” and “Format numbers and currency” are independent controls; formatting uses the language in Listen.
+For Grok realtime, lowering the speech detection threshold may help quiet speech but can admit background noise; Smart Turn controls turn timing, not text cleanup.
+
+Dictate shows the latest provider transcription alongside the final output and its transcription request time, so you can inspect what later cleanup changed.
+This original-text comparison is held only in memory; saved history retains finalized text as before.
+Long history entries can be expanded with “Read full transcript.”
+
 ## Run The App
 
 Build and open the signed app bundle:
@@ -24,7 +42,8 @@ Use the bundle for normal operation so macOS associates privacy permissions with
 
 The System screen reports saved or environment-backed credentials separately and routes unavailable permissions to the matching macOS privacy pane.
 Normal launches prefer saved Keychain values, then use launch-environment values or direct literal exports from `~/.zshrc`, while the development runner skips Keychain and can additionally resolve `.env` values in memory without printing them.
-Credential fields remain editable; editing one explicitly saves that value to Keychain.
+Credential fields remain editable; editing one saves that value to Keychain without opening a password dialog.
+If macOS blocks access, Vhrase leaves the saved item protected, uses your edit only for the current session, and shows an unsaved-changes notice with a retry action.
 Microphone, Input Monitoring, Screen Recording, and Accessibility can each produce one native prompt when their feature is first enabled. Accessibility covers insertion and normally covers Fn/Globe; Vhrase does not request optional permissions preemptively.
 
 ## Dictate
@@ -40,7 +59,7 @@ If Accessibility or the target app is unavailable, the transcript stays on the c
 
 ## Surfaces
 
-- **Floating recorder:** follows the active screen at the bottom edge, shows listening or processing state, and provides explicit cancel and finish controls without taking focus from the target app.
+- **Floating recorder:** a small black pill at the bottom of the active screen, with six white audio bars while listening and a progress indicator while processing. Hover or click the waveform to reveal cancel and finish controls without taking focus from the target app. Completion briefly confirms delivery; right-click it to copy again. Errors expand to show the explanation and retry action. Transcript previews remain in Dictate and the menu bar rather than expanding the pill.
 - **Menu bar:** start capture, review compact activity stats, open the main window, and switch provider or mode when no workflow is active.
 - **Dictate:** current readiness, latest transcript, local activity, and the fastest route to capture or system controls.
 - **Capture:** one stage editor for the global shortcut, listening language, provider tuning, transport mode, and provider keyterms.

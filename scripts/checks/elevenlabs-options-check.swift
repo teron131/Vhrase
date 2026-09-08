@@ -56,7 +56,7 @@ struct ElevenLabsOptionsCheck {
     var settings = DictationSettings.defaults
     settings.provider = .elevenLabs
     settings.transcriptionMode = .upload
-    settings.keyterms = Array(repeating: "valid", count: 1_000).joined(separator: "\n")
+    settings.keyterms = (1...1_000).map { "term \($0)" }.joined(separator: "\n")
     try TranscriptionContract.validate(settings: settings)
     settings.keyterms += "\none too many"
     expectValidationFailure(settings, containing: "at most 1000 keyterms")
@@ -77,7 +77,7 @@ struct ElevenLabsOptionsCheck {
     }
 
     settings.transcriptionMode = .realtime
-    settings.keyterms = Array(repeating: "valid", count: 50).joined(separator: "\n")
+    settings.keyterms = (1...50).map { "term \($0)" }.joined(separator: "\n")
     try TranscriptionContract.validate(settings: settings)
     settings.keyterms += "\none too many"
     expectValidationFailure(settings, containing: "at most 50 keyterms")

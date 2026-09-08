@@ -165,6 +165,13 @@ else
   check warn "ElevenLabs key" "add ELEVENLABS_API_KEY in System or environment"
 fi
 
+GEMINI_SOURCE="$(key_value GEMINI_API_KEY)"
+if [[ -n "$GEMINI_SOURCE" ]]; then
+  check ok "Gemini key" "$GEMINI_SOURCE"
+else
+  check warn "Gemini key" "add GEMINI_API_KEY in System or environment"
+fi
+
 MIC_STATUS="$(permission_status kTCCServiceMicrophone)"
 case "$MIC_STATUS" in
   2)

@@ -59,6 +59,15 @@ final class SettingsStore {
     if settings.hotkeyPreset == .custom, settings.customHotkey == nil {
       settings.hotkeyPreset = fallback.hotkeyPreset
     }
+    settings.geminiSmartTranscription = bool(
+      "geminiSmartTranscription", fallback.geminiSmartTranscription)
+    settings.geminiLanguageHints = storedString("geminiLanguageHints", fallback.geminiLanguageHints)
+    settings.xaiFormatText = bool("xaiFormatText", fallback.xaiFormatText)
+    settings.xaiVADThreshold = boundedDouble(
+      "xaiVADThreshold", fallback.xaiVADThreshold, range: 0...1)
+    if !settings.provider.availableModes.contains(settings.transcriptionMode) {
+      settings.transcriptionMode = .upload
+    }
     return settings
   }
 
@@ -89,6 +98,10 @@ final class SettingsStore {
     defaults.set(settings.hotkeyPreset.rawValue, forKey: "hotkeyPreset")
     saveCustomHotkey(settings.customHotkey)
     defaults.set(settings.shortcutBehavior.rawValue, forKey: "shortcutBehavior")
+    defaults.set(settings.geminiSmartTranscription, forKey: "geminiSmartTranscription")
+    defaults.set(settings.geminiLanguageHints, forKey: "geminiLanguageHints")
+    defaults.set(settings.xaiFormatText, forKey: "xaiFormatText")
+    defaults.set(settings.xaiVADThreshold, forKey: "xaiVADThreshold")
   }
 
   private func nonEmptyString(_ key: String, _ fallback: String) -> String {

@@ -1,10 +1,11 @@
-// Defines provider options, customization rules, and validated dictation settings.
+// Owns persistent dictation preferences and the provider capabilities that constrain capture and cleanup.
 
 import Foundation
 
 enum STTProvider: String, CaseIterable, Codable, Identifiable, Sendable {
   case xai
   case elevenLabs
+  case gemini
 
   var id: String { rawValue }
 
@@ -14,6 +15,20 @@ enum STTProvider: String, CaseIterable, Codable, Identifiable, Sendable {
       "xAI"
     case .elevenLabs:
       "ElevenLabs"
+    case .gemini:
+      "Gemini"
+    }
+  }
+
+  var availableModes: [TranscriptionMode] {
+    self == .gemini ? [.upload] : TranscriptionMode.allCases
+  }
+
+  var detail: String {
+    switch self {
+    case .xai: "Grok speech recognition with vocabulary hints and optional filler removal."
+    case .elevenLabs: "Scribe speech recognition with vocabulary hints and verbatim controls."
+    case .gemini: "Gemini 3.5 Transcribe with vocabulary hints and optional Smart transcription."
     }
   }
 }
@@ -77,6 +92,10 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var hotkeyPreset: HotkeyPreset
   var customHotkey: CustomHotkey?
   var shortcutBehavior: ShortcutBehavior
+  var geminiSmartTranscription: Bool = true
+  var geminiLanguageHints: String = ""
+  var xaiFormatText: Bool = true
+  var xaiVADThreshold: Double = 0.08
 
   static let defaultAdjustmentPrompt = """
     Rewrite the transcript into polished text that is ready to insert into the active app. Fix obvious speech-to-text mistakes, punctuation, casing, and awkward phrasing while preserving intent. Use the screenshot only as context. Return only the final text.
@@ -126,10 +145,26 @@ struct DictationSettings: Codable, Equatable, Sendable {
   }
 
   var keytermList: [String] {
-    keyterms
+    var seen = Set<String>()
+    return
+      keyterms
       .split(whereSeparator: \.isNewline)
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty && seen.insert($0).inserted }
+  }
+
+  var geminiLanguageCodes: [String] {
+    geminiLanguageHints.split { $0 == "," || $0.isNewline }
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
+  }
+
+  var transcriptionStyle: String {
+    switch provider {
+    case .gemini: geminiSmartTranscription ? "Smart transcription" : "Verbatim"
+    case .xai: includeFillerWords ? "Keep fillers" : "Remove fillers"
+    case .elevenLabs: elevenLabsNoVerbatim ? "Clean speech" : "Verbatim"
+    }
   }
 
   var replacements: [TextReplacement] {
@@ -140,16 +175,32 @@ struct DictationSettings: Codable, Equatable, Sendable {
 
   var customizationSummary: String {
     let languageLabel =
-      language.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Auto language" : language
+      recognitionLanguage.isEmpty ? "Auto language" : recognitionLanguage
     let keytermLabel = keytermList.count == 1 ? "1 keyterm" : "\(keytermList.count) keyterms"
     let replacementLabel =
       replacements.count == 1 ? "1 replacement" : "\(replacements.count) replacements"
-    let cleanupLabel = adjustWithLLM ? "LLM cleanup" : "Raw transcript"
+    let cleanupLabel =
+      adjustWithLLM
+      ? "LLM cleanup"
+      : provider == .gemini && geminiSmartTranscription ? "Smart transcription" : "Raw transcript"
     return "\(languageLabel) · \(keytermLabel) · \(replacementLabel) · \(cleanupLabel)"
+  }
+
+  var recognitionLanguage: String {
+    provider == .gemini
+      ? geminiLanguageCodes.joined(separator: ", ")
+      : language.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   /// Rejects persisted or imported values that cannot be produced by Vhrase's bounded controls.
   func validateLocalConfiguration() throws {
+    guard provider.availableModes.contains(transcriptionMode) else {
+      throw ConfigurationValidationError(
+        "Gemini currently transcribes after you stop recording. Choose Upload mode.")
+    }
+    guard (0...1).contains(xaiVADThreshold) else {
+      throw ConfigurationValidationError("Grok speech sensitivity must be between 0 and 1.")
+    }
     guard (0...5_000).contains(xaiRealtimeEndpointing) else {
       throw ConfigurationValidationError("xAI endpointing must be between 0 and 5,000 ms.")
     }

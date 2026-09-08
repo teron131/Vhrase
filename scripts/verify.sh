@@ -91,11 +91,13 @@ APP_PROVIDER_CHECK_SOURCES=(
   Sources/VhraseApp/Transcription/Realtime/RealtimeTranscription.swift
   Sources/VhraseApp/Transcription/Realtime/RealtimeTranscriptAccumulator.swift
   Sources/VhraseApp/Transcription/Upload/UploadTranscriptionClients.swift
+  Sources/VhraseApp/Storage/SettingsStore.swift
 )
 APP_PROVIDER_CHECKS=(
   scripts/checks/audio-tap-isolation-check.swift
   scripts/checks/xai-stt-options-check.swift
   scripts/checks/elevenlabs-options-check.swift
+  scripts/checks/gemini-stt-options-check.swift
 )
 APP_FINALIZATION_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"
@@ -116,6 +118,7 @@ APP_CREDENTIAL_CHECK_SOURCES=(
 )
 APP_CREDENTIAL_CHECKS=(
   scripts/checks/api-key-resolution-check.swift
+  scripts/checks/keychain-interaction-check.swift
 )
 APP_INSERTION_CHECK_SOURCES=(
   Sources/VhraseApp/System/TextInsertion.swift

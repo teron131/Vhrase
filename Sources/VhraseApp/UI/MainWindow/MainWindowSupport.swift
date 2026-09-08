@@ -107,7 +107,8 @@ extension MainWindowView {
         id: .listen,
         systemImage: "mic.fill",
         title: "Listen",
-        detail: appState.settings.language.isEmpty ? "Auto language" : appState.settings.language
+        detail: appState.settings.recognitionLanguage.isEmpty
+          ? "Auto language" : appState.settings.recognitionLanguage
       ),
       PipelineFlowNode(
         id: .transcribe,
@@ -478,6 +479,8 @@ extension MainWindowView {
           SecretKey.xaiAPIKey.rawValue
         case .elevenLabs:
           SecretKey.elevenLabsAPIKey.rawValue
+        case .gemini:
+          SecretKey.geminiAPIKey.rawValue
         }
     case "adjustment-key":
       focusedSecretField = SecretKey.llmAPIKey.rawValue
@@ -683,6 +686,9 @@ extension MainWindowView {
     switch (appState.settings.provider, appState.settings.transcriptionMode) {
     case (.xai, _):
       return "xAI accepts up to 100 keyterms, with at most 50 characters in each term."
+    case (.gemini, _):
+      return
+        "Gemini accepts up to 1,000 terms; a focused list of 100 or fewer works best. Your vocabulary is shared across providers."
     case (.elevenLabs, .upload):
       return
         "ElevenLabs upload accepts up to 1,000 keyterms; using keyterms adds 20% to transcription usage."
@@ -734,6 +740,7 @@ extension MainWindowView {
         switch key {
         case .xaiAPIKey: appState.xaiAPIKey
         case .elevenLabsAPIKey: appState.elevenLabsAPIKey
+        case .geminiAPIKey: appState.geminiAPIKey
         case .llmAPIKey: appState.llmAPIKey
         }
       },

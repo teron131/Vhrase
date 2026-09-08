@@ -252,7 +252,7 @@ struct MenuPopoverView: View {
       .accessibilityLabel("Transcription provider")
 
       Picker("Mode", selection: persistedBinding(\.transcriptionMode)) {
-        ForEach(TranscriptionMode.allCases) { mode in
+        ForEach(appState.settings.provider.availableModes) { mode in
           Text(mode.title).tag(mode)
         }
       }

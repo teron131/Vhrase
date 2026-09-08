@@ -1,4 +1,4 @@
-// Implements upload-based xAI and ElevenLabs speech-to-text provider adapters.
+// Translates recorded WAV audio into each provider's native request and returns one common transcript contract.
 
 import Foundation
 
@@ -73,9 +73,66 @@ final class ElevenLabsTranscriptionClient: SpeechToTextClient, @unchecked Sendab
   }
 }
 
+final class GeminiTranscriptionClient: SpeechToTextClient, @unchecked Sendable {
+  private let apiKey: String
+
+  init(apiKey: String) { self.apiKey = apiKey }
+
+  /// Submits one non-stored native interaction and rejects incomplete responses before insertion.
+  func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult {
+    guard !apiKey.isEmpty else { throw missingKey("GEMINI_API_KEY") }
+    var request = URLRequest(
+      url: URL(string: "https://generativelanguage.googleapis.com/v1beta/interactions")!)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 90
+    request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try GeminiTranscriptionContract.requestBody(
+      audio: Data(contentsOf: fileURL), settings: settings)
+    let data = try await perform(request, providerName: "Gemini")
+    let response = try JSONDecoder().decode(GeminiTranscriptionResponse.self, from: data)
+    guard response.status == "completed" else {
+      throw UploadTranscriptionError.incompleteResponse(providerName: "Gemini")
+    }
+    let text = response.text
+    guard !text.isEmpty else {
+      throw UploadTranscriptionError.incompleteResponse(providerName: "Gemini")
+    }
+    return TranscriptionResult(
+      text: text,
+      providerName: settings.geminiSmartTranscription ? "Gemini · Smart" : "Gemini",
+      duration: nil)
+  }
+}
+
 private struct XAITranscriptionResponse: Decodable {
   let text: String
   let duration: Double?
+}
+
+private struct GeminiTranscriptionResponse: Decodable {
+  let status: String
+  let steps: [Step]
+
+  /// Retains ordered model text while ignoring non-text content and non-output steps.
+  var text: String {
+    steps.filter { $0.type == "model_output" }
+      .flatMap(\.content)
+      .filter { $0.type == "text" }
+      .compactMap(\.text)
+      .joined(separator: "\n")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  struct Step: Decodable {
+    let type: String
+    let content: [Content]
+  }
+
+  struct Content: Decodable {
+    let type: String
+    let text: String?
+  }
 }
 
 private struct ElevenLabsTranscriptionResponse: Decodable {
@@ -119,11 +176,14 @@ private func perform(
 
 private enum UploadTranscriptionError: LocalizedError {
   case httpFailure(providerName: String, statusCode: Int, detail: String)
+  case incompleteResponse(providerName: String)
 
   var errorDescription: String? {
     switch self {
     case .httpFailure(let providerName, let statusCode, let detail):
       "\(providerName) transcription failed with HTTP \(statusCode): \(detail)"
+    case .incompleteResponse(let providerName):
+      "\(providerName) returned no completed transcript. Try recording again."
     }
   }
 }

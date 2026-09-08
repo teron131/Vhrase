@@ -1,38 +1,18 @@
-// Verifies that the recorder HUD exposes live and finalized transcript output in the relevant workflow states.
+// Verifies stable recording-pill geometry and the expanded error recovery surface.
 
 import Foundation
 
 @main
 struct StatusPopupContentCheck {
   static func main() {
-    precondition(
-      StatusPopupContentPolicy.showsTranscript(
-        status: .recording,
-        hasLiveTranscript: true,
-        hasFinalTranscript: false
-      )
-    )
-    precondition(
-      StatusPopupContentPolicy.showsTranscript(
-        status: .completed,
-        hasLiveTranscript: false,
-        hasFinalTranscript: true
-      )
-    )
-    precondition(
-      !StatusPopupContentPolicy.showsTranscript(
-        status: .completed,
-        hasLiveTranscript: false,
-        hasFinalTranscript: false
-      )
-    )
-    precondition(
-      !StatusPopupContentPolicy.showsTranscript(
-        status: .adjusting,
-        hasLiveTranscript: true,
-        hasFinalTranscript: false
-      )
-    )
+    let pillSize = CGSize(width: 144, height: 52)
+    for status: AppStatus in [.idle, .preparing, .recording, .transcribing, .adjusting, .completed]
+    {
+      precondition(StatusPopupContentPolicy.size(for: status) == pillSize)
+    }
+    let errorSize = StatusPopupContentPolicy.size(for: .failed("No connection"))
+    precondition(errorSize.width > pillSize.width)
+    precondition(errorSize.height > pillSize.height)
 
     print("Status popup content checks passed")
   }

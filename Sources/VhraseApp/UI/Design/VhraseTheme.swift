@@ -17,6 +17,8 @@ enum VhraseTheme {
   static let statusFailure = adaptiveColor(light: 0xC62828, dark: 0xFF5147)
   static let statusProcessing = adaptiveColor(light: 0x7A5CFF, dark: 0x9D86FF)
   static let workflowAccent = adaptiveColor(light: 0x76567F, dark: 0xB88BC4)
+  static let recorderBackground = Color.black
+  static let recorderBorder = Color.white.opacity(0.18)
 
   static let heroCornerRadius: CGFloat = 16
   static let sectionCornerRadius: CGFloat = 12

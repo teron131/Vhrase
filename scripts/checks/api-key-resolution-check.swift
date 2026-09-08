@@ -16,6 +16,7 @@ struct APIKeyResolutionCheck {
     # File values fill missing launch values without executing shell syntax.
     XAI_API_KEY=file-xai
     ELEVENLABS_API_KEY="file-elevenlabs"
+    GEMINI_API_KEY="file-gemini"
     LLM_API_KEY='file-llm'
     IGNORED_KEY=ignored
     """.write(to: fixtureURL, atomically: true, encoding: .utf8)
@@ -26,6 +27,7 @@ struct APIKeyResolutionCheck {
     )
     precondition(environment[SecretKey.xaiAPIKey.rawValue] == "shell-xai")
     precondition(environment[SecretKey.elevenLabsAPIKey.rawValue] == "file-elevenlabs")
+    precondition(environment[SecretKey.geminiAPIKey.rawValue] == "file-gemini")
     precondition(environment[SecretKey.llmAPIKey.rawValue] == "file-llm")
     precondition(environment["IGNORED_KEY"] == nil)
 
@@ -36,6 +38,7 @@ struct APIKeyResolutionCheck {
     try """
     export XAI_API_KEY="zshrc-xai"
     export ELEVENLABS_API_KEY=zshrc-elevenlabs
+    export GEMINI_API_KEY=zshrc-gemini
     LLM_API_KEY=not-exported
     export LLM_API_KEY=$(ignored-command)
     export IGNORED_KEY=ignored
@@ -47,6 +50,7 @@ struct APIKeyResolutionCheck {
     )
     precondition(zshrcEnvironment[SecretKey.xaiAPIKey.rawValue] == "process-xai")
     precondition(zshrcEnvironment[SecretKey.elevenLabsAPIKey.rawValue] == "zshrc-elevenlabs")
+    precondition(zshrcEnvironment[SecretKey.geminiAPIKey.rawValue] == "zshrc-gemini")
     precondition(zshrcEnvironment[SecretKey.llmAPIKey.rawValue] == nil)
     precondition(zshrcEnvironment["IGNORED_KEY"] == nil)
 

@@ -9,6 +9,7 @@ struct SetupDiagnostics {
   let llmAPIKey: String
   let permissions: [PermissionSnapshot]
   let chineseConversionIsAvailable: Bool
+  var geminiAPIKey: String = ""
 
   func build() -> [SetupDiagnostic] {
     var diagnostics: [SetupDiagnostic] = []
@@ -108,6 +109,7 @@ struct SetupDiagnostics {
     switch settings.provider {
     case .xai: xaiAPIKey.isEmpty
     case .elevenLabs: elevenLabsAPIKey.isEmpty
+    case .gemini: geminiAPIKey.isEmpty
     }
   }
 

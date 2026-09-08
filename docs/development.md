@@ -55,13 +55,17 @@ It reports credential presence from macOS Keychain or an environment fallback wi
 
 ## Credentials
 
-Vhrase saves generic-password items under the Keychain service `Vhrase`, using `XAI_API_KEY`, `ELEVENLABS_API_KEY`, and `LLM_API_KEY` as account names.
+Vhrase saves generic-password items under the Keychain service `Vhrase`, using `GEMINI_API_KEY`, `XAI_API_KEY`, `ELEVENLABS_API_KEY`, and `LLM_API_KEY` as account names.
 Normal Finder launches read saved Keychain values first, then use launch-environment values and direct literal exports from `~/.zshrc` as fallbacks.
+All credential operations run inside a serialized, process-local no-interaction scope and restore the previous interaction flag afterward.
+The file-based login Keychain ignores LAContext-only dialog suppression, so this boundary deliberately uses the deprecated SecKeychain interaction APIs while retaining existing items and their access controls.
+The focused `keychain-interaction-check.swift` creates and removes an isolated test Keychain under `.cache/checks`, proving locked reads and writes return without prompting; it never locks the user's login Keychain.
 `./scripts/build-and-run.sh` instead launches in development mode, which skips every Keychain read and resolves credentials from the launch environment, `~/.zshrc`, and the ignored repository `.env` file in that order.
 Use this non-executable `.env` format:
 
 ```dotenv
 XAI_API_KEY=
+GEMINI_API_KEY=
 ELEVENLABS_API_KEY=
 LLM_API_KEY=
 ```
@@ -87,6 +91,17 @@ The bundle is written to `dist/Vhrase.app` and signed with `VHRASE_CODESIGN_IDEN
 For normal local development, use the persistent Vhrase identity rather than the ad-hoc fallback so Keychain and TCC permissions remain attached to one designated application identity.
 
 ## Live STT Smokes
+
+The app's actual native Gemini and Grok adapters can be tested with a short WAV and environment credentials, without reading Keychain or changing app settings:
+
+```sh
+swiftc -parse-as-library Sources/VhraseApp/Domain/*.swift Sources/VhraseApp/Transcription/ProviderContracts.swift Sources/VhraseApp/Transcription/Upload/*.swift scripts/live-native-stt-smoke.swift -o .cache/checks/live-native-stt-smoke
+.cache/checks/live-native-stt-smoke /absolute/path/recording.wav
+```
+
+This makes one native request per provider with the same developer vocabulary and Gemini Smart enabled.
+It may consume provider usage and prints the sample transcripts, never credentials.
+To explicitly show the rebuilt control center, launch `dist/Vhrase.app` with `--show-window`; normal launches retain menu-bar-only behavior.
 
 Run a live provider upload smoke test with a generated local voice sample:
 
