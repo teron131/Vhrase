@@ -1,12 +1,12 @@
 // Stores editable Vhrase API credentials in Keychain and resolves safe environment fallbacks for missing keys.
 
 import Foundation
-import LocalAuthentication
 import Security
 
 enum SecretKey: String, CaseIterable {
   case xaiAPIKey = "XAI_API_KEY"
   case elevenLabsAPIKey = "ELEVENLABS_API_KEY"
+  case geminiAPIKey = "GEMINI_API_KEY"
   case llmAPIKey = "LLM_API_KEY"
 
   var title: String {
@@ -15,6 +15,8 @@ enum SecretKey: String, CaseIterable {
       "xAI API key"
     case .elevenLabsAPIKey:
       "ElevenLabs API key"
+    case .geminiAPIKey:
+      "Gemini API key"
     case .llmAPIKey:
       "LLM API key"
     }
@@ -112,14 +114,12 @@ final class APIKeyStore: Sendable {
   /// Reads only the editable Keychain value without prompting, keeping launch nonblocking and environment fallbacks out of persisted UI state.
   func savedValue(for key: SecretKey) throws -> String {
     var result: CFTypeRef?
-    let authenticationContext = LAContext()
-    authenticationContext.interactionNotAllowed = true
     var query = keychainQuery(for: key)
     query[kSecReturnData] = true
     query[kSecMatchLimit] = kSecMatchLimitOne
-    query[kSecUseAuthenticationContext] = authenticationContext
-
-    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    let status = KeychainInteraction.performWithoutUI {
+      SecItemCopyMatching(query as CFDictionary, &result)
+    }
     switch status {
     case errSecSuccess:
       guard let data = result as? Data,
@@ -168,10 +168,9 @@ final class APIKeyStore: Sendable {
       kSecValueData: data,
       kSecAttrAccessible: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
     ]
-    let updateStatus = SecItemUpdate(
-      keychainQuery(for: key) as CFDictionary,
-      update as CFDictionary
-    )
+    let updateStatus = KeychainInteraction.performWithoutUI {
+      SecItemUpdate(keychainQuery(for: key) as CFDictionary, update as CFDictionary)
+    }
 
     if updateStatus == errSecSuccess {
       return
@@ -183,14 +182,16 @@ final class APIKeyStore: Sendable {
     var item = keychainQuery(for: key)
     item[kSecValueData] = data
     item[kSecAttrAccessible] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-    let addStatus = SecItemAdd(item as CFDictionary, nil)
+    let addStatus = KeychainInteraction.performWithoutUI {
+      SecItemAdd(item as CFDictionary, nil)
+    }
     guard addStatus == errSecSuccess else {
       throw KeychainSaveError(key: key, action: "save", status: addStatus)
     }
   }
 
   private func keychainQuery(for key: SecretKey) -> [CFString: Any] {
-    [
+    return [
       kSecClass: kSecClassGenericPassword,
       kSecAttrService: service,
       kSecAttrAccount: key.rawValue,
@@ -198,10 +199,33 @@ final class APIKeyStore: Sendable {
   }
 
   private func removeValue(for key: SecretKey) throws {
-    let status = SecItemDelete(keychainQuery(for: key) as CFDictionary)
+    let status = KeychainInteraction.performWithoutUI {
+      SecItemDelete(keychainQuery(for: key) as CFDictionary)
+    }
     guard status == errSecSuccess || status == errSecItemNotFound else {
       throw KeychainSaveError(key: key, action: "remove", status: status)
     }
+  }
+}
+
+/// Suppresses file-based Keychain dialogs only inside this process, without unlocking items or changing their access controls.
+enum KeychainInteraction {
+  private static let lock = NSLock()
+
+  /// Serializes and restores the process-wide interaction flag because LAContext alone does not cover login Keychain items.
+  static func performWithoutUI(_ operation: () -> OSStatus) -> OSStatus {
+    lock.lock()
+    defer { lock.unlock() }
+
+    var wasAllowed = DarwinBoolean(false)
+    let readStatus = SecKeychainGetUserInteractionAllowed(&wasAllowed)
+    guard readStatus == errSecSuccess else { return readStatus }
+    let disableStatus = SecKeychainSetUserInteractionAllowed(false)
+    guard disableStatus == errSecSuccess else { return disableStatus }
+
+    let operationStatus = operation()
+    let restoreStatus = SecKeychainSetUserInteractionAllowed(wasAllowed.boolValue)
+    return operationStatus == errSecSuccess ? restoreStatus : operationStatus
   }
 }
 
@@ -261,5 +285,9 @@ private struct KeychainSaveError: LocalizedError {
 }
 
 private func keychainMessage(for status: OSStatus) -> String {
-  (SecCopyErrorMessageString(status, nil) as String?) ?? "OSStatus \(status)"
+  if status == errSecInteractionNotAllowed || status == errSecAuthFailed {
+    return
+      "Access needs approval or the login Keychain is locked. Vhrase will not open a password dialog"
+  }
+  return (SecCopyErrorMessageString(status, nil) as String?) ?? "OSStatus \(status)"
 }

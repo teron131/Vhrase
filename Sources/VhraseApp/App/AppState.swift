@@ -25,8 +25,13 @@ final class AppState: ObservableObject {
   @Published var settings: DictationSettings
   @Published var xaiAPIKey: String
   @Published var elevenLabsAPIKey: String
+  @Published var geminiAPIKey: String
   @Published var llmAPIKey: String
+  @Published private(set) var unsavedAPIKeys: Set<SecretKey> = []
+  @Published private(set) var keychainReadNotice = ""
   @Published var lastTranscript = ""
+  @Published var lastRecognizedTranscript = ""
+  @Published var lastTranscriptionSeconds: Double?
   @Published var liveTranscript = ""
   @Published var recordingLevel = 0.0
   @Published var recordingElapsedSeconds = 0
@@ -66,6 +71,7 @@ final class AppState: ObservableObject {
   private var lastHotkeyPressDate: Date?
   private var apiKeySaveTask: Task<Void, Never>?
   private var pendingAPIKeySaves: Set<SecretKey> = []
+  private var editedAPIKeys: Set<SecretKey> = []
   private var shouldLoadSavedAPIKeysAfterLaunch = false
 
   init() {
@@ -98,6 +104,7 @@ final class AppState: ObservableObject {
     settings = settingsStore.load()
     xaiAPIKey = ""
     elevenLabsAPIKey = ""
+    geminiAPIKey = ""
     llmAPIKey = ""
     shouldLoadSavedAPIKeysAfterLaunch = developmentEnvironmentFileURL == nil
     history = historyStore.load()
@@ -117,12 +124,13 @@ final class AppState: ObservableObject {
     shouldLoadSavedAPIKeysAfterLaunch = false
 
     let apiKeys = apiKeys
+    let keys = SecretKey.allCases.filter { !editedAPIKeys.contains($0) }
     Task {
       let loaded = await Task.detached {
         var values: [SecretKey: String] = [:]
         var notices: [String] = []
 
-        for key in SecretKey.allCases {
+        for key in keys {
           do {
             values[key] = try apiKeys.savedValue(for: key)
           } catch {
@@ -132,17 +140,25 @@ final class AppState: ObservableObject {
         return (values: values, notices: notices)
       }.value
 
-      xaiAPIKey = loaded.values[.xaiAPIKey, default: ""]
-      elevenLabsAPIKey = loaded.values[.elevenLabsAPIKey, default: ""]
-      llmAPIKey = loaded.values[.llmAPIKey, default: ""]
+      for key in keys where !editedAPIKeys.contains(key) {
+        guard let value = loaded.values[key] else { continue }
+        self[keyPath: apiKeyPath(for: key)] = value
+      }
 
       let keychainNotice = loaded.notices.joined(separator: " ")
+      keychainReadNotice = keychainNotice
       if !keychainNotice.isEmpty {
         customizationNotice = [customizationNotice, keychainNotice]
           .filter { !$0.isEmpty }
           .joined(separator: " ")
       }
     }
+  }
+
+  /// Retries inaccessible saved keys without a password dialog or overwriting credentials edited during this session.
+  func retryLoadingAPIKeys() {
+    shouldLoadSavedAPIKeysAfterLaunch = true
+    loadSavedAPIKeysAfterLaunch()
   }
 
   /// Reads the development environment path paired with the launch-only argument.
@@ -165,6 +181,10 @@ final class AppState: ObservableObject {
     effectiveAPIKey(.elevenLabsAPIKey)
   }
 
+  var effectiveGeminiAPIKey: String {
+    effectiveAPIKey(.geminiAPIKey)
+  }
+
   var effectiveLLMAPIKey: String {
     effectiveAPIKey(.llmAPIKey)
   }
@@ -179,14 +199,15 @@ final class AppState: ObservableObject {
       permissions: permissions,
       liveTranscript: liveTranscript,
       recordingElapsedSeconds: recordingElapsedSeconds,
-      delivery: lastDelivery
+      delivery: lastDelivery,
+      geminiAPIKey: effectiveGeminiAPIKey
     )
   }
 
   func usesEnvironmentFallback(for key: SecretKey) -> Bool {
     apiKeys.usesEnvironmentFallback(
       for: key,
-      savedValue: savedAPIKey(for: key)
+      savedValue: self[keyPath: apiKeyPath(for: key)]
     )
   }
 
@@ -204,7 +225,8 @@ final class AppState: ObservableObject {
       elevenLabsAPIKey: effectiveElevenLabsAPIKey,
       llmAPIKey: effectiveLLMAPIKey,
       permissions: permissions,
-      chineseConversionIsAvailable: ChineseTextConverter.isAvailable
+      chineseConversionIsAvailable: ChineseTextConverter.isAvailable,
+      geminiAPIKey: effectiveGeminiAPIKey
     ).build()
   }
 
@@ -325,36 +347,39 @@ final class AppState: ObservableObject {
     guard !keys.isEmpty else {
       return
     }
-    do {
-      for key in keys {
-        try apiKeys.save(savedAPIKey(for: key), for: key)
-      }
-      customizationNotice = "API keys saved in macOS Keychain."
-    } catch {
-      let message = error.localizedDescription
-      customizationNotice = message
-      if status.canStartRecording {
-        status = .failed(message)
+    var failures: [String] = []
+    for key in keys {
+      do {
+        try apiKeys.save(self[keyPath: apiKeyPath(for: key)], for: key)
+        unsavedAPIKeys.remove(key)
+      } catch {
+        unsavedAPIKeys.insert(key)
+        failures.append(error.localizedDescription)
       }
     }
+    customizationNotice =
+      failures.isEmpty
+      ? "API key changes saved in macOS Keychain."
+      : failures.joined(separator: " ") + " Unsaved changes apply only for this session."
+  }
+
+  /// Retries explicit credential edits without opening a system authentication dialog.
+  func retrySavingAPIKeys() {
+    saveAPIKeys(unsavedAPIKeys)
   }
 
   /// Updates one editable credential and debounces its Keychain write for 500 milliseconds.
   func updateAPIKey(_ key: SecretKey, value: String) {
-    guard value != savedAPIKey(for: key) else {
+    let path = apiKeyPath(for: key)
+    guard value != self[keyPath: path] else {
       return
     }
 
-    switch key {
-    case .xaiAPIKey:
-      xaiAPIKey = value
-    case .elevenLabsAPIKey:
-      elevenLabsAPIKey = value
-    case .llmAPIKey:
-      llmAPIKey = value
-    }
+    self[keyPath: path] = value
 
     pendingAPIKeySaves.insert(key)
+    editedAPIKeys.insert(key)
+    unsavedAPIKeys.insert(key)
     apiKeySaveTask?.cancel()
     apiKeySaveTask = Task { @MainActor [weak self] in
       do {
@@ -381,6 +406,10 @@ final class AppState: ObservableObject {
   func updateSettings(_ update: (inout DictationSettings) -> Void) {
     let previousSettings = settings
     update(&settings)
+    if !settings.provider.availableModes.contains(settings.transcriptionMode) {
+      settings.transcriptionMode = .upload
+      customizationNotice = "Gemini transcribes after you stop recording. Switched to Upload."
+    }
     guard settings != previousSettings else {
       return
     }
@@ -716,6 +745,7 @@ final class AppState: ObservableObject {
       stopRecordingTimer()
       self.recorder = nil
       realtimeSession = nil
+      let started = Date()
       let result: TranscriptionResult
       if let session {
         result = try await session.finish()
@@ -724,11 +754,13 @@ final class AppState: ObservableObject {
           .transcribe(fileURL: fileURL, settings: configuration.settings)
       }
 
+      let transcriptionSeconds = Date().timeIntervalSince(started)
       try await finalizeTranscript(
         result,
         adjustment: .provider,
         configuration: configuration
       )
+      lastTranscriptionSeconds = transcriptionSeconds
     } catch {
       session?.cancel()
       recorder.cancel()
@@ -751,6 +783,8 @@ final class AppState: ObservableObject {
       XAITranscriptionClient(apiKey: configuration.providerAPIKey)
     case .elevenLabs:
       ElevenLabsTranscriptionClient(apiKey: configuration.providerAPIKey)
+    case .gemini:
+      GeminiTranscriptionClient(apiKey: configuration.providerAPIKey)
     }
   }
 
@@ -764,6 +798,10 @@ final class AppState: ObservableObject {
     }
 
     switch settings.provider {
+    case .gemini:
+      throw NSError(
+        domain: "Vhrase.STT", code: 2,
+        userInfo: [NSLocalizedDescriptionKey: "Choose Upload for Gemini transcription."])
     case .xai:
       return try XAIRealtimeTranscriptionClient(apiKey: configuration.providerAPIKey).start(
         settings: settings,
@@ -778,6 +816,7 @@ final class AppState: ObservableObject {
   }
 
   private func runDemoDictationPipeline() async {
+    lastTranscriptionSeconds = nil
     let configuration = currentRecordingConfiguration()
     recordingTargetApp = currentTargetApp()
     targetAppLabel = recordingTargetApp?.name ?? ""
@@ -806,21 +845,11 @@ final class AppState: ObservableObject {
     guard configuration.providerAPIKey.isEmpty else {
       return
     }
-    switch configuration.settings.provider {
-    case .xai:
-      throw missingProviderKey("XAI_API_KEY")
-    case .elevenLabs:
-      throw missingProviderKey("ELEVENLABS_API_KEY")
-    }
+    throw missingProviderKey(secretKey(for: configuration.settings.provider).rawValue)
   }
 
   private var selectedProviderKeyIsMissing: Bool {
-    switch settings.provider {
-    case .xai:
-      effectiveXAIAPIKey.isEmpty
-    case .elevenLabs:
-      effectiveElevenLabsAPIKey.isEmpty
-    }
+    effectiveAPIKey(secretKey(for: settings.provider)).isEmpty
   }
 
   private func permissionState(for permission: AppPermission) -> PermissionState? {
@@ -838,16 +867,9 @@ final class AppState: ObservableObject {
   }
 
   private func currentRecordingConfiguration() -> RecordingConfiguration {
-    let providerAPIKey: String
-    switch settings.provider {
-    case .xai:
-      providerAPIKey = effectiveXAIAPIKey
-    case .elevenLabs:
-      providerAPIKey = effectiveElevenLabsAPIKey
-    }
-    return RecordingConfiguration(
+    RecordingConfiguration(
       settings: settings,
-      providerAPIKey: providerAPIKey,
+      providerAPIKey: effectiveAPIKey(secretKey(for: settings.provider)),
       llmAPIKey: effectiveLLMAPIKey
     )
   }
@@ -855,18 +877,25 @@ final class AppState: ObservableObject {
   private func effectiveAPIKey(_ key: SecretKey) -> String {
     apiKeys.effectiveValue(
       for: key,
-      savedValue: savedAPIKey(for: key)
+      savedValue: self[keyPath: apiKeyPath(for: key)]
     )
   }
 
-  private func savedAPIKey(for key: SecretKey) -> String {
+  private func secretKey(for provider: STTProvider) -> SecretKey {
+    switch provider {
+    case .xai: .xaiAPIKey
+    case .elevenLabs: .elevenLabsAPIKey
+    case .gemini: .geminiAPIKey
+    }
+  }
+
+  /// Uses the same editable credential field for launch reads, user edits, and persistence retries.
+  private func apiKeyPath(for key: SecretKey) -> ReferenceWritableKeyPath<AppState, String> {
     switch key {
-    case .xaiAPIKey:
-      xaiAPIKey
-    case .elevenLabsAPIKey:
-      elevenLabsAPIKey
-    case .llmAPIKey:
-      llmAPIKey
+    case .xaiAPIKey: \.xaiAPIKey
+    case .elevenLabsAPIKey: \.elevenLabsAPIKey
+    case .geminiAPIKey: \.geminiAPIKey
+    case .llmAPIKey: \.llmAPIKey
     }
   }
 
@@ -1033,6 +1062,7 @@ final class AppState: ObservableObject {
       targetApp: targetApp
     )
 
+    lastRecognizedTranscript = result.text
     lastTranscript = finalized.text
     liveTranscript = ""
     recordHistory(

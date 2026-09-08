@@ -204,6 +204,14 @@ extension MainWindowView {
 
   var recordPanel: some View {
     VStack(spacing: 16) {
+      Picker("Speech provider", selection: persistedBinding(\.provider)) {
+        ForEach(STTProvider.allCases) { provider in
+          Text(provider.title).tag(provider)
+        }
+      }
+      .pickerStyle(.menu)
+      .disabled(presentation.workflowControlsAreDisabled)
+
       RecordHeroButton(
         presentation: presentation,
         recordingLevel: appState.recordingLevel,
@@ -296,6 +304,35 @@ extension MainWindowView {
       }
       .padding(16)
       .insetField()
+
+      if !showsLiveCapture, !appState.lastRecognizedTranscript.isEmpty {
+        HStack {
+          if let seconds = appState.lastTranscriptionSeconds {
+            Label(String(format: "Transcription wait: %.2f s", seconds), systemImage: "stopwatch")
+              .font(.caption.monospacedDigit())
+              .foregroundStyle(.secondary)
+              .help(
+                "Time from stopping capture to the completed provider transcript, excluding later LLM cleanup."
+              )
+          }
+          Spacer()
+        }
+        DisclosureGroup("Before Vhrase cleanup") {
+          VStack(alignment: .leading, spacing: 8) {
+            Text(appState.lastRecognizedTranscript)
+              .font(VhraseFont.transcript)
+              .textSelection(.enabled)
+              .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Copy original transcription") {
+              NSPasteboard.general.clearContents()
+              NSPasteboard.general.setString(appState.lastRecognizedTranscript, forType: .string)
+            }
+            .buttonStyle(.link)
+          }
+          .padding(.top, 8)
+        }
+        .font(.callout)
+      }
 
       if !appState.lastAdjustmentWarning.isEmpty {
         NoticeCard(
@@ -451,12 +488,23 @@ extension MainWindowView {
 
       labeledPicker("Mode") {
         Picker("Mode", selection: persistedBinding(\.transcriptionMode)) {
-          ForEach(TranscriptionMode.allCases) { mode in
+          ForEach(appState.settings.provider.availableModes) { mode in
             Text(mode.title).tag(mode)
           }
         }
         .labelsHidden()
         .pickerStyle(.segmented)
+      }
+
+      Text(appState.settings.provider.detail)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+      if appState.settings.provider == .gemini {
+        Text(
+          "Audio is sent directly to Google after you stop. Interaction storage is disabled. Live Gemini transcription is not enabled in this version."
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
       }
 
       VStack(alignment: .leading, spacing: 12) {
@@ -472,13 +520,34 @@ extension MainWindowView {
       Divider()
 
       editorTile(
-        "Preferred terms",
+        "Shared vocabulary",
         systemImage: "tag",
         text: persistedBinding(\.keyterms),
         height: 126,
-        instruction: "Enter one term or short phrase per line. Press Return to add another.",
-        placeholder: "OpenAI\nVhrase\nJane Doe"
+        instruction:
+          "One word or phrase per line. The same list is used by every provider; duplicates are ignored.",
+        placeholder: "Vercel\nbackpropagation\nMonte Carlo"
       )
+
+      HStack {
+        Text("\(appState.settings.keytermList.count) unique terms")
+          .font(.caption.monospacedDigit())
+          .foregroundStyle(.secondary)
+        Spacer()
+        Button("Add developer vocabulary") {
+          appState.updateSettings { settings in
+            let terms = [
+              "Codex", "ChatGPT", "Anthropic", "Claude", "Vercel", "refactor", "schema", "JSON",
+              "docstring", "backpropagation", "Monte Carlo",
+            ]
+            let existing = Set(settings.keytermList.map { $0.lowercased() })
+            let additions = terms.filter { !existing.contains($0.lowercased()) }
+            settings.keyterms = (settings.keytermList + additions).joined(separator: "\n")
+          }
+        }
+        .buttonStyle(.link)
+        .help("Adds common developer terms without replacing your vocabulary")
+      }
 
       Text(keytermGuidance)
         .font(.caption)
@@ -491,10 +560,45 @@ extension MainWindowView {
   @ViewBuilder
   private var providerSpecificControls: some View {
     switch appState.settings.provider {
+    case .gemini:
+      settingsToggle(
+        "Smart transcription",
+        detail:
+          "Remove fillers, resolve spoken corrections, and format paragraphs and lists. Turn off when you need closer preservation of the spoken words.",
+        isOn: persistedBinding(\.geminiSmartTranscription))
+      if appState.settings.geminiSmartTranscription, appState.settings.adjustWithLLM {
+        HStack(alignment: .top, spacing: 12) {
+          Text("LLM enhancement is also on. It will rewrite the Smart transcript a second time.")
+            .font(.caption)
+            .foregroundStyle(VhraseTheme.statusWarning)
+          Button("Use Smart only") {
+            appState.updateSettings { $0.adjustWithLLM = false }
+          }
+          .buttonStyle(.bordered)
+        }
+      }
     case .xai:
-      Toggle("Include filler words", isOn: persistedBinding(\.includeFillerWords))
+      settingsToggle(
+        "Keep filler words", detail: "Include “um” and “uh”. Off removes them during recognition.",
+        isOn: persistedBinding(\.includeFillerWords))
+      settingsToggle(
+        "Format numbers and currency",
+        detail:
+          "Uses the language in Listen settings. For example, “one hundred dollars” becomes “$100”.",
+        isOn: persistedBinding(\.xaiFormatText))
 
       if appState.settings.transcriptionMode == .realtime {
+        LabeledContent("Speech detection threshold") {
+          HStack {
+            Slider(value: persistedBinding(\.xaiVADThreshold), in: 0...1, step: 0.01)
+            Text(appState.settings.xaiVADThreshold, format: .number.precision(.fractionLength(2)))
+              .font(.callout.monospacedDigit())
+          }.frame(maxWidth: 280)
+        }
+        Text(
+          "Lower values can help with quiet speech but may transcribe background noise. Zero disables the gate; default is 0.08."
+        )
+        .font(.caption).foregroundStyle(.secondary)
         Stepper(
           "Endpointing: \(appState.settings.xaiRealtimeEndpointing) ms",
           value: persistedBinding(\.xaiRealtimeEndpointing),
@@ -502,7 +606,11 @@ extension MainWindowView {
           step: 100
         )
 
-        Toggle("Smart Turn", isOn: persistedBinding(\.xaiSmartTurnEnabled))
+        settingsToggle(
+          "Smart Turn",
+          detail:
+            "Wait for a complete thought before ending a turn. This controls timing, not text cleanup.",
+          isOn: persistedBinding(\.xaiSmartTurnEnabled))
 
         if appState.settings.xaiSmartTurnEnabled {
           LabeledContent("Smart Turn threshold") {
@@ -540,7 +648,10 @@ extension MainWindowView {
         .foregroundStyle(.secondary)
       }
 
-      Toggle("No verbatim", isOn: persistedBinding(\.elevenLabsNoVerbatim))
+      settingsToggle(
+        "Clean up spoken disfluencies",
+        detail: "Use Scribe's non-verbatim mode for more readable speech.",
+        isOn: persistedBinding(\.elevenLabsNoVerbatim))
 
       if appState.settings.transcriptionMode == .realtime {
         labeledPicker("Commit strategy") {
@@ -777,13 +888,21 @@ extension MainWindowView {
         systemImage: "mic.fill"
       )
 
-      compactField("Language hint", text: persistedBinding(\.language))
-
-      Text(
-        "Use a language code such as en, yue, or zh. Leave it blank to let the provider detect the language."
-      )
-      .font(.caption)
-      .foregroundStyle(.secondary)
+      if appState.settings.provider == .gemini {
+        compactField("Language hints", text: persistedBinding(\.geminiLanguageHints))
+        Text(
+          "Optional BCP-47 codes separated by commas, such as en-US, yue-Hant-HK. Leave blank for automatic detection and code-switching."
+        )
+        .font(.caption).foregroundStyle(.secondary)
+      } else {
+        compactField("Language", text: persistedBinding(\.language))
+        Text(
+          appState.settings.provider == .xai
+            ? "Grok detects spoken language automatically. This code enables number and currency formatting when that option is on, such as en."
+            : "Use a language code such as en, yue, or zh. Leave blank for automatic detection."
+        )
+        .font(.caption).foregroundStyle(.secondary)
+      }
 
       Divider()
 
@@ -939,11 +1058,14 @@ extension MainWindowView {
         keyField("xAI API key", key: .xaiAPIKey, text: apiKeyBinding(.xaiAPIKey))
         keyField(
           "ElevenLabs API key", key: .elevenLabsAPIKey, text: apiKeyBinding(.elevenLabsAPIKey))
+        keyField("Gemini API key", key: .geminiAPIKey, text: apiKeyBinding(.geminiAPIKey))
         keyField("LLM API key", key: .llmAPIKey, text: apiKeyBinding(.llmAPIKey))
       }
       .frame(maxWidth: .infinity)
 
-      HStack(spacing: 16) {
+      LazyVGrid(
+        columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 10
+      ) {
         keyStatus(
           "xAI",
           isReady: !appState.effectiveXAIAPIKey.isEmpty,
@@ -959,11 +1081,37 @@ extension MainWindowView {
           isReady: !appState.effectiveLLMAPIKey.isEmpty,
           usesEnvironmentFallback: appState.usesEnvironmentFallback(for: .llmAPIKey)
         )
+        keyStatus(
+          "Gemini", isReady: !appState.effectiveGeminiAPIKey.isEmpty,
+          usesEnvironmentFallback: appState.usesEnvironmentFallback(for: .geminiAPIKey))
       }
 
-      Text("Credentials are saved after you finish editing each field.")
+      Text(
+        "Credentials save automatically without password dialogs. If Keychain access is blocked, edits stay in memory for this session."
+      )
+      .font(.caption)
+      .foregroundStyle(.secondary)
+
+      if !appState.unsavedAPIKeys.isEmpty {
+        HStack {
+          Label("Unsaved credential changes", systemImage: "exclamationmark.circle")
+            .foregroundStyle(VhraseTheme.statusWarning)
+          Spacer()
+          Button("Retry saving") { appState.retrySavingAPIKeys() }
+        }
         .font(.caption)
-        .foregroundStyle(.secondary)
+      }
+
+      if !appState.keychainReadNotice.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Label("Saved credentials need Keychain access", systemImage: "lock")
+            .font(.callout.weight(.medium))
+          Text(appState.keychainReadNotice)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Button("Retry reading saved keys") { appState.retryLoadingAPIKeys() }
+        }
+      }
     }
     .contentSection()
   }

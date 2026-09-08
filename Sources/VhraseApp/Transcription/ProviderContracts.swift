@@ -81,6 +81,8 @@ enum TranscriptionContract {
     switch (provider, mode) {
     case (.xai, _):
       KeytermPolicy(maximumCount: 100, characterLimit: 50)
+    case (.gemini, _):
+      KeytermPolicy(maximumCount: 1_000, characterLimit: Int.max)
     case (.elevenLabs, .upload):
       KeytermPolicy(
         maximumCount: 1_000,
@@ -92,6 +94,32 @@ enum TranscriptionContract {
     case (.elevenLabs, .realtime):
       KeytermPolicy(maximumCount: 50, characterLimit: 20)
     }
+  }
+}
+
+/// Owns Gemini's native Interactions schema; vocabulary and Smart mode never pass through a gateway.
+enum GeminiTranscriptionContract {
+  static let modelID = "gemini-3.5-transcribe"
+
+  static func requestBody(audio: Data, settings: DictationSettings) throws -> Data {
+    try TranscriptionContract.validate(settings: settings)
+    let terms = try TranscriptionContract.validatedKeyterms(
+      settings.keytermList, provider: .gemini, mode: .upload)
+    let languageCodes = settings.geminiLanguageCodes
+    var config: [String: Any] = [
+      "mode": settings.geminiSmartTranscription
+        ? "smart" as Any : ["type": "verbatim"] as Any
+    ]
+    if !terms.isEmpty { config["custom_vocabulary"] = terms }
+    if !languageCodes.isEmpty {
+      config["language_codes"] = languageCodes
+    }
+    return try JSONSerialization.data(withJSONObject: [
+      "model": modelID,
+      "input": [["type": "audio", "data": audio.base64EncodedString(), "mime_type": "audio/wav"]],
+      "generation_config": ["transcription_config": config],
+      "store": false,
+    ])
   }
 }
 
@@ -172,7 +200,7 @@ enum XAITranscriptionContract {
       ("filler_words", settings.includeFillerWords ? "true" : "false")
     ]
     let language = settings.language.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !language.isEmpty {
+    if settings.xaiFormatText, !language.isEmpty {
       fields.insert(
         contentsOf: [
           ("format", "true"),
@@ -197,6 +225,7 @@ enum XAITranscriptionContract {
       URLQueryItem(name: "interim_results", value: "true"),
       URLQueryItem(name: "filler_words", value: settings.includeFillerWords ? "true" : "false"),
       URLQueryItem(name: "endpointing", value: String(settings.xaiRealtimeEndpointing)),
+      URLQueryItem(name: "vad_threshold", value: String(settings.xaiVADThreshold)),
     ]
     if settings.xaiSmartTurnEnabled {
       queryItems.append(
@@ -204,7 +233,7 @@ enum XAITranscriptionContract {
       queryItems.append(
         URLQueryItem(name: "smart_turn_timeout", value: String(settings.xaiSmartTurnTimeout)))
     }
-    if !language.isEmpty {
+    if settings.xaiFormatText, !language.isEmpty {
       queryItems.append(URLQueryItem(name: "language", value: language))
     }
     queryItems += keyterms.map { URLQueryItem(name: "keyterm", value: $0) }

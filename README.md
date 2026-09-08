@@ -2,7 +2,9 @@
 
 Vhrase is a small native macOS menu bar app for configurable cloud speech-to-text and optional context-aware cleanup.
 
-It records microphone audio, transcribes with xAI or ElevenLabs, can stream in realtime, stores a local transcript history, and can use an OpenAI-compatible model to clean up the transcript before returning it to the originating app.
+It records microphone audio, transcribes natively with Gemini, Grok (xAI), or ElevenLabs, stores a local transcript history, and returns the result to the originating app.
+Gemini offers vocabulary hints and Smart transcription; Grok offers vocabulary hints, filler removal, and number formatting.
+Grok and ElevenLabs also support realtime streaming, and an optional OpenAI-compatible model can provide a separate cleanup pass.
 
 ## Quick Start
 
@@ -21,7 +23,8 @@ Input Monitoring is only an optional fallback when Fn/Globe does not respond rel
 Screenshot context is off by default, and Screen Recording permission is only needed when you explicitly enable it for LLM cleanup.
 These are feature-specific macOS privacy prompts and are separate from the one-time local signing setup.
 API keys entered in Vhrase are stored as generic-password items in macOS Keychain under the `Vhrase` service.
-A saved Keychain credential takes precedence. A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `LLM_API_KEY` launch-environment value is used next, and a direct literal export in `~/.zshrc` fills any remaining key without executing shell code.
+A saved Keychain credential takes precedence.
+A nonempty `GEMINI_API_KEY`, `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `LLM_API_KEY` launch-environment value is used next, and a direct literal export in `~/.zshrc` fills any remaining key without executing shell code.
 The development run command additionally uses ignored `.env` values in memory without reading or modifying Keychain, which prevents rebuilt development binaries from producing repeated credential prompts.
 Normal Finder and menu-bar launches prefer saved Keychain credentials before using the in-memory environment fallbacks.
 

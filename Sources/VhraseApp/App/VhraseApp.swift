@@ -51,7 +51,7 @@ struct VhraseApp: App {
     }
     didHandleInitialMainWindow = true
 
-    if hasCompletedFirstLaunch {
+    if hasCompletedFirstLaunch && !CommandLine.arguments.contains("--show-window") {
       suppressInitialMainWindow()
     } else {
       hasCompletedFirstLaunch = true

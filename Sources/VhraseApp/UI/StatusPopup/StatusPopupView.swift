@@ -1,260 +1,223 @@
-// Presents Vhrase's live workflow in a focus-preserving recorder HUD owned by an AppKit panel.
+// Presents a quiet recording pill without stealing focus from the app receiving dictation.
 
 import AppKit
 import Combine
 import SwiftUI
 
-/// Displays the current dictation phase without exposing transport-level implementation details.
+/// Keeps active dictation to a waveform or progress indicator, revealing controls only when approached.
 struct StatusPopupView: View {
   @ObservedObject var appState: AppState
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-  private var presentation: DictationPresentation {
-    appState.presentation
-  }
+  @State private var showsControls = false
 
   var body: some View {
-    VStack(spacing: 0) {
-      controlBar
-
-      if showsTranscript {
-        Divider()
-          .opacity(0.45)
-
-        Text(detailText)
-          .font(.caption)
-          .foregroundStyle(detailIsPlaceholder ? .secondary : .primary)
-          .lineLimit(2)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
-          .accessibilityLabel(detailText)
+    Group {
+      if case .failed(let message) = appState.status {
+        failureContent(message)
+      } else {
+        capsuleContent
       }
     }
-    .frame(width: popupWidth, height: popupHeight)
+    .frame(
+      width: popupSize.width,
+      height: popupSize.height
+    )
     .background {
       RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        .fill(.regularMaterial)
+        .fill(VhraseTheme.recorderBackground)
     }
     .overlay {
       RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        .strokeBorder(VhraseTheme.hairline, lineWidth: 1)
+        .strokeBorder(VhraseTheme.recorderBorder, lineWidth: 1)
+        .allowsHitTesting(false)
     }
-    .shadow(color: .black.opacity(0.1), radius: 14, y: 5)
-    .fixedSize(horizontal: true, vertical: true)
+    .foregroundStyle(.white)
+    .environment(\.colorScheme, .dark)
+    .fixedSize()
+    .background {
+      RecorderHoverTracking { showsControls = $0 }
+    }
     .animation(
-      VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
-      value: showsTranscript
+      VhraseMotion.respectingReduceMotion(VhraseMotion.snappy, reduceMotion: reduceMotion),
+      value: showsControls
     )
-  }
-
-  private var controlBar: some View {
-    HStack(spacing: 11) {
-      statusIndicator
-        .frame(width: appState.isRecording ? 96 : 30, height: 30)
-
-      VStack(alignment: .leading, spacing: 2) {
-        Text(popupStatusTitle)
-          .font(appState.isRecording ? VhraseFont.timer : .callout.weight(.semibold))
-          .lineLimit(1)
-        Text(secondaryStatusText)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-      }
-
-      Spacer(minLength: 8)
-      controls
-    }
-    .padding(.horizontal, 12)
-    .frame(height: 54)
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("Vhrase dictation")
   }
 
   @ViewBuilder
-  private var statusIndicator: some View {
+  private var capsuleContent: some View {
     switch appState.status {
-    case .preparing, .transcribing, .adjusting:
-      ProgressView()
-        .controlSize(.small)
-        .tint(statusColor)
-        .accessibilityHidden(true)
     case .recording:
-      WaveformView(
-        level: appState.recordingLevel,
-        response: .live,
-        barCount: 20,
-        tint: VhraseTheme.statusRecording,
-        height: 28
+      HStack(spacing: 8) {
+        hudButton("Cancel recording", systemImage: "xmark") {
+          appState.cancelRecording()
+        }
+        .opacity(showsControls ? 1 : 0)
+
+        WaveformView(
+          level: appState.recordingLevel,
+          response: .live,
+          barCount: 6,
+          tint: .white,
+          height: 20
+        )
+        .frame(width: 44)
+        .contentShape(Rectangle())
+        .onTapGesture { showsControls = true }
+        .accessibilityElement(children: .ignore)
+        .accessibilityHidden(false)
+        .accessibilityLabel("Recording")
+        .accessibilityValue(appState.presentation.elapsedTime)
+        .accessibilityAction(named: "Finish recording") { appState.toggleRecording() }
+        .accessibilityAction(named: "Cancel recording") { appState.cancelRecording() }
+
+        hudButton("Finish recording", systemImage: "checkmark") {
+          appState.toggleRecording()
+        }
+        .opacity(showsControls ? 1 : 0)
+        .accessibilityHint("Stops recording and transcribes the captured audio")
+      }
+      .help(
+        "Recording · \(appState.presentation.elapsedTime). Hover or click the waveform for controls."
       )
-    case .completed, .failed, .idle:
-      Image(systemName: popupStatusSystemImage)
-        .font(.system(size: 14, weight: .semibold))
-        .foregroundStyle(statusColor)
-        .frame(width: 28, height: 28)
-        .accessibilityHidden(true)
+    case .preparing:
+      ZStack {
+        activityIndicator("Starting microphone")
+        HStack {
+          Spacer()
+          hudButton("Cancel", systemImage: "xmark") { appState.cancelRecording() }
+            .opacity(showsControls ? 1 : 0)
+        }
+        .padding(.horizontal, 12)
+      }
+    case .transcribing:
+      activityIndicator("Transcribing with \(appState.settings.provider.title)")
+    case .adjusting:
+      activityIndicator("Applying writing preferences")
+    case .completed:
+      HStack(spacing: 8) {
+        Image(systemName: appState.lastDelivery.completionSystemImage)
+          .font(.system(size: 13, weight: .semibold))
+          .accessibilityHidden(true)
+        Text(appState.lastDelivery.completionTitle)
+          .font(.callout.weight(.medium))
+          .lineLimit(1)
+      }
+      .help(appState.lastDelivery.completionDetail)
+      .accessibilityElement(children: .combine)
+      .contextMenu {
+        if !appState.lastTranscript.isEmpty {
+          Button("Copy transcript") { appState.copyLastTranscript() }
+        }
+        Button("Dismiss") { appState.dismissWorkflowOutcome() }
+      }
+      .onTapGesture { appState.dismissWorkflowOutcome() }
+      .accessibilityAction(named: "Dismiss") { appState.dismissWorkflowOutcome() }
+    case .idle:
+      Image(systemName: "mic")
+        .accessibilityLabel("Ready")
+    case .failed:
+      EmptyView()
     }
   }
 
-  @ViewBuilder
-  private var controls: some View {
-    HStack(spacing: 8) {
-      switch appState.status {
-      case .preparing:
-        hudButton("Cancel", systemImage: "xmark") {
-          appState.cancelRecording()
-        }
-        .accessibilityHint("Stops microphone startup")
-      case .recording:
-        hudButton("Cancel recording", systemImage: "xmark", tint: .secondary) {
-          appState.cancelRecording()
-        }
-        hudButton(
-          "Finish recording", systemImage: "checkmark", tint: .white, fill: VhraseTheme.accent
-        ) {
-          appState.toggleRecording()
-        }
-        .accessibilityHint("Stops recording and transcribes the captured audio")
-      case .transcribing, .adjusting:
-        EmptyView()
-      case .completed:
-        if !appState.lastTranscript.isEmpty {
-          hudButton("Copy transcript", systemImage: "doc.on.doc") {
-            appState.copyLastTranscript()
-          }
-        }
-        hudButton("Dismiss", systemImage: "xmark") {
-          appState.dismissWorkflowOutcome()
-        }
-      case .failed:
-        hudButton("Dismiss", systemImage: "xmark") {
-          appState.dismissWorkflowOutcome()
-        }
-        hudButton(
-          "Try again", systemImage: "arrow.clockwise", tint: .white, fill: VhraseTheme.accent
-        ) {
-          appState.toggleRecording()
-        }
-      case .idle:
-        EmptyView()
+  private func activityIndicator(_ title: String) -> some View {
+    ProgressView()
+      .controlSize(.small)
+      .tint(.white)
+      .accessibilityLabel(title)
+      .help(title)
+  }
+
+  /// Expands only for a failure so its explanation and recovery never depend on a tooltip.
+  private func failureContent(_ message: String) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack {
+        Label("Dictation failed", systemImage: "exclamationmark.circle")
+          .font(.callout.weight(.semibold))
+        Spacer()
+        hudButton("Try again", systemImage: "arrow.clockwise") { appState.toggleRecording() }
+        hudButton("Dismiss", systemImage: "xmark") { appState.dismissWorkflowOutcome() }
       }
+      ScrollView {
+        Text(message)
+          .font(.caption)
+          .foregroundStyle(.white.opacity(0.8))
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .textSelection(.enabled)
+      }
+      .frame(maxHeight: .infinity)
     }
+    .padding(14)
   }
 
   private func hudButton(
     _ title: String,
     systemImage: String,
-    tint: Color = .primary,
-    fill: Color = .primary.opacity(0.06),
     action: @escaping () -> Void
   ) -> some View {
     Button(action: action) {
       Image(systemName: systemImage)
-        .font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(tint)
+        .font(.system(size: 11, weight: .semibold))
         .frame(width: 28, height: 28)
-        .background(fill, in: Circle())
-        .overlay {
-          Circle()
-            .strokeBorder(VhraseTheme.hairline, lineWidth: 1)
-        }
+        .contentShape(Circle())
     }
     .buttonStyle(.plain)
-    .animation(
-      VhraseMotion.respectingReduceMotion(VhraseMotion.snappy, reduceMotion: reduceMotion),
-      value: appState.status
-    )
     .help(title)
     .accessibilityLabel(title)
   }
 
-  private var detailText: String {
-    switch appState.status {
-    case .preparing:
-      "Starting microphone…"
-    case .recording:
-      presentation.compactLiveTranscriptText
-    case .transcribing:
-      "Audio captured. \(appState.settings.provider.title) is transcribing it."
-    case .adjusting:
-      "Applying your writing preferences."
-    case .completed:
-      appState.lastTranscript.isEmpty ? "Dictation completed." : appState.lastTranscript
-    case .failed(let message):
-      message
-    case .idle:
-      ""
-    }
-  }
-
-  private var detailIsPlaceholder: Bool {
-    switch appState.status {
-    case .recording:
-      appState.liveTranscript.isEmpty
-    case .preparing, .transcribing, .adjusting:
-      true
-    case .idle, .completed, .failed:
-      false
-    }
-  }
-
-  private var showsTranscript: Bool {
-    StatusPopupContentPolicy.showsTranscript(
-      status: appState.status,
-      hasLiveTranscript: !appState.liveTranscript.isEmpty,
-      hasFinalTranscript: !appState.lastTranscript.isEmpty
-    )
-  }
-
-  private var popupWidth: CGFloat {
-    showsTranscript ? 400 : 360
-  }
-
-  private var popupHeight: CGFloat {
-    showsTranscript ? 104 : 54
+  private var popupSize: CGSize {
+    StatusPopupContentPolicy.size(for: appState.status)
   }
 
   private var cornerRadius: CGFloat {
-    showsTranscript ? 14 : 12
+    if case .failed = appState.status { return VhraseTheme.sectionCornerRadius }
+    return popupSize.height / 2
+  }
+}
+
+/// Tracks the pointer even when another app is active, as expected for a non-activating recorder panel.
+private struct RecorderHoverTracking: NSViewRepresentable {
+  var onHover: (Bool) -> Void
+
+  func makeNSView(context: Context) -> TrackingView {
+    TrackingView(onHover: onHover)
   }
 
-  private var secondaryStatusText: String {
-    switch appState.status {
-    case .preparing:
-      return
-        "\(appState.settings.provider.title) \(appState.settings.transcriptionMode.title.lowercased())"
-    case .recording:
-      let target = appState.targetAppLabel.isEmpty ? nil : appState.targetAppLabel
-      return [
-        "\(appState.settings.provider.title) \(appState.settings.transcriptionMode.title.lowercased())",
-        target,
-        presentation.elapsedTime,
-      ]
-      .compactMap(\.self)
-      .joined(separator: " · ")
-    case .transcribing:
-      return "Turning speech into text"
-    case .adjusting:
-      return "Applying your writing style"
-    case .completed:
-      return appState.lastDelivery.completionDetail
-    case .failed:
-      return "Your recording was not delivered"
-    case .idle:
-      return presentation.fullWorkflowSummary
+  func updateNSView(_ view: TrackingView, context: Context) {
+    view.onHover = onHover
+  }
+
+  final class TrackingView: NSView {
+    var onHover: (Bool) -> Void
+
+    init(onHover: @escaping (Bool) -> Void) {
+      self.onHover = onHover
+      super.init(frame: .zero)
     }
-  }
 
-  private var popupStatusTitle: String {
-    appState.isRecording ? presentation.elapsedTime : presentation.displayStatusTitle
-  }
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
 
-  private var popupStatusSystemImage: String {
-    appState.status == .completed
-      ? appState.lastDelivery.completionSystemImage : presentation.statusSystemImage
-  }
+    override func updateTrackingAreas() {
+      super.updateTrackingAreas()
+      trackingAreas.forEach(removeTrackingArea)
+      addTrackingArea(
+        NSTrackingArea(
+          rect: .zero,
+          options: [
+            .mouseEnteredAndExited, .activeAlways, .inVisibleRect, .enabledDuringMouseDrag,
+          ],
+          owner: self,
+          userInfo: nil
+        ))
+    }
 
-  private var statusColor: Color {
-    presentation.statusTint
+    override func mouseEntered(with event: NSEvent) { onHover(true) }
+    override func mouseExited(with event: NSEvent) { onHover(false) }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
   }
 }
 
@@ -262,7 +225,6 @@ struct StatusPopupView: View {
 @MainActor
 final class RecorderHUDPanelController: NSWindowController {
   private weak var appState: AppState?
-  private let hostingView: NSHostingView<StatusPopupView>
   private var delayedHideTask: Task<Void, Never>?
   private var statusObservation: AnyCancellable?
   private var workflowScreen: NSScreen?
@@ -271,10 +233,9 @@ final class RecorderHUDPanelController: NSWindowController {
   init(appState: AppState) {
     self.appState = appState
     let hostingView = NSHostingView(rootView: StatusPopupView(appState: appState))
-    self.hostingView = hostingView
 
     let panel = NSPanel(
-      contentRect: NSRect(x: 0, y: 0, width: 360, height: 54),
+      contentRect: NSRect(origin: .zero, size: StatusPopupContentPolicy.size(for: .idle)),
       styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
       backing: .buffered,
       defer: false
@@ -293,13 +254,10 @@ final class RecorderHUDPanelController: NSWindowController {
 
     super.init(window: panel)
 
-    statusObservation = Publishers.CombineLatest(
-      appState.$status.removeDuplicates(),
-      appState.$liveTranscript.removeDuplicates()
-    )
-    .sink { [weak self] output in
-      self?.update(for: output.0)
-    }
+    statusObservation = appState.$status.removeDuplicates()
+      .sink { [weak self] status in
+        self?.update(for: status)
+      }
     update(for: appState.status)
   }
 
@@ -328,14 +286,14 @@ final class RecorderHUDPanelController: NSWindowController {
     if startsNewWorkflow || workflowScreen == nil {
       workflowScreen = screenAtPointer()
     }
-    resizeAndPosition(panel)
+    resizeAndPosition(panel, status: status)
     panel.orderFrontRegardless()
 
     DispatchQueue.main.async { [weak self, weak panel] in
       guard let self, let panel else {
         return
       }
-      self.resizeAndPosition(panel)
+      self.resizeAndPosition(panel, status: status)
     }
 
     guard status == .completed else {
@@ -353,21 +311,8 @@ final class RecorderHUDPanelController: NSWindowController {
     }
   }
 
-  private func resizeAndPosition(_ panel: NSWindow) {
-    let showsTranscript =
-      appState.map {
-        StatusPopupContentPolicy.showsTranscript(
-          status: $0.status,
-          hasLiveTranscript: !$0.liveTranscript.isEmpty,
-          hasFinalTranscript: !$0.lastTranscript.isEmpty
-        )
-      } ?? false
-    panel.setContentSize(
-      NSSize(
-        width: showsTranscript ? 400 : 360,
-        height: showsTranscript ? 104 : 54
-      )
-    )
+  private func resizeAndPosition(_ panel: NSWindow, status: AppStatus) {
+    panel.setContentSize(StatusPopupContentPolicy.size(for: status))
     position(panel)
   }
 

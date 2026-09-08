@@ -48,7 +48,7 @@ struct XAISTTOptionsCheck {
     var settings = DictationSettings.defaults
     settings.provider = .xai
     settings.transcriptionMode = .upload
-    settings.keyterms = Array(repeating: "valid", count: 100).joined(separator: "\n")
+    settings.keyterms = (1...100).map { "term \($0)" }.joined(separator: "\n")
     try TranscriptionContract.validate(settings: settings)
 
     settings.keyterms += "\none too many"

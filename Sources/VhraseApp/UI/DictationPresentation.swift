@@ -9,6 +9,7 @@ struct DictationPresentation {
   let settings: DictationSettings
   let xaiAPIKey: String
   let elevenLabsAPIKey: String
+  let geminiAPIKey: String
   let permissions: [PermissionSnapshot]
   let liveTranscript: String
   let recordingElapsedSeconds: Int
@@ -24,12 +25,14 @@ struct DictationPresentation {
     permissions: [PermissionSnapshot],
     liveTranscript: String,
     recordingElapsedSeconds: Int,
-    delivery: TranscriptDelivery = .none
+    delivery: TranscriptDelivery = .none,
+    geminiAPIKey: String = ""
   ) {
     self.status = status
     self.settings = settings
     self.xaiAPIKey = xaiAPIKey
     self.elevenLabsAPIKey = elevenLabsAPIKey
+    self.geminiAPIKey = geminiAPIKey
     self.permissions = permissions
     self.liveTranscript = liveTranscript
     self.recordingElapsedSeconds = recordingElapsedSeconds
@@ -48,6 +51,8 @@ struct DictationPresentation {
       !xaiAPIKey.isEmpty
     case .elevenLabs:
       !elevenLabsAPIKey.isEmpty
+    case .gemini:
+      !geminiAPIKey.isEmpty
     }
   }
 
@@ -103,7 +108,7 @@ struct DictationPresentation {
   }
 
   var fullWorkflowSummary: String {
-    "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) · \(settings.adjustWithLLM ? "LLM cleanup" : "Raw")"
+    "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) · \(settings.transcriptionStyle)\(settings.adjustWithLLM ? " + LLM" : "")"
   }
 
   var displayStatusTitle: String {

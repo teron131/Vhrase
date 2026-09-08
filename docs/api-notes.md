@@ -1,5 +1,21 @@
 # API Notes
 
+## Gemini native transcription
+
+`GeminiTranscriptionContract` builds `POST https://generativelanguage.googleapis.com/v1beta/interactions` with `x-goog-api-key`, inline WAV audio, the fixed `gemini-3.5-transcribe` model, and `store: false`.
+Shared vocabulary maps to `generation_config.transcription_config.custom_vocabulary`; Gemini language hints map to `language_codes`.
+Smart mode maps to `mode: "smart"`, while verbatim uses `mode: {"type":"verbatim"}`.
+The adapter accepts only completed responses and joins text blocks from `model_output` steps before the existing finalization pipeline runs.
+Requests have a 90-second timeout and no client retry; vocabulary is limited to 1,000 unique terms.
+Gemini's streaming endpoint, diarization, and word timestamps are deliberately not exposed in this version.
+
+Grok retains native `POST /v1/stt` and WebSocket transcription.
+Its shared vocabulary maps to repeated `keyterm` values; filler retention maps to `filler_words`.
+`xaiFormatText` gates both `format=true` and the language field for upload, and the formatting-enabling language query for realtime.
+`xaiVADThreshold` maps to realtime `vad_threshold` and defaults to the provider's 0.08.
+
+References: [Gemini transcription](https://ai.google.dev/gemini-api/docs/transcribe), [Grok speech to text](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text).
+
 ## Credentials
 
 Vhrase stores API keys as macOS Keychain generic-password items under service `Vhrase`, with the environment-variable name as the account name.
