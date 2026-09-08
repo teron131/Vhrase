@@ -5,6 +5,16 @@ import Foundation
 import SwiftUI
 
 extension MainWindowView {
+  /// Refreshes attached microphones without replacing a saved choice when its device is disconnected.
+  func refreshInputDevices() {
+    do {
+      inputDevices = try AudioInputDevice.available()
+      inputDeviceError = ""
+    } catch {
+      inputDeviceError = error.localizedDescription
+    }
+  }
+
   var presentation: DictationPresentation {
     appState.presentation
   }

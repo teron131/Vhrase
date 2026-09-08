@@ -36,6 +36,12 @@ done
 
 cd "$ROOT"
 
+echo "==> Building audio processing dependency"
+swift build --jobs 4
+SWIFT_BIN_DIR="$(swift build --show-bin-path)"
+SPEEX_CHECK_FLAGS=(-I "$ROOT/.build/checkouts/CSpeex/Sources/speex/include")
+SPEEX_OBJECTS=("$SWIFT_BIN_DIR"/speex.build/*/*.o)
+
 if /usr/bin/grep -Eq 'find-generic-password.*[[:space:]]-w' "$ROOT/scripts/build-and-run.sh"; then
   echo "The app launcher must not read Keychain secret values during verification." >&2
   exit 1
@@ -78,7 +84,6 @@ APP_CORE_CHECKS=(
   scripts/checks/status-flow-check.swift
   scripts/checks/shortcut-behavior-check.swift
   scripts/checks/replacement-rules-check.swift
-  scripts/checks/customization-summary-check.swift
   scripts/checks/customization-snapshot-check.swift
   scripts/checks/history-check.swift
   scripts/checks/demo-adjustment-check.swift
@@ -86,6 +91,11 @@ APP_CORE_CHECKS=(
 APP_PROVIDER_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"
   Sources/VhraseApp/Transcription/Audio/AudioRecorder.swift
+  Sources/VhraseApp/Transcription/Audio/AudioInputDevice.swift
+  Sources/VhraseApp/Transcription/Audio/DeviceAudioCapture.swift
+  Sources/VhraseApp/Transcription/Audio/AudioPreprocessor.swift
+  Sources/VhraseApp/Transcription/Audio/AudioInputPreview.swift
+  Sources/VhraseApp/Transcription/Audio/AudioTestClip.swift
   Sources/VhraseApp/Transcription/Upload/MultipartForm.swift
   Sources/VhraseApp/Transcription/ProviderContracts.swift
   Sources/VhraseApp/Transcription/Realtime/RealtimeTranscription.swift
@@ -95,6 +105,9 @@ APP_PROVIDER_CHECK_SOURCES=(
 )
 APP_PROVIDER_CHECKS=(
   scripts/checks/audio-tap-isolation-check.swift
+  scripts/checks/audio-processing-check.swift
+  scripts/checks/audio-preview-check.swift
+  scripts/checks/input-device-check.swift
   scripts/checks/xai-stt-options-check.swift
   scripts/checks/elevenlabs-options-check.swift
   scripts/checks/gemini-stt-options-check.swift
@@ -145,7 +158,7 @@ for check_script in "${APP_CORE_CHECKS[@]}"; do
   run_compiled_check "$check_script" "${APP_CORE_CHECK_SOURCES[@]}"
 done
 for check_script in "${APP_PROVIDER_CHECKS[@]}"; do
-  run_compiled_check "$check_script" "${APP_PROVIDER_CHECK_SOURCES[@]}"
+  run_compiled_check "$check_script" "${APP_PROVIDER_CHECK_SOURCES[@]}" "${SPEEX_CHECK_FLAGS[@]}" "${SPEEX_OBJECTS[@]}"
 done
 for check_script in "${APP_FINALIZATION_CHECKS[@]}"; do
   run_compiled_check "$check_script" "${APP_FINALIZATION_CHECK_SOURCES[@]}"

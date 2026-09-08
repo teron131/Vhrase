@@ -15,7 +15,7 @@ extension MainWindowView {
             } label: {
               Label("History saving is off", systemImage: "pause.circle")
             }
-            .buttonStyle(.link)
+            .buttonStyle(AccentLinkButtonStyle())
           }
         }
 
@@ -30,7 +30,7 @@ extension MainWindowView {
           } label: {
             Label("Clear", systemImage: "trash")
           }
-          .buttonStyle(.link)
+          .buttonStyle(AccentLinkButtonStyle())
           .disabled(appState.history.isEmpty)
         }
 
@@ -280,7 +280,7 @@ private struct HistoryCardRow: View {
         Button(isExpanded ? "Show less" : "Read full transcript") {
           isExpanded.toggle()
         }
-        .buttonStyle(.link)
+        .buttonStyle(AccentLinkButtonStyle())
         .font(.caption)
       }
 

@@ -83,6 +83,7 @@ struct ProviderPicker: NSViewRepresentable {
     if let menu = control as? NSPopUpButton {
       menu.selectItem(at: index)
     } else if let segments = control as? NSSegmentedControl {
+      segments.selectedSegmentBezelColor = NSColor(VhraseTheme.accent)
       segments.selectedSegment = index
     }
   }

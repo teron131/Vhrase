@@ -67,7 +67,7 @@ struct ReadinessSummaryCheck {
         microphoneReady: true,
         screenReady: false,
         includeScreenshot: true
-      ).readinessTitle == "Needs attention"
+      ).selectedWorkflowReady == false
     )
     precondition(
       presentation(
@@ -75,7 +75,7 @@ struct ReadinessSummaryCheck {
         microphoneReady: true,
         screenReady: true,
         includeScreenshot: true
-      ).readinessTitle == "Needs attention"
+      ).selectedWorkflowReady == false
     )
     precondition(
       presentation(
@@ -83,7 +83,7 @@ struct ReadinessSummaryCheck {
         microphoneReady: false,
         screenReady: true,
         includeScreenshot: false
-      ).readinessTitle == "Needs attention"
+      ).selectedWorkflowReady == false
     )
     precondition(
       presentation(
@@ -92,7 +92,7 @@ struct ReadinessSummaryCheck {
         screenReady: true,
         includeScreenshot: false,
         accessibilityReady: false
-      ).readinessTitle == "Needs attention"
+      ).selectedWorkflowReady == false
     )
     precondition(
       !presentation(

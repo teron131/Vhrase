@@ -96,6 +96,10 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var geminiLanguageHints: String = ""
   var xaiFormatText: Bool = true
   var xaiVADThreshold: Double = 0.08
+  var automaticVolumeLeveling: Bool = true
+  var inputGainDB: Double = 0
+  var noiseReductionDB: Double = 6
+  var inputDeviceUID: String = ""
 
   static let defaultAdjustmentPrompt = """
     Rewrite the transcript into polished text that is ready to insert into the active app. Fix obvious speech-to-text mistakes, punctuation, casing, and awkward phrasing while preserving intent. Use the screenshot only as context. Return only the final text.
@@ -173,22 +177,6 @@ struct DictationSettings: Codable, Equatable, Sendable {
       .compactMap { TextReplacement(rule: String($0)) }
   }
 
-  var customizationSummary: String {
-    let language = recognitionLanguage
-    let keytermCount = keytermList.count
-    let replacementCount = replacements.count
-    let languageLabel =
-      language.isEmpty ? "Auto language" : language
-    let keytermLabel = keytermCount == 1 ? "1 keyterm" : "\(keytermCount) keyterms"
-    let replacementLabel =
-      replacementCount == 1 ? "1 replacement" : "\(replacementCount) replacements"
-    let cleanupLabel =
-      adjustWithLLM
-      ? "LLM cleanup"
-      : provider == .gemini && geminiSmartTranscription ? "Smart transcription" : "Raw transcript"
-    return "\(languageLabel) · \(keytermLabel) · \(replacementLabel) · \(cleanupLabel)"
-  }
-
   var recognitionLanguage: String {
     provider == .gemini
       ? geminiLanguageCodes.joined(separator: ", ")
@@ -197,6 +185,10 @@ struct DictationSettings: Codable, Equatable, Sendable {
 
   /// Rejects persisted or imported values that cannot be produced by Vhrase's bounded controls.
   func validateLocalConfiguration() throws {
+    guard (-6...6).contains(inputGainDB), (0...12).contains(noiseReductionDB) else {
+      throw ConfigurationValidationError(
+        "Input volume must be between −6 and +6 dB, and extra noise reduction between 0 and 12 dB.")
+    }
     guard provider.availableModes.contains(transcriptionMode) else {
       throw ConfigurationValidationError(
         "Gemini currently transcribes after you stop recording. Choose Upload mode.")
@@ -235,6 +227,88 @@ struct DictationSettings: Codable, Equatable, Sendable {
     guard hotkeyPreset != .custom || customHotkey != nil else {
       throw ConfigurationValidationError("Capture a custom shortcut before selecting Custom.")
     }
+  }
+}
+
+extension DictationSettings {
+  private enum CodingKeys: String, CodingKey {
+    case provider
+    case transcriptionMode
+    case elevenLabsCommitStrategy
+    case elevenLabsNoVerbatim
+    case elevenLabsVADSilenceThreshold
+    case elevenLabsVADThreshold
+    case elevenLabsMinSpeechDuration
+    case elevenLabsMinSilenceDuration
+    case language
+    case keyterms
+    case replacementRules
+    case includeFillerWords
+    case xaiRealtimeEndpointing
+    case xaiSmartTurnEnabled
+    case xaiSmartTurnThreshold
+    case xaiSmartTurnTimeout
+    case keepTranscriptOnClipboard
+    case adjustWithLLM
+    case useLocalAdjustmentFallback
+    case adjustmentBaseURL
+    case adjustmentModel
+    case adjustmentPrompt
+    case includeScreenshot
+    case hotkeyPreset
+    case customHotkey
+    case shortcutBehavior
+    case geminiSmartTranscription
+    case geminiLanguageHints
+    case xaiFormatText
+    case xaiVADThreshold
+    case automaticVolumeLeveling
+    case inputGainDB
+    case noiseReductionDB
+    case inputDeviceUID
+  }
+
+  /// Supplies audio defaults for existing exports while retaining validation of the original settings contract.
+  init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    provider = try values.decode(STTProvider.self, forKey: .provider)
+    transcriptionMode = try values.decode(TranscriptionMode.self, forKey: .transcriptionMode)
+    elevenLabsCommitStrategy = try values.decode(
+      ElevenLabsCommitStrategy.self, forKey: .elevenLabsCommitStrategy)
+    elevenLabsNoVerbatim = try values.decode(Bool.self, forKey: .elevenLabsNoVerbatim)
+    elevenLabsVADSilenceThreshold = try values.decode(
+      Double.self, forKey: .elevenLabsVADSilenceThreshold)
+    elevenLabsVADThreshold = try values.decode(Double.self, forKey: .elevenLabsVADThreshold)
+    elevenLabsMinSpeechDuration = try values.decode(Int.self, forKey: .elevenLabsMinSpeechDuration)
+    elevenLabsMinSilenceDuration = try values.decode(
+      Int.self, forKey: .elevenLabsMinSilenceDuration)
+    language = try values.decode(String.self, forKey: .language)
+    keyterms = try values.decode(String.self, forKey: .keyterms)
+    replacementRules = try values.decode(String.self, forKey: .replacementRules)
+    includeFillerWords = try values.decode(Bool.self, forKey: .includeFillerWords)
+    xaiRealtimeEndpointing = try values.decode(Int.self, forKey: .xaiRealtimeEndpointing)
+    xaiSmartTurnEnabled = try values.decode(Bool.self, forKey: .xaiSmartTurnEnabled)
+    xaiSmartTurnThreshold = try values.decode(Double.self, forKey: .xaiSmartTurnThreshold)
+    xaiSmartTurnTimeout = try values.decode(Int.self, forKey: .xaiSmartTurnTimeout)
+    keepTranscriptOnClipboard = try values.decode(Bool.self, forKey: .keepTranscriptOnClipboard)
+    adjustWithLLM = try values.decode(Bool.self, forKey: .adjustWithLLM)
+    useLocalAdjustmentFallback = try values.decode(Bool.self, forKey: .useLocalAdjustmentFallback)
+    adjustmentBaseURL = try values.decode(String.self, forKey: .adjustmentBaseURL)
+    adjustmentModel = try values.decode(String.self, forKey: .adjustmentModel)
+    adjustmentPrompt = try values.decode(String.self, forKey: .adjustmentPrompt)
+    includeScreenshot = try values.decode(Bool.self, forKey: .includeScreenshot)
+    hotkeyPreset = try values.decode(HotkeyPreset.self, forKey: .hotkeyPreset)
+    customHotkey = try values.decodeIfPresent(CustomHotkey.self, forKey: .customHotkey)
+    shortcutBehavior = try values.decode(ShortcutBehavior.self, forKey: .shortcutBehavior)
+    geminiSmartTranscription = try values.decode(Bool.self, forKey: .geminiSmartTranscription)
+    geminiLanguageHints = try values.decode(String.self, forKey: .geminiLanguageHints)
+    xaiFormatText = try values.decode(Bool.self, forKey: .xaiFormatText)
+    xaiVADThreshold = try values.decode(Double.self, forKey: .xaiVADThreshold)
+    automaticVolumeLeveling =
+      try values.decodeIfPresent(Bool.self, forKey: .automaticVolumeLeveling) ?? true
+    inputGainDB = try values.decodeIfPresent(Double.self, forKey: .inputGainDB) ?? 0
+    noiseReductionDB = try values.decodeIfPresent(Double.self, forKey: .noiseReductionDB) ?? 6
+    inputDeviceUID = try values.decodeIfPresent(String.self, forKey: .inputDeviceUID) ?? ""
   }
 }
 

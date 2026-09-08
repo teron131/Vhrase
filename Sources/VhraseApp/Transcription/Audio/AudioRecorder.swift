@@ -1,10 +1,11 @@
-// Records temporary microphone audio and emits normalized realtime PCM chunks for transcription.
+// Captures microphone input without enabling playback processing and shares enhanced PCM between previews, WAV uploads, and realtime providers.
 
 @preconcurrency import AVFoundation
 import Foundation
 
 struct AudioChunk: Sendable {
   let data: Data
+  let inputLevel: Double
   let level: Double
 }
 
@@ -14,18 +15,38 @@ typealias AudioChunkHandler = @Sendable (AudioChunk) -> Void
 @MainActor
 final class AudioRecorder {
   private let engine = AVAudioEngine()
+  private var deviceCapture: DeviceAudioCapture?
   private var audioFile: AVAudioFile?
   private var outputURL: URL?
-  private var realtimeConverter: PCM16AudioConverter?
-  private var audioChunkHandler: AudioChunkHandler?
+  private var tapProcessor: AudioTapProcessor?
   private var captureState: AudioCaptureState?
 
   var isRecording: Bool {
-    engine.isRunning
+    deviceCapture?.isRunning ?? engine.isRunning
   }
 
-  /// Starts microphone capture and optionally emits normalized realtime chunks.
-  func start(onAudioChunk: AudioChunkHandler? = nil) async throws {
+  /// Captures the system microphone and snapshots input-only enhancement settings for this recording.
+  func start(settings: DictationSettings = .defaults, onAudioChunk: AudioChunkHandler? = nil)
+    async throws
+  {
+    try await startCapture(settings: settings, savesAudio: true, onAudioChunk: onAudioChunk)
+  }
+
+  /// Runs the same processing path entirely in memory; no recording directory or audio file is created.
+  func startPreview(settings: DictationSettings, onAudioChunk: @escaping AudioChunkHandler)
+    async throws
+  {
+    try await startCapture(settings: settings, savesAudio: false, onAudioChunk: onAudioChunk)
+  }
+
+  /// Reconfigures a preview without touching the input device or restarting its tap.
+  func updatePreview(settings: DictationSettings) throws {
+    try tapProcessor?.updateProcessing(settings: settings)
+  }
+
+  private func startCapture(
+    settings: DictationSettings, savesAudio: Bool, onAudioChunk: AudioChunkHandler?
+  ) async throws {
     try Task.checkCancellation()
     let granted = await AVCaptureDevice.requestAccess(for: .audio)
     try Task.checkCancellation()
@@ -37,11 +58,20 @@ final class AudioRecorder {
       )
     }
 
-    let input = engine.inputNode
-    let format = input.outputFormat(forBus: 0)
-    let url = try nextRecordingURL()
-    let file = try AVAudioFile(forWriting: url, settings: format.settings)
-    let converter = onAudioChunk.map { _ in PCM16AudioConverter(inputFormat: format) }
+    let usesSelectedDevice = !settings.inputDeviceUID.isEmpty
+    _ = try AudioInputDevice.resolve(settings.inputDeviceUID)
+    let format =
+      usesSelectedDevice ? PCM16AudioConverter.format : engine.inputNode.outputFormat(forBus: 0)
+    let preprocessor = try AudioPreprocessor(
+      noiseReductionDB: settings.noiseReductionDB, gainDB: settings.inputGainDB,
+      automaticVolumeLeveling: settings.automaticVolumeLeveling)
+    let url = savesAudio ? try nextRecordingURL() : nil
+    let file = try url.map {
+      try AVAudioFile(
+        forWriting: $0, settings: PCM16AudioConverter.format.settings,
+        commonFormat: .pcmFormatInt16, interleaved: true)
+    }
+    let converter = PCM16AudioConverter(inputFormat: format, preprocessor: preprocessor)
     let captureState = AudioCaptureState()
     let tapProcessor = AudioTapProcessor(
       file: file,
@@ -51,34 +81,50 @@ final class AudioRecorder {
     )
 
     do {
-      input.removeTap(onBus: 0)
-      input.installTap(
-        onBus: 0,
-        bufferSize: 4_096,
-        format: format,
-        block: Self.makeAudioTapBlock { buffer in
-          tapProcessor.process(buffer)
-        }
-      )
+      if usesSelectedDevice {
+        deviceCapture = try DeviceAudioCapture(
+          uid: settings.inputDeviceUID,
+          onBuffer: { tapProcessor.process($0) }, onError: { captureState.recordWriteError($0) })
+      } else {
+        let input = engine.inputNode
+        input.removeTap(onBus: 0)
+        input.installTap(
+          onBus: 0,
+          bufferSize: 4_096,
+          format: format,
+          block: Self.makeAudioTapBlock { buffer in
+            tapProcessor.process(buffer)
+          }
+        )
+      }
 
       audioFile = file
       outputURL = url
-      realtimeConverter = converter
-      audioChunkHandler = onAudioChunk
+      self.tapProcessor = tapProcessor
       self.captureState = captureState
-      engine.prepare()
-      try engine.start()
+      if let deviceCapture {
+        await deviceCapture.start()
+        guard deviceCapture.isRunning else {
+          throw NSError(
+            domain: "Vhrase.Audio", code: 4,
+            userInfo: [
+              NSLocalizedDescriptionKey:
+                "The selected microphone could not start. Choose another input device."
+            ])
+        }
+      } else {
+        engine.prepare()
+        try engine.start()
+      }
       try Task.checkCancellation()
     } catch {
-      input.removeTap(onBus: 0)
-      engine.stop()
+      stopInput()
       captureState.stopAndWait()
       audioFile = nil
       outputURL = nil
-      realtimeConverter = nil
-      audioChunkHandler = nil
+      self.tapProcessor = nil
       self.captureState = nil
-      try? FileManager.default.removeItem(at: url)
+      if let url { try? FileManager.default.removeItem(at: url) }
       throw error
     }
   }
@@ -92,22 +138,19 @@ final class AudioRecorder {
     }
   }
 
-  /// Stops capture, flushes one silence-padded final realtime chunk, and returns the recorded file.
+  /// Stops capture and drains conversion and denoising to both destinations before closing the recorded file.
   func stop() throws -> URL {
     guard let outputURL else {
       throw AudioRecorderError.noActiveRecording
     }
 
-    engine.inputNode.removeTap(onBus: 0)
-    engine.stop()
+    stopInput()
     captureState?.stopAndWait()
+    tapProcessor?.finish()
     let recordedFrameCount = audioFile?.length ?? 0
     let writeError = captureState?.firstWriteError
-    let converter = realtimeConverter
-    let chunkHandler = audioChunkHandler
     audioFile = nil
-    realtimeConverter = nil
-    audioChunkHandler = nil
+    tapProcessor = nil
     captureState = nil
     self.outputURL = nil
 
@@ -119,25 +162,32 @@ final class AudioRecorder {
       try? FileManager.default.removeItem(at: outputURL)
       throw AudioRecorderError.emptyRecording
     }
-    for finalChunk in converter?.finish() ?? [] {
-      chunkHandler?(finalChunk)
-    }
     return outputURL
   }
 
   /// Stops capture without producing a transcript and deletes the temporary recording.
   func cancel() {
-    engine.inputNode.removeTap(onBus: 0)
-    engine.stop()
+    guard captureState != nil else { return }
+    stopInput()
     captureState?.stopAndWait()
     audioFile = nil
-    realtimeConverter = nil
-    audioChunkHandler = nil
+    tapProcessor = nil
     captureState = nil
     if let outputURL {
       try? FileManager.default.removeItem(at: outputURL)
     }
     outputURL = nil
+  }
+
+  /// Stops the active input backend before pending processing is drained or discarded.
+  private func stopInput() {
+    if let deviceCapture {
+      deviceCapture.stop()
+      self.deviceCapture = nil
+    } else if captureState != nil {
+      engine.inputNode.removeTap(onBus: 0)
+      engine.stop()
+    }
   }
 
   /// Best-effort removes recordings abandoned by a previous app lifetime without creating the directory.
@@ -256,16 +306,16 @@ private final class AudioCaptureState: @unchecked Sendable {
   }
 }
 
-/// Owns the nonisolated work performed by CoreAudio's realtime callback queue.
+/// Shares PCM processing and optional file writing across engine taps and explicit-device capture callbacks.
 private final class AudioTapProcessor: @unchecked Sendable {
-  private let file: AVAudioFile
-  private let converter: PCM16AudioConverter?
+  private let file: AVAudioFile?
+  private let converter: PCM16AudioConverter
   private let chunkHandler: AudioChunkHandler?
   private let captureState: AudioCaptureState
 
   init(
-    file: AVAudioFile,
-    converter: PCM16AudioConverter?,
+    file: AVAudioFile?,
+    converter: PCM16AudioConverter,
     chunkHandler: AudioChunkHandler?,
     captureState: AudioCaptureState
   ) {
@@ -282,44 +332,77 @@ private final class AudioTapProcessor: @unchecked Sendable {
     defer {
       captureState.endCallback()
     }
+    for chunk in converter.convert(buffer) {
+      writeAndSend(chunk)
+    }
+  }
+
+  /// Runs after all tap callbacks complete so delayed speech reaches the WAV and realtime transport before finalization.
+  func finish() {
+    for chunk in converter.finish() { writeAndSend(chunk) }
+  }
+
+  func updateProcessing(settings: DictationSettings) throws {
+    try converter.updateProcessing(settings: settings)
+  }
+
+  private func writeAndSend(_ chunk: AudioChunk) {
+    defer { chunkHandler?(chunk) }
+    guard let file else { return }
     do {
+      let frameCount = AVAudioFrameCount(chunk.data.count / MemoryLayout<Int16>.size)
+      guard
+        let buffer = AVAudioPCMBuffer(
+          pcmFormat: PCM16AudioConverter.format, frameCapacity: frameCount),
+        let samples = buffer.int16ChannelData?[0]
+      else { throw AudioRecorderError.emptyRecording }
+      buffer.frameLength = frameCount
+      chunk.data.copyBytes(
+        to: UnsafeMutableRawBufferPointer(start: samples, count: chunk.data.count))
       try file.write(from: buffer)
     } catch {
       captureState.recordWriteError(error)
       NSLog("Vhrase audio write failed: \(error.localizedDescription)")
     }
-    if let chunkHandler, let converter {
-      for chunk in converter.convert(buffer) {
-        chunkHandler(chunk)
-      }
-    }
   }
 }
 
 final class PCM16AudioConverter: @unchecked Sendable {
+  static let format = AVAudioFormat(
+    commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true)!
   private let converter: AVAudioConverter?
-  private let outputFormat: AVAudioFormat?
+  private let outputFormat = PCM16AudioConverter.format
   private let lock = NSLock()
   private var chunkFramer = PCM16ChunkFramer()
+  private var preprocessor: AudioPreprocessor?
+  private var receivedAudio = false
+  private var isFinished = false
 
-  init(inputFormat: AVAudioFormat) {
-    outputFormat = AVAudioFormat(
-      commonFormat: .pcmFormatInt16,
-      sampleRate: 16_000,
-      channels: 1,
-      interleaved: true
-    )
-    if let outputFormat {
-      converter = AVAudioConverter(from: inputFormat, to: outputFormat)
-    } else {
-      converter = nil
+  init(inputFormat: AVAudioFormat, preprocessor: AudioPreprocessor? = nil) {
+    self.preprocessor = preprocessor
+    converter = AVAudioConverter(from: inputFormat, to: Self.format)
+  }
+
+  /// Serializes control changes with processing so a slider updates the next audio chunk safely.
+  func updateProcessing(settings: DictationSettings) throws {
+    try lock.withLock {
+      if let preprocessor {
+        try preprocessor.update(
+          noiseReductionDB: settings.noiseReductionDB, gainDB: settings.inputGainDB,
+          automaticVolumeLeveling: settings.automaticVolumeLeveling)
+      } else {
+        preprocessor = try AudioPreprocessor(
+          noiseReductionDB: settings.noiseReductionDB, gainDB: settings.inputGainDB,
+          automaticVolumeLeveling: settings.automaticVolumeLeveling)
+      }
     }
   }
 
   /// Converts one tap buffer and emits only complete 100 ms PCM16 frames.
   func convert(_ buffer: AVAudioPCMBuffer) -> [AudioChunk] {
     lock.withLock {
-      guard let converter, let outputFormat else {
+      guard !isFinished else { return [] }
+      guard let converter else {
         return []
       }
 
@@ -347,15 +430,18 @@ final class PCM16AudioConverter: @unchecked Sendable {
         bytes: channelData[0],
         count: Int(outputBuffer.frameLength) * MemoryLayout<Int16>.size
       )
-      return chunkFramer.append(data).map(Self.audioChunk)
+      receivedAudio = true
+      return chunkFramer.append(data).map(audioChunk)
     }
   }
 
-  /// Drains sample-rate conversion and pads only the final sub-100 ms remainder with PCM silence.
+  /// Drains conversion, pads a partial transport chunk, and preserves the denoiser's delayed speech tail.
   func finish() -> [AudioChunk] {
     lock.withLock {
+      guard !isFinished else { return [] }
+      isFinished = true
       var chunks: [Data] = []
-      if let converter, let outputFormat,
+      if let converter,
         let outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: 3_200)
       {
         var error: NSError?
@@ -376,12 +462,18 @@ final class PCM16AudioConverter: @unchecked Sendable {
       if let finalChunk = chunkFramer.finish() {
         chunks.append(finalChunk)
       }
-      return chunks.map(Self.audioChunk)
+      // Speex uses overlap-add; one extra silent chunk preserves its delayed final speech samples.
+      if receivedAudio, preprocessor?.needsDrain == true {
+        chunks.append(Data(repeating: 0, count: PCM16ChunkFramer.chunkByteCount))
+      }
+      return chunks.map(audioChunk)
     }
   }
 
-  private static func audioChunk(data: Data) -> AudioChunk {
-    AudioChunk(data: data, level: level(from: data))
+  private func audioChunk(data: Data) -> AudioChunk {
+    let processed = preprocessor?.process(data) ?? data
+    return AudioChunk(
+      data: processed, inputLevel: Self.level(from: data), level: Self.level(from: processed))
   }
 
   private static func level(from data: Data) -> Double {
@@ -405,7 +497,7 @@ final class PCM16AudioConverter: @unchecked Sendable {
   }
 }
 
-/// Buffers normalized mono PCM16 into the 3,200-byte frames expected by realtime providers.
+/// Buffers mono PCM16 into the 3,200-byte frames shared by WAV writing and realtime providers.
 struct PCM16ChunkFramer {
   static let chunkByteCount = 3_200
 

@@ -1,5 +1,6 @@
 // Implements the sidebar destinations and complete configuration workflows for Vhrase's main window.
 
+import AVFoundation
 import AppKit
 import SwiftUI
 
@@ -27,6 +28,9 @@ extension MainWindowView {
 
           ForEach(MainWindowTab.allCases) { tab in
             Button {
+              if tab == .capture, selectedTab == .capture {
+                restartListeningPreview()
+              }
               withAnimation(
                 VhraseMotion.respectingReduceMotion(
                   VhraseMotion.stateSpring, reduceMotion: reduceMotion)
@@ -322,7 +326,7 @@ extension MainWindowView {
               NSPasteboard.general.clearContents()
               NSPasteboard.general.setString(appState.lastRecognizedTranscript, forType: .string)
             }
-            .buttonStyle(.link)
+            .buttonStyle(AccentLinkButtonStyle())
           }
           .padding(.top, 8)
         }
@@ -351,7 +355,7 @@ extension MainWindowView {
         Button("View history") {
           selectedTab = .history
         }
-        .buttonStyle(.link)
+        .buttonStyle(AccentLinkButtonStyle())
         .disabled(appState.history.isEmpty)
       }
 
@@ -403,7 +407,7 @@ extension MainWindowView {
           Label("Check readiness", systemImage: "checkmark.circle")
         }
       }
-      .buttonStyle(.link)
+      .buttonStyle(AccentLinkButtonStyle())
     }
     .contentSection()
   }
@@ -421,7 +425,15 @@ extension MainWindowView {
           "Capture workflow",
           description: "Select a stage to configure it. Each setting lives in one place.",
           nodes: capturePipelineNodes,
-          selection: $selectedCapturePipelineStage
+          selection: Binding(
+            get: { selectedCapturePipelineStage },
+            set: { stage in
+              if stage == .listen {
+                restartListeningPreview()
+              }
+              selectedCapturePipelineStage = stage
+            }
+          )
         ) {
           captureWorkflowStageEditor
         }
@@ -431,6 +443,13 @@ extension MainWindowView {
       .frame(maxWidth: .infinity, alignment: .top)
     }
     .disabled(presentation.workflowControlsAreDisabled)
+  }
+
+  /// Repeated navigation to Listen reacquires capture without interrupting an active dictation.
+  private func restartListeningPreview() {
+    guard selectedCapturePipelineStage == .listen, appState.status.canStartRecording else { return }
+    NSApp.activate()
+    appState.audioInputPreview.restart(settings: appState.settings)
   }
 
   var outputTab: some View {
@@ -536,7 +555,7 @@ extension MainWindowView {
             settings.keyterms = (keyterms + additions).joined(separator: "\n")
           }
         }
-        .buttonStyle(.link)
+        .buttonStyle(AccentLinkButtonStyle())
         .help("Adds common developer terms without replacing your vocabulary")
       }
 
@@ -876,9 +895,39 @@ extension MainWindowView {
       workflowStageHeader(
         "Listen",
         description:
-          "Tell recognition which language to expect while Vhrase listens through the system input device.",
+          "Choose your microphone, check its sound, and tell recognition which language to expect.",
         systemImage: "mic.fill"
       )
+
+      labeledPicker("Input device") {
+        Picker("Input device", selection: appState.settingsBinding(\.inputDeviceUID)) {
+          Text("System default").tag("")
+          ForEach(inputDevices) { device in
+            Text(device.name).tag(device.id)
+          }
+          if !appState.settings.inputDeviceUID.isEmpty,
+            !inputDevices.contains(where: { $0.id == appState.settings.inputDeviceUID })
+          {
+            Text("Selected microphone (disconnected)").tag(appState.settings.inputDeviceUID)
+          }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+      }
+      .onAppear { refreshInputDevices() }
+      .onReceive(
+        NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)
+      ) { _ in
+        refreshInputDevices()
+      }
+      .onReceive(
+        NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)
+      ) { _ in
+        refreshInputDevices()
+      }
+      if !inputDeviceError.isEmpty {
+        Text(inputDeviceError).font(.caption).foregroundStyle(.secondary)
+      }
 
       if appState.settings.provider == .gemini {
         compactField("Language hints", text: appState.settingsBinding(\.geminiLanguageHints))
@@ -898,10 +947,59 @@ extension MainWindowView {
 
       Divider()
 
+      MicrophonePreviewView(
+        preview: appState.audioInputPreview,
+        settings: appState.settings,
+        canPreview: appState.status.canStartRecording
+      )
+
+      Toggle("Automatic volume leveling", isOn: appState.settingsBinding(\.automaticVolumeLeveling))
+      Text(
+        "Gently levels microphone audio locally. These controls never change speaker or headphone volume."
+      )
+      .font(.caption).foregroundStyle(.secondary)
+
+      LabeledContent("Volume adjustment") {
+        Slider(value: appState.settingsBinding(\.inputGainDB), in: -6...6, step: 1)
+          .accessibilityLabel("Volume adjustment in decibels")
+        Text("\(Int(appState.settings.inputGainDB)) dB")
+          .monospacedDigit().frame(width: 48, alignment: .trailing)
+      }
+      LabeledContent("Noise reduction") {
+        Slider(
+          value: Binding(
+            get: { -appState.settings.noiseReductionDB },
+            set: { value in appState.updateSettings { $0.noiseReductionDB = -value } }
+          ), in: -12...0, step: 1
+        ) {
+          Text("Noise reduction")
+        } minimumValueLabel: {
+          Text("−12 dB")
+        } maximumValueLabel: {
+          Text("0")
+        }
+        .labelsHidden()
+        .accessibilityValue("\(-Int(appState.settings.noiseReductionDB)) decibels")
+        Text(
+          appState.settings.noiseReductionDB == 0
+            ? "0 dB" : "−\(Int(appState.settings.noiseReductionDB)) dB"
+        )
+        .monospacedDigit().frame(width: 48, alignment: .trailing)
+      }
+      Text(
+        "A light reduction of steady background noise, applied locally to both upload and realtime audio. Values closer to zero preserve more of the original sound."
+      )
+      .font(.caption).foregroundStyle(.secondary)
+
+      Divider()
+
       HStack(spacing: 12) {
-        Label("Vhrase uses the current macOS input device.", systemImage: "mic.and.signal.meter")
-          .font(.callout)
-          .foregroundStyle(.secondary)
+        Label(
+          "Your microphone choice applies to preview and dictation.",
+          systemImage: "mic.and.signal.meter"
+        )
+        .font(.callout)
+        .foregroundStyle(.secondary)
         Spacer()
         Button {
           selectedTab = .system

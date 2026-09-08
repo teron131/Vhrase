@@ -18,6 +18,28 @@ Dictate shows the latest provider transcription alongside the final output and i
 This original-text comparison is held only in memory; saved history retains finalized text as before.
 Long history entries can be expanded with “Read full transcript.”
 
+## Microphone processing
+
+Capture → Listen contains the shared audio controls for every provider and mode.
+Input device lists physical microphones and excludes virtual audio drivers and temporary aggregate devices; System default follows the Mac's current input, while an explicit choice applies only to Vhrase's preview and dictation.
+The choice is saved by stable device identity and included in settings exports; a disconnected selection stays visible and must be replaced before capture can start.
+The live microphone preview shows separate microphone-input and after-processing levels while this panel is in the active window, without saving audio, creating a history entry, or contacting a provider.
+The taller waveforms smooth level changes for readability without changing the audio itself.
+Dragging an audio slider updates the running processor on the next audio chunk without restarting the microphone or resetting its learned noise profile while processing remains enabled.
+Choose “Record 5-second test” and then “Play test” to hear the processed microphone audio at your existing playback volume.
+The test is held only in memory, discarded when leaving the panel or changing audio settings, and never added to transcript history or sent to an API.
+Microphone capture pauses during test playback to prevent feedback and resumes afterward; “Stop playback” ends the test early.
+Control changes refresh the preview automatically; leaving the panel, deactivating its window, or starting dictation releases the preview microphone.
+Returning to Vhrase resumes the visible preview; clicking Listen again, or Capture while Listen is already selected, explicitly reacquires the microphone after another app has used it.
+Processing applies only to captured microphone samples; Vhrase does not enable Apple's duplex voice-processing mode or control speaker/headphone playback.
+Automatic volume leveling is on by default and uses SpeexDSP with a maximum 6 dB automatic boost and gradual gain changes.
+Volume adjustment defaults to 0 dB and allows a −6 to +6 dB trim after noise reduction, with PCM saturation protection.
+Noise reduction uses the bundled model-free SpeexDSP preprocessor, defaults to a mild −6 dB attenuation limit, and runs from −12 dB on the left to 0 dB (off) on the right.
+It targets steady background noise rather than removing other speakers, and never discards audio based on speech detection.
+Both uploads and realtime streams receive the same processed 16 kHz mono PCM16 audio; the level meter reflects that processed signal.
+Stopping flushes the processor before finalizing, including up to one extra 100 ms chunk for delayed speech.
+Settings are saved locally and included in customization exports; older exports receive the new defaults.
+
 ## Run The App
 
 Build and open the signed app bundle:

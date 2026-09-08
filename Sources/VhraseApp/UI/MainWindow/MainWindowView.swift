@@ -56,6 +56,8 @@ struct MainWindowView: View {
   @State var isClearHistoryConfirmationPresented = false
   @State var isOpenCCInstallConfirmationPresented = false
   @State var historyQuery = ""
+  @State var inputDevices: [AudioInputDevice] = []
+  @State var inputDeviceError = ""
   @State var hoveredTab: MainWindowTab?
   @State var selectedCapturePipelineStage = PipelineStage.transcribe
   @State var selectedOutputPipelineStage = PipelineStage.enhance
@@ -127,6 +129,7 @@ struct MainWindowView: View {
     .onChange(of: scenePhase) { _, newPhase in
       if newPhase == .active {
         appState.refreshPermissions()
+        refreshInputDevices()
       }
     }
     .onDisappear {

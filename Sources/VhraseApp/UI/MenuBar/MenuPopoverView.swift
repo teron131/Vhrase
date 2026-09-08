@@ -161,7 +161,7 @@ struct MenuPopoverView: View {
         Button("History") {
           openMainWindow(.history)
         }
-        .buttonStyle(.link)
+        .buttonStyle(AccentLinkButtonStyle())
         .accessibilityHint("Opens all saved transcripts")
       }
 

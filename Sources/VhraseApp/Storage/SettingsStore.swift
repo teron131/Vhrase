@@ -63,8 +63,14 @@ final class SettingsStore {
       "geminiSmartTranscription", fallback.geminiSmartTranscription)
     settings.geminiLanguageHints = storedString("geminiLanguageHints", fallback.geminiLanguageHints)
     settings.xaiFormatText = bool("xaiFormatText", fallback.xaiFormatText)
+    settings.inputDeviceUID = storedString("inputDeviceUID", fallback.inputDeviceUID)
     settings.xaiVADThreshold = boundedDouble(
       "xaiVADThreshold", fallback.xaiVADThreshold, range: 0...1)
+    settings.automaticVolumeLeveling = bool(
+      "automaticVolumeLeveling", fallback.automaticVolumeLeveling)
+    settings.inputGainDB = boundedDouble("inputGainDB", fallback.inputGainDB, range: -6...6)
+    settings.noiseReductionDB = boundedDouble(
+      "noiseReductionDB", fallback.noiseReductionDB, range: 0...12)
     if !settings.provider.availableModes.contains(settings.transcriptionMode) {
       settings.transcriptionMode = .upload
     }
@@ -102,6 +108,10 @@ final class SettingsStore {
     defaults.set(settings.geminiLanguageHints, forKey: "geminiLanguageHints")
     defaults.set(settings.xaiFormatText, forKey: "xaiFormatText")
     defaults.set(settings.xaiVADThreshold, forKey: "xaiVADThreshold")
+    defaults.set(settings.automaticVolumeLeveling, forKey: "automaticVolumeLeveling")
+    defaults.set(settings.inputGainDB, forKey: "inputGainDB")
+    defaults.set(settings.noiseReductionDB, forKey: "noiseReductionDB")
+    defaults.set(settings.inputDeviceUID, forKey: "inputDeviceUID")
   }
 
   private func nonEmptyString(_ key: String, _ fallback: String) -> String {
