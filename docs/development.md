@@ -88,6 +88,8 @@ bash scripts/bundle-app.sh
 ```
 
 The bundle is written to `dist/Vhrase.app` and signed with `VHRASE_CODESIGN_IDENTITY`, the local Vhrase development identity, or ad-hoc signing as a fallback.
+Provider pickers use the compact [Google](https://artificialanalysis.ai/img/logos/google_small.svg), [ElevenLabs](https://artificialanalysis.ai/img/logos/elevenlabs_small.svg), and [SpaceXAI](https://artificialanalysis.ai/img/logos/spacexai.svg) SVGs from Artificial Analysis, stored unchanged in `Sources/VhraseApp/UI/Resources/ProviderIcons`.
+SwiftPM packages these assets in `Vhrase_VhraseApp.bundle`; the bundle script copies that resource bundle into the app's `Contents/Resources` directory so installed apps do not depend on the build checkout.
 For normal local development, use the persistent Vhrase identity rather than the ad-hoc fallback so Keychain and TCC permissions remain attached to one designated application identity.
 
 ## Live STT Smokes

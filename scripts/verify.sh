@@ -106,6 +106,7 @@ APP_FINALIZATION_CHECK_SOURCES=(
   Sources/VhraseApp/Adjustment/Local/TextReplacementProcessor.swift
   Sources/VhraseApp/Adjustment/Local/ChineseTextConverter.swift
   Sources/VhraseApp/Adjustment/Local/LocalAdjustment.swift
+  Sources/VhraseApp/Adjustment/LLMEndpoint.swift
   Sources/VhraseApp/Adjustment/LLMAdjustmentClient.swift
   Sources/VhraseApp/Adjustment/TranscriptFinalization.swift
 )
@@ -211,21 +212,12 @@ if ! audio_fixture_is_valid "$AUDIO_SMOKE_WAV"; then
   exit 1
 fi
 
-echo "==> Building Swift package"
-if [[ "$BUILD_CONFIG" == "release" ]]; then
-  swift build -c release
-else
-  swift build
-fi
-
-echo "==> Bundling app"
+# The bundle entrypoint owns the build, signing, signature verification, and entitlement checks.
+echo "==> Building, bundling, and signing app"
 bash scripts/bundle-app.sh "$BUILD_CONFIG"
 
 echo "==> Validating bundle metadata"
 plutil -lint "$PLIST"
-
-echo "==> Signing and verifying app"
-bash scripts/sign-app.sh "$APP_DIR"
 
 echo "==> Running local readiness doctor"
 bash scripts/doctor.sh --strict

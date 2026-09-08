@@ -44,6 +44,7 @@ fi
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS" "$RESOURCES"
 cp "$BINARY" "$MACOS/Vhrase"
+cp -R "$ROOT/.build/$BUILD_CONFIG/Vhrase_VhraseApp.bundle" "$RESOURCES/"
 render_app_icon
 
 cat > "$CONTENTS/Info.plist" <<'PLIST'
@@ -62,9 +63,9 @@ cat > "$CONTENTS/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.6.1</string>
+  <string>0.6.2</string>
   <key>CFBundleVersion</key>
-  <string>9</string>
+  <string>10</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>

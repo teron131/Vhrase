@@ -6,7 +6,7 @@ protocol SpeechToTextClient: Sendable {
   func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult
 }
 
-final class XAITranscriptionClient: SpeechToTextClient, @unchecked Sendable {
+final class XAITranscriptionClient: SpeechToTextClient {
   private let apiKey: String
 
   init(apiKey: String) {
@@ -40,7 +40,7 @@ final class XAITranscriptionClient: SpeechToTextClient, @unchecked Sendable {
   }
 }
 
-final class ElevenLabsTranscriptionClient: SpeechToTextClient, @unchecked Sendable {
+final class ElevenLabsTranscriptionClient: SpeechToTextClient {
   private let apiKey: String
 
   init(apiKey: String) {
@@ -73,7 +73,7 @@ final class ElevenLabsTranscriptionClient: SpeechToTextClient, @unchecked Sendab
   }
 }
 
-final class GeminiTranscriptionClient: SpeechToTextClient, @unchecked Sendable {
+final class GeminiTranscriptionClient: SpeechToTextClient {
   private let apiKey: String
 
   init(apiKey: String) { self.apiKey = apiKey }

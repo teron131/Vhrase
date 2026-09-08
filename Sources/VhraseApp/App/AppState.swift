@@ -655,7 +655,7 @@ final class AppState: ObservableObject {
   ) async {
     let configuration = currentRecordingConfiguration()
     recordingConfiguration = configuration
-    recordingTargetApp = currentTargetApp()
+    recordingTargetApp = appContext.targetApp()
     targetAppLabel = recordingTargetApp?.name ?? ""
     resetLiveRecordingState()
     var session: RealtimeTranscriptionSession?
@@ -818,7 +818,7 @@ final class AppState: ObservableObject {
   private func runDemoDictationPipeline() async {
     lastTranscriptionSeconds = nil
     let configuration = currentRecordingConfiguration()
-    recordingTargetApp = currentTargetApp()
+    recordingTargetApp = appContext.targetApp()
     targetAppLabel = recordingTargetApp?.name ?? ""
     do {
       try await pauseForDemoVisibility()
@@ -846,10 +846,6 @@ final class AppState: ObservableObject {
       return
     }
     throw missingProviderKey(secretKey(for: configuration.settings.provider).rawValue)
-  }
-
-  private var selectedProviderKeyIsMissing: Bool {
-    effectiveAPIKey(secretKey(for: settings.provider)).isEmpty
   }
 
   private func permissionState(for permission: AppPermission) -> PermissionState? {
@@ -1045,7 +1041,7 @@ final class AppState: ObservableObject {
     configuration: RecordingConfiguration
   ) async throws {
     let settings = configuration.settings
-    let targetApp = recordingTargetApp ?? currentTargetApp()
+    let targetApp = recordingTargetApp ?? appContext.targetApp()
     if settings.adjustWithLLM {
       status = .adjusting
       if adjustment == .localDemo {
@@ -1122,10 +1118,6 @@ final class AppState: ObservableObject {
 
   private func pauseForDemoVisibility() async throws {
     try await Task.sleep(nanoseconds: 650_000_000)
-  }
-
-  private func currentTargetApp() -> FrontmostApp? {
-    appContext.targetApp()
   }
 
   private func recordHistory(
