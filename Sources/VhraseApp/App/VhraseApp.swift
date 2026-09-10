@@ -34,8 +34,12 @@ struct VhraseApp: App {
       }
     }
 
-    MenuBarExtra("Vhrase", systemImage: "waveform") {
+    MenuBarExtra {
       MenuPopoverView(appState: appState)
+    } label: {
+      Image(nsImage: ParrotMark.menuBarImage)
+        .renderingMode(.template)
+        .accessibilityLabel("Vhrase")
     }
     .menuBarExtraStyle(.window)
 

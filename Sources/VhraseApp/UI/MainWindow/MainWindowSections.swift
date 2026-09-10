@@ -10,16 +10,9 @@ extension MainWindowView {
       ScrollView {
         VStack(alignment: .leading, spacing: 4) {
           HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-              .fill(VhraseTheme.accent)
-              .frame(width: 8, height: 8)
-              .rotationEffect(appState.isRecording ? .degrees(45) : .zero)
-              .scaleEffect(appState.isRecording ? 1.22 : 1)
-              .animation(
-                VhraseMotion.respectingReduceMotion(
-                  VhraseMotion.stateSpring, reduceMotion: reduceMotion),
-                value: appState.isRecording
-              )
+            ParrotMark()
+              .frame(width: 22, height: 22)
+              .accessibilityHidden(true)
             Text("Vhrase")
               .font(VhraseFont.title)
           }

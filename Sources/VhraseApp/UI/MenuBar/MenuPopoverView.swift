@@ -55,6 +55,10 @@ struct MenuPopoverView: View {
 
   private var compactHero: some View {
     HStack(spacing: 10) {
+      ParrotMark()
+        .frame(width: 28, height: 28)
+        .accessibilityHidden(true)
+
       VStack(alignment: .leading, spacing: 1) {
         Text("Vhrase")
           .font(VhraseFont.micro)
