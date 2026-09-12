@@ -2,6 +2,7 @@
 
 import CoreAudio
 import Foundation
+import OSLog
 
 struct AudioInputDevice: Identifiable, Sendable {
   let id: String
@@ -54,6 +55,41 @@ struct AudioInputDevice: Identifiable, Sendable {
       throw InputDeviceError.unavailable
     }
     return device.deviceID
+  }
+
+  /// Records read-only sharing diagnostics; running elsewhere is allowed and never causes us to take exclusive access.
+  static func logCaptureState(deviceID: AudioDeviceID?) {
+    let logger = Logger(subsystem: "local.codex.Vhrase", category: "AudioDevice")
+    guard
+      let device = deviceID
+        ?? uint32Property(
+          kAudioHardwarePropertyDefaultInputDevice, device: AudioObjectID(kAudioObjectSystemObject))
+    else {
+      logger.warning("Default microphone identity unavailable")
+      return
+    }
+    let alive = uint32Property(kAudioDevicePropertyDeviceIsAlive, device: device)
+    let running = uint32Property(kAudioDevicePropertyDeviceIsRunningSomewhere, device: device)
+    let hog = uint32Property(kAudioDevicePropertyHogMode, device: device).map {
+      Int32(bitPattern: $0)
+    }
+    logger.notice(
+      "Input device=\(device) alive=\(alive.map(String.init) ?? "unknown", privacy: .public) runningSomewhere=\(running.map(String.init) ?? "unknown", privacy: .public) exclusiveOwnerPID=\(hog.map(String.init) ?? "unknown", privacy: .public)"
+    )
+  }
+
+  private static func uint32Property(_ selector: AudioObjectPropertySelector, device: AudioObjectID)
+    -> UInt32?
+  {
+    var address = AudioObjectPropertyAddress(
+      mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain)
+    var value: UInt32 = 0
+    var size = UInt32(MemoryLayout<UInt32>.size)
+    guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value) == noErr else {
+      return nil
+    }
+    return value
   }
 
   private static func stringProperty(_ selector: AudioObjectPropertySelector, device: AudioDeviceID)

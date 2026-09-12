@@ -104,6 +104,7 @@ APP_PROVIDER_CHECK_SOURCES=(
   Sources/VhraseApp/Storage/SettingsStore.swift
 )
 APP_PROVIDER_CHECKS=(
+  scripts/checks/audio-capture-health-check.swift
   scripts/checks/audio-tap-isolation-check.swift
   scripts/checks/audio-processing-check.swift
   scripts/checks/audio-preview-check.swift

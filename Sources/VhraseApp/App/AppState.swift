@@ -2,6 +2,7 @@
 
 import AppKit
 import Foundation
+import OSLog
 
 enum OpenCCInstallationState: Equatable {
   case idle
@@ -21,7 +22,22 @@ enum OpenCCInstallationState: Equatable {
 final class AppState: ObservableObject {
   private static let developmentEnvironmentFileArgument = "--development-environment-file"
 
-  @Published var status: AppStatus = .idle
+  @Published var status: AppStatus = .idle {
+    didSet {
+      guard status != oldValue else { return }
+      let phase: String
+      switch status {
+      case .idle: phase = "idle"
+      case .preparing: phase = "preparing"
+      case .recording: phase = "recording"
+      case .transcribing: phase = "transcribing"
+      case .adjusting: phase = "adjusting"
+      case .completed: phase = "completed"
+      case .failed: phase = "failed"
+      }
+      logger.notice("Workflow attempt=\(self.recordingSequence) phase=\(phase, privacy: .public)")
+    }
+  }
   @Published var settings: DictationSettings
   @Published var xaiAPIKey: String
   @Published var elevenLabsAPIKey: String
@@ -61,6 +77,8 @@ final class AppState: ObservableObject {
   private let hotkeyManager = GlobalHotkeyManager()
   private let fnHotkeyManager = FnHotkeyManager()
   private var recorder: AudioRecorder?
+  private let logger = Logger(subsystem: "local.codex.Vhrase", category: "Dictation")
+  private var recordingSequence = 0
   private var realtimeSession: RealtimeTranscriptionSession?
   private var recordingTask: Task<Void, Never>?
   private var recordingTimer: Timer?
@@ -328,16 +346,20 @@ final class AppState: ObservableObject {
 
   func handleHotkeyPressed() {
     guard !isShortcutCaptureActive, !shouldIgnoreDuplicateHotkeyPress() else {
+      logger.notice("Shortcut press ignored during capture or debounce")
       return
     }
 
     customizationNotice = "Shortcut \(settings.hotkeyDisplay) pressed."
+    logger.notice(
+      "Shortcut pressed behavior=\(self.settings.shortcutBehavior.rawValue, privacy: .public)")
     performShortcutAction(
       settings.shortcutBehavior.action(for: .pressed, status: status)
     )
   }
 
   func handleHotkeyReleased() {
+    logger.notice("Shortcut released")
     performShortcutAction(
       settings.shortcutBehavior.action(for: .released, status: status)
     )
@@ -638,6 +660,10 @@ final class AppState: ObservableObject {
     }
 
     audioInputPreview.stop()
+    recordingSequence += 1
+    logger.notice(
+      "Begin attempt=\(self.recordingSequence) provider=\(self.settings.provider.rawValue, privacy: .public) mode=\(self.settings.transcriptionMode.rawValue, privacy: .public)"
+    )
     let id = UUID()
     let recorder = AudioRecorder()
     recordingID = id
@@ -679,6 +705,10 @@ final class AppState: ObservableObject {
           }
           self.recordingLevel = chunk.level
         }
+      } onFailure: { [weak self] error in
+        guard let self, self.recordingID == id else { return }
+        self.cancelRecording()
+        self.status = .failed(error.localizedDescription)
       }
       try ensureCurrentRecording(id)
       recordingTask = nil
@@ -692,6 +722,8 @@ final class AppState: ObservableObject {
         error: nil
       )
     } catch {
+      let failure = error as NSError
+      logger.error("Startup failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
       session?.cancel()
       recorder.cancel()
       finishRecordingStartup(
@@ -736,7 +768,8 @@ final class AppState: ObservableObject {
     let configuration = recordingConfiguration ?? currentRecordingConfiguration()
     do {
       try ensureCurrentRecording(id)
-      let fileURL = try recorder.stop()
+      let fileURL = try await recorder.stop()
+      logger.notice("PCM capture ended; waiting for transcription")
       processingAudioURL = fileURL
       defer {
         try? FileManager.default.removeItem(at: fileURL)
@@ -764,6 +797,9 @@ final class AppState: ObservableObject {
       )
       lastTranscriptionSeconds = transcriptionSeconds
     } catch {
+      let failure = error as NSError
+      logger.error(
+        "Processing failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
       session?.cancel()
       recorder.cancel()
       guard recordingID == id else {
