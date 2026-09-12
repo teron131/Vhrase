@@ -2,6 +2,7 @@
 
 @preconcurrency import AVFoundation
 import Foundation
+import OSLog
 
 struct AudioChunk: Sendable {
   let data: Data
@@ -20,23 +21,35 @@ final class AudioRecorder {
   private var outputURL: URL?
   private var tapProcessor: AudioTapProcessor?
   private var captureState: AudioCaptureState?
+  private var healthTask: Task<Void, Never>?
+  private var configurationObserver: NSObjectProtocol?
+  private let logger = Logger(subsystem: "local.codex.Vhrase", category: "AudioRecorder")
 
   var isRecording: Bool {
     deviceCapture?.isRunning ?? engine.isRunning
   }
 
   /// Captures the system microphone and snapshots input-only enhancement settings for this recording.
-  func start(settings: DictationSettings = .defaults, onAudioChunk: AudioChunkHandler? = nil)
+  /// Failures after startup cancel capture before notifying the workflow through onFailure.
+  func start(
+    settings: DictationSettings = .defaults, onAudioChunk: AudioChunkHandler? = nil,
+    onFailure: @escaping @MainActor (Error) -> Void
+  )
     async throws
   {
-    try await startCapture(settings: settings, savesAudio: true, onAudioChunk: onAudioChunk)
+    try await startCapture(
+      settings: settings, savesAudio: true, onAudioChunk: onAudioChunk, onFailure: onFailure)
   }
 
   /// Runs the same processing path entirely in memory; no recording directory or audio file is created.
-  func startPreview(settings: DictationSettings, onAudioChunk: @escaping AudioChunkHandler)
+  func startPreview(
+    settings: DictationSettings, onAudioChunk: @escaping AudioChunkHandler,
+    onFailure: @escaping @MainActor (Error) -> Void
+  )
     async throws
   {
-    try await startCapture(settings: settings, savesAudio: false, onAudioChunk: onAudioChunk)
+    try await startCapture(
+      settings: settings, savesAudio: false, onAudioChunk: onAudioChunk, onFailure: onFailure)
   }
 
   /// Reconfigures a preview without touching the input device or restarting its tap.
@@ -44,8 +57,10 @@ final class AudioRecorder {
     try tapProcessor?.updateProcessing(settings: settings)
   }
 
+  /// Installs one input backend after permission checks and discards its recording if startup fails.
   private func startCapture(
-    settings: DictationSettings, savesAudio: Bool, onAudioChunk: AudioChunkHandler?
+    settings: DictationSettings, savesAudio: Bool, onAudioChunk: AudioChunkHandler?,
+    onFailure: @escaping @MainActor (Error) -> Void
   ) async throws {
     try Task.checkCancellation()
     let granted = await AVCaptureDevice.requestAccess(for: .audio)
@@ -59,9 +74,15 @@ final class AudioRecorder {
     }
 
     let usesSelectedDevice = !settings.inputDeviceUID.isEmpty
-    _ = try AudioInputDevice.resolve(settings.inputDeviceUID)
+    logger.notice("Start capture preview=\(!savesAudio) selectedDevice=\(usesSelectedDevice)")
+    let deviceID = try AudioInputDevice.resolve(settings.inputDeviceUID)
+    AudioInputDevice.logCaptureState(deviceID: deviceID)
     let format =
       usesSelectedDevice ? PCM16AudioConverter.format : engine.inputNode.outputFormat(forBus: 0)
+    guard format.sampleRate > 0, format.channelCount > 0 else {
+      throw AudioRecorderError.invalidInputFormat
+    }
+    logger.notice("Input format rate=\(format.sampleRate) channels=\(format.channelCount)")
     let preprocessor = try AudioPreprocessor(
       noiseReductionDB: settings.noiseReductionDB, gainDB: settings.inputGainDB,
       automaticVolumeLeveling: settings.automaticVolumeLeveling)
@@ -84,7 +105,7 @@ final class AudioRecorder {
       if usesSelectedDevice {
         deviceCapture = try DeviceAudioCapture(
           uid: settings.inputDeviceUID,
-          onBuffer: { tapProcessor.process($0) }, onError: { captureState.recordWriteError($0) })
+          onBuffer: { tapProcessor.process($0) }, onError: { captureState.recordError($0) })
       } else {
         let input = engine.inputNode
         input.removeTap(onBus: 0)
@@ -103,7 +124,7 @@ final class AudioRecorder {
       self.tapProcessor = tapProcessor
       self.captureState = captureState
       if let deviceCapture {
-        await deviceCapture.start()
+        try await deviceCapture.start()
         guard deviceCapture.isRunning else {
           throw NSError(
             domain: "Vhrase.Audio", code: 4,
@@ -115,9 +136,19 @@ final class AudioRecorder {
       } else {
         engine.prepare()
         try engine.start()
+        configurationObserver = NotificationCenter.default.addObserver(
+          forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
+        ) { _ in
+          captureState.recordError(AudioRecorderError.captureInterrupted)
+        }
       }
       try Task.checkCancellation()
+      logger.notice("Capture running")
+      monitorCapture(captureState, onFailure: onFailure)
     } catch {
+      let failure = error as NSError
+      logger.error(
+        "Capture startup failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
       stopInput()
       captureState.stopAndWait()
       audioFile = nil
@@ -126,6 +157,27 @@ final class AudioRecorder {
       self.captureState = nil
       if let url { try? FileManager.default.removeItem(at: url) }
       throw error
+    }
+  }
+
+  /// Detects lost delivery, including silent driver failures, using PCM arrival rather than microphone loudness.
+  private func monitorCapture(
+    _ state: AudioCaptureState, onFailure: @escaping @MainActor (Error) -> Void
+  ) {
+    state.beginMonitoring()
+    healthTask = Task { [weak self] in
+      while !Task.isCancelled {
+        do { try await Task.sleep(for: .seconds(1)) } catch { return }
+        guard let self else { return }
+        guard let error = state.failure(at: ProcessInfo.processInfo.systemUptime) else { continue }
+        let failure = error as NSError
+        self.logger.error(
+          "Capture unhealthy domain=\(failure.domain, privacy: .public) code=\(failure.code) chunks=\(state.chunkCount)"
+        )
+        self.cancel()
+        onFailure(error)
+        return
+      }
     }
   }
 
@@ -139,24 +191,37 @@ final class AudioRecorder {
   }
 
   /// Stops capture and drains conversion and denoising to both destinations before closing the recorded file.
-  func stop() throws -> URL {
+  func stop() async throws -> URL {
     guard let outputURL else {
       throw AudioRecorderError.noActiveRecording
     }
 
-    stopInput()
+    stopMonitoring()
+    if let deviceCapture {
+      do {
+        try await deviceCapture.stop()
+        self.deviceCapture = nil
+      } catch {
+        cancel()
+        throw error
+      }
+    } else {
+      stopInput()
+    }
     captureState?.stopAndWait()
     tapProcessor?.finish()
     let recordedFrameCount = audioFile?.length ?? 0
-    let writeError = captureState?.firstWriteError
+    let captureError = captureState?.firstError
+    logger.notice(
+      "Capture finished frames=\(recordedFrameCount) chunks=\(self.captureState?.chunkCount ?? 0)")
     audioFile = nil
     tapProcessor = nil
     captureState = nil
     self.outputURL = nil
 
-    if let writeError {
+    if let captureError {
       try? FileManager.default.removeItem(at: outputURL)
-      throw AudioRecorderError.fileWriteFailed(writeError)
+      throw AudioRecorderError.fileWriteFailed(captureError)
     }
     guard recordedFrameCount > 0 else {
       try? FileManager.default.removeItem(at: outputURL)
@@ -168,6 +233,7 @@ final class AudioRecorder {
   /// Stops capture without producing a transcript and deletes the temporary recording.
   func cancel() {
     guard captureState != nil else { return }
+    logger.notice("Capture cancelled chunks=\(self.captureState?.chunkCount ?? 0)")
     stopInput()
     captureState?.stopAndWait()
     audioFile = nil
@@ -179,14 +245,24 @@ final class AudioRecorder {
     outputURL = nil
   }
 
-  /// Stops the active input backend before pending processing is drained or discarded.
+  /// Ends monitoring and requests hardware stop; the callback gate then drains or discards remaining PCM work.
   private func stopInput() {
+    stopMonitoring()
     if let deviceCapture {
-      deviceCapture.stop()
+      deviceCapture.cancel()
       self.deviceCapture = nil
     } else if captureState != nil {
       engine.inputNode.removeTap(onBus: 0)
       engine.stop()
+    }
+  }
+
+  private func stopMonitoring() {
+    healthTask?.cancel()
+    healthTask = nil
+    if let configurationObserver {
+      NotificationCenter.default.removeObserver(configurationObserver)
+      self.configurationObserver = nil
     }
   }
 
@@ -246,6 +322,11 @@ enum AudioRecorderError: LocalizedError {
   case noActiveRecording
   case fileWriteFailed(Error)
   case emptyRecording
+  case invalidInputFormat
+  case startupTimedOut
+  case shutdownTimedOut
+  case captureInterrupted
+  case audioDeliveryStopped
 
   var errorDescription: String? {
     switch self {
@@ -255,18 +336,66 @@ enum AudioRecorderError: LocalizedError {
       "Vhrase could not save the recording: \(error.localizedDescription)"
     case .emptyRecording:
       "The recording contained no audio."
+    case .invalidInputFormat:
+      "The microphone has no usable input format. Check the device or choose another microphone."
+    case .startupTimedOut:
+      "The microphone did not start within \(DeviceAudioCapture.operationTimeoutSeconds) seconds. Another app or the audio device may be holding it. Try another microphone."
+    case .shutdownTimedOut:
+      "The microphone did not stop within \(DeviceAudioCapture.operationTimeoutSeconds) seconds. Check the audio device and other audio apps before trying again."
+    case .captureInterrupted:
+      "Microphone capture was interrupted or its format changed. Check other audio apps and try recording again."
+    case .audioDeliveryStopped:
+      "The microphone stopped delivering audio for \(AudioCaptureState.deliveryTimeoutSeconds) seconds. Check other audio apps or choose another microphone."
     }
   }
 }
 
-private final class AudioCaptureState: @unchecked Sendable {
+/// Serializes callback shutdown, the first capture error, and delivery health across audio and main queues.
+final class AudioCaptureState: @unchecked Sendable {
+  static let deliveryTimeoutSeconds = 5
+
   private let condition = NSCondition()
   private var activeCallbacks = 0
   private var isStopping = false
-  private var writeError: Error?
+  private var error: Error?
+  private var lastChunkTime: TimeInterval
+  private var chunks = 0
 
-  var firstWriteError: Error? {
-    condition.withLock { writeError }
+  init(startedAt: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+    lastChunkTime = startedAt
+  }
+
+  var chunkCount: Int { condition.withLock { chunks } }
+
+  /// Gives a newly started device its full delivery grace period without resetting audio that already arrived.
+  func beginMonitoring() {
+    condition.withLock {
+      if chunks == 0 { lastChunkTime = ProcessInfo.processInfo.systemUptime }
+    }
+  }
+
+  /// Counts even zero-valued PCM as healthy delivery, so a quiet room cannot trigger the stall timeout.
+  @discardableResult
+  func recordChunk(at time: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Bool {
+    condition.withLock {
+      lastChunkTime = time
+      chunks += 1
+      return chunks == 1
+    }
+  }
+
+  /// Reports the first capture error before considering a delivery stall, and suppresses failures after shutdown.
+  func failure(at time: TimeInterval) -> Error? {
+    condition.withLock {
+      guard !isStopping else { return nil }
+      return error
+        ?? (time - lastChunkTime >= Double(Self.deliveryTimeoutSeconds)
+          ? AudioRecorderError.audioDeliveryStopped : nil)
+    }
+  }
+
+  var firstError: Error? {
+    condition.withLock { error }
   }
 
   func beginCallback() -> Bool {
@@ -288,10 +417,11 @@ private final class AudioCaptureState: @unchecked Sendable {
     }
   }
 
-  func recordWriteError(_ error: Error) {
+  /// Retains the original hardware or write failure when subsequent callbacks also fail.
+  func recordError(_ error: Error) {
     condition.withLock {
-      if writeError == nil {
-        writeError = error
+      if self.error == nil {
+        self.error = error
       }
     }
   }
@@ -308,6 +438,7 @@ private final class AudioCaptureState: @unchecked Sendable {
 
 /// Shares PCM processing and optional file writing across engine taps and explicit-device capture callbacks.
 private final class AudioTapProcessor: @unchecked Sendable {
+  private let logger = Logger(subsystem: "local.codex.Vhrase", category: "AudioRecorder")
   private let file: AVAudioFile?
   private let converter: PCM16AudioConverter
   private let chunkHandler: AudioChunkHandler?
@@ -347,6 +478,7 @@ private final class AudioTapProcessor: @unchecked Sendable {
   }
 
   private func writeAndSend(_ chunk: AudioChunk) {
+    if captureState.recordChunk() { logger.notice("First PCM chunk received") }
     defer { chunkHandler?(chunk) }
     guard let file else { return }
     do {
@@ -361,7 +493,7 @@ private final class AudioTapProcessor: @unchecked Sendable {
         to: UnsafeMutableRawBufferPointer(start: samples, count: chunk.data.count))
       try file.write(from: buffer)
     } catch {
-      captureState.recordWriteError(error)
+      captureState.recordError(error)
       NSLog("Vhrase audio write failed: \(error.localizedDescription)")
     }
   }

@@ -16,6 +16,33 @@ The script stops stale Vhrase processes before rebuilding, signing, and opening 
 swift build
 ```
 
+## Microphone and Fn diagnostics
+
+Vhrase writes lifecycle events to macOS unified logging under the `local.codex.Vhrase` subsystem at notice or error level, so diagnostics do not require a special logging launch.
+To watch an already running app without restarting it:
+
+```sh
+/usr/bin/log stream --style compact --predicate 'subsystem == "local.codex.Vhrase"'
+```
+
+To inspect a recent stuck popup after the fact:
+
+```sh
+/usr/bin/log show --last 30m --style compact --predicate 'subsystem == "local.codex.Vhrase"'
+```
+
+The `FnHotkey` category records key edges, unavailable event taps, and recovery after macOS disables a tap; `Dictation` records attempt numbers, workflow phases, and provider error domains/codes.
+`AudioRecorder` records capture mode, format, PCM counts, failures, and cleanup; `DeviceCapture` records hardware start/stop completion and runtime errors.
+`AudioDevice` records the numeric device, alive/running state, and exclusive owner PID; `-1` means no exclusive owner and `unknown` means the driver did not expose that property.
+An input already running elsewhere is diagnostic evidence, not itself a conflict, so Vhrase does not reject it or change system defaults or exclusive ownership.
+Logs exclude audio, transcripts, credentials, request URLs, device names, and device UIDs.
+
+Selected-device startup and normal shutdown wait at most eight seconds; cancellation queues hardware cleanup without waiting for the driver, while normal completion drains queued audio before finalizing the recording.
+A driver stuck inside a system call may release the physical microphone later, even though the popup has already reported failure.
+During capture, errors and input-format changes become visible failures, and five seconds without processed PCM triggers a stall error; silent PCM remains healthy.
+These bounds cover the selected-device AVFoundation queue and audio delivery, while the system-default AVAudioEngine prepare/start/stop calls still run synchronously.
+For live verification, test Fn while another app uses the same input, then change or disconnect that input and verify failure feedback and a subsequent fresh recording.
+
 ## Verify
 
 Run the local verification entrypoint:

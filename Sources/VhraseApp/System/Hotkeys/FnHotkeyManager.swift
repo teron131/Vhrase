@@ -2,6 +2,7 @@
 
 import AppKit
 import Foundation
+import OSLog
 
 /// Owns Fn/Globe shortcut detection, which is exposed as modifier changes instead of a Carbon hotkey.
 @MainActor
@@ -13,6 +14,7 @@ final class FnHotkeyManager {
   private var wasFunctionDown = false
   private var onPressed: (() -> Void)?
   private var onReleased: (() -> Void)?
+  private let logger = Logger(subsystem: "local.codex.Vhrase", category: "FnHotkey")
 
   func register(
     _ settings: DictationSettings,
@@ -82,6 +84,8 @@ final class FnHotkeyManager {
         userInfo: Unmanaged.passUnretained(self).toOpaque()
       ), let source = CFMachPortCreateRunLoopSource(nil, eventTap, 0)
     else {
+      logger.error(
+        "Fn event tap unavailable; check Input Monitoring or Accessibility authorization")
       return
     }
 
@@ -89,6 +93,7 @@ final class FnHotkeyManager {
     globalEventTapSource = source
     CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
     CGEvent.tapEnable(tap: eventTap, enable: true)
+    logger.notice("Fn event tap installed")
   }
 
   private func removeMonitors() {
@@ -111,6 +116,12 @@ final class FnHotkeyManager {
       return
     }
     CGEvent.tapEnable(tap: globalEventTap, enable: true)
+    logger.warning("Fn event tap was disabled; reenabled and checking for a missed release")
+    if wasFunctionDown,
+      !CGEventSource.flagsState(.combinedSessionState).contains(.maskSecondaryFn)
+    {
+      handle(isFunctionDown: false)
+    }
   }
 
   private func handleGlobal(isFunctionDown: Bool) {
@@ -130,6 +141,7 @@ final class FnHotkeyManager {
     }
 
     wasFunctionDown = isFunctionDown
+    logger.notice("Fn edge down=\(isFunctionDown)")
     if isFunctionDown {
       onPressed?()
     } else {

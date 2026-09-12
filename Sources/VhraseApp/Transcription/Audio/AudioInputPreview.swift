@@ -61,6 +61,10 @@ final class AudioInputPreview: NSObject, ObservableObject, AVAudioPlayerDelegate
           Task { @MainActor [weak self] in
             self?.receive(chunk, sessionID: id)
           }
+        } onFailure: { [weak self] error in
+          guard let self, self.sessionID == id else { return }
+          self.stop()
+          self.errorMessage = error.localizedDescription
         }
         guard let self, self.sessionID == id else {
           recorder.cancel()
