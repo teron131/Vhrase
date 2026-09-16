@@ -56,6 +56,7 @@ final class AppState: ObservableObject {
   @Published var recordingElapsedSeconds = 0
   @Published var permissions: [PermissionSnapshot] = []
   @Published var history: [TranscriptHistoryItem] = []
+  @Published private(set) var activityDays: [DictationActivityDay] = []
   @Published var savesTranscriptHistory = true
   @Published var lastAdjustmentWarning = ""
   @Published var lastDelivery: TranscriptDelivery = .none
@@ -70,6 +71,7 @@ final class AppState: ObservableObject {
 
   private let settingsStore = SettingsStore()
   private let historyStore = TranscriptHistoryStore()
+  private let activityStore = DictationActivityStore()
   private let apiKeys: APIKeyStore
   private let customizationTransfer = CustomizationTransfer()
   private let inserter = TextInsertion()
@@ -131,6 +133,7 @@ final class AppState: ObservableObject {
     llmAPIKey = ""
     shouldLoadSavedAPIKeysAfterLaunch = developmentEnvironmentFileURL == nil
     history = historyStore.load()
+    activityDays = activityStore.load()
     savesTranscriptHistory = historyStore.savesHistory
     lastTranscript = history.first?.text ?? ""
     AudioRecorder.removeAbandonedRecordings()
@@ -795,6 +798,7 @@ final class AppState: ObservableObject {
     id: UUID,
     recorder: AudioRecorder
   ) async {
+    let processingStarted = ContinuousClock.now
     let session = realtimeSession
     let configuration = recordingConfiguration ?? currentRecordingConfiguration()
     do {
@@ -830,6 +834,11 @@ final class AppState: ObservableObject {
         configuration: configuration
       )
       lastTranscriptionSeconds = transcriptionSeconds
+      let elapsed = processingStarted.duration(to: .now).components
+      activityDays = activityStore.record(
+        text: lastTranscript, recordingSeconds: recorder.recordedSeconds,
+        processingSeconds: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
+        settings: configuration.settings, days: activityDays)
     } catch {
       let failure = error as NSError
       logger.error(
@@ -1222,6 +1231,15 @@ final class AppState: ObservableObject {
     recordingSpeechPresence = nil
     recordingTargetApp = nil
     targetAppLabel = ""
+  }
+
+  /// Combines content-free daily totals without consulting the separately retained transcript archive.
+  func todayActivity(now: Date = Date()) -> DictationActivityDay {
+    activityDays.reduce(into: DictationActivityDay(date: now)) { total, day in
+      if Calendar.current.isDate(day.date, inSameDayAs: now) {
+        total.add(day)
+      }
+    }
   }
 }
 

@@ -174,7 +174,7 @@ struct MenuPopoverView: View {
       }
 
       HStack(spacing: 0) {
-        menuMetric("Today", value: "\(appState.transcriptsTodayCount)")
+        menuMetric("Today", value: "\(appState.todayActivity().dictations)")
 
         Divider()
           .frame(height: 28)

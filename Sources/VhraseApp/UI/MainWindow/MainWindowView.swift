@@ -56,6 +56,7 @@ struct MainWindowView: View {
   @State var isClearHistoryConfirmationPresented = false
   @State var isOpenCCInstallConfirmationPresented = false
   @State var historyQuery = ""
+  @State var activityRange = ActivityRange.week
   @State var inputDevices: [AudioInputDevice] = []
   @State var inputDeviceError = ""
   @State var hoveredTab: MainWindowTab?
