@@ -130,26 +130,22 @@ struct StatusPopupView: View {
       .help(title)
   }
 
-  /// Expands only for a failure so its explanation and recovery never depend on a tooltip.
+  /// Keeps failure feedback on the same baseline as every other state while retaining immediate recovery.
   private func failureContent(_ message: String) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack {
-        Label("Dictation failed", systemImage: "exclamationmark.circle")
-          .font(.callout.weight(.semibold))
-        Spacer()
-        hudButton("Try again", systemImage: "arrow.clockwise") { appState.toggleRecording() }
-        hudButton("Dismiss", systemImage: "xmark") { appState.dismissWorkflowOutcome() }
-      }
-      ScrollView {
-        Text(message)
-          .font(.caption)
-          .foregroundStyle(.white.opacity(0.8))
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .textSelection(.enabled)
-      }
-      .frame(maxHeight: .infinity)
+    HStack(spacing: 8) {
+      Image(systemName: "exclamationmark.circle")
+        .font(.system(size: 13, weight: .semibold))
+        .accessibilityHidden(true)
+      Text(message)
+        .font(.callout.weight(.medium))
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .help("Dictation failed: \(message)")
+        .accessibilityLabel("Dictation failed: \(message)")
+      hudButton("Try again", systemImage: "arrow.clockwise") { appState.toggleRecording() }
+      hudButton("Dismiss", systemImage: "xmark") { appState.dismissWorkflowOutcome() }
     }
-    .padding(14)
+    .padding(.horizontal, 12)
   }
 
   private func hudButton(
@@ -173,8 +169,7 @@ struct StatusPopupView: View {
   }
 
   private var cornerRadius: CGFloat {
-    if case .failed = appState.status { return VhraseTheme.sectionCornerRadius }
-    return popupSize.height / 2
+    popupSize.height / 2
   }
 }
 
@@ -225,7 +220,6 @@ private struct RecorderHoverTracking: NSViewRepresentable {
 @MainActor
 final class RecorderHUDPanelController: NSWindowController {
   private weak var appState: AppState?
-  private var delayedHideTask: Task<Void, Never>?
   private var statusObservation: AnyCancellable?
   private var workflowScreen: NSScreen?
   private var previousStatus: AppStatus = .idle
@@ -233,6 +227,8 @@ final class RecorderHUDPanelController: NSWindowController {
   init(appState: AppState) {
     self.appState = appState
     let hostingView = NSHostingView(rootView: StatusPopupView(appState: appState))
+    // The controller owns panel size and origin as the SwiftUI content changes between workflow states.
+    hostingView.sizingOptions = []
 
     let panel = NSPanel(
       contentRect: NSRect(origin: .zero, size: StatusPopupContentPolicy.size(for: .idle)),
@@ -250,7 +246,7 @@ final class RecorderHUDPanelController: NSWindowController {
     panel.hidesOnDeactivate = false
     panel.becomesKeyOnlyIfNeeded = true
     panel.isMovable = false
-    panel.animationBehavior = .utilityWindow
+    panel.animationBehavior = .none
 
     super.init(window: panel)
 
@@ -266,11 +262,8 @@ final class RecorderHUDPanelController: NSWindowController {
     return nil
   }
 
-  /// Shows active and outcome states, with completed feedback dismissed after a short confirmation.
+  /// Mirrors the current workflow state without taking ownership of outcome timing.
   func update(for status: AppStatus) {
-    delayedHideTask?.cancel()
-    delayedHideTask = nil
-
     let startsNewWorkflow =
       previousStatus.canStartRecording
       && status != previousStatus
@@ -286,46 +279,25 @@ final class RecorderHUDPanelController: NSWindowController {
     if startsNewWorkflow || workflowScreen == nil {
       workflowScreen = screenAtPointer()
     }
-    resizeAndPosition(panel, status: status)
+    applyFrame(to: panel, status: status)
     panel.orderFrontRegardless()
-
-    DispatchQueue.main.async { [weak self, weak panel] in
-      guard let self, let panel else {
-        return
-      }
-      self.resizeAndPosition(panel, status: status)
-    }
-
-    guard status == .completed else {
-      return
-    }
-
-    delayedHideTask = Task { [weak self, weak panel] in
-      try? await Task.sleep(for: .seconds(4.0))
-      guard !Task.isCancelled,
-        self?.appState?.status == .completed
-      else {
-        return
-      }
-      panel?.orderOut(nil)
-    }
   }
 
-  private func resizeAndPosition(_ panel: NSWindow, status: AppStatus) {
-    panel.setContentSize(StatusPopupContentPolicy.size(for: status))
-    position(panel)
-  }
-
-  private func position(_ panel: NSWindow) {
+  /// Applies size and position together so AppKit never exposes its top-edge-preserving resize behavior.
+  private func applyFrame(to panel: NSWindow, status: AppStatus) {
     guard let visibleFrame = workflowScreen?.visibleFrame else {
       return
     }
 
-    let origin = NSPoint(
-      x: visibleFrame.midX - panel.frame.width / 2,
-      y: visibleFrame.minY + 24
+    let contentSize = StatusPopupContentPolicy.size(for: status)
+    let frameSize = panel.frameRect(forContentRect: NSRect(origin: .zero, size: contentSize)).size
+    let frame = NSRect(
+      x: visibleFrame.midX - frameSize.width / 2,
+      y: visibleFrame.minY + 24,
+      width: frameSize.width,
+      height: frameSize.height
     )
-    panel.setFrameOrigin(origin)
+    panel.setFrame(frame, display: panel.isVisible, animate: false)
   }
 
   private func screenAtPointer() -> NSScreen? {

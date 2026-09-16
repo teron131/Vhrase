@@ -1,4 +1,4 @@
-// Verifies stable recording-pill geometry and the expanded error recovery surface.
+// Verifies stable recording-pill height and the wider error recovery surface.
 
 import Foundation
 
@@ -12,7 +12,7 @@ struct StatusPopupContentCheck {
     }
     let errorSize = StatusPopupContentPolicy.size(for: .failed("No connection"))
     precondition(errorSize.width > pillSize.width)
-    precondition(errorSize.height > pillSize.height)
+    precondition(errorSize.height == pillSize.height)
 
     print("Status popup content checks passed")
   }
