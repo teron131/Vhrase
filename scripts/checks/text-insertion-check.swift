@@ -36,6 +36,23 @@ struct TextInsertionCheck {
     precondition(pasteEventCount == 2)
     precondition(pasteboard.string(forType: .string) == "kept transcript")
 
+    var contextAwarePaste = ""
+    let contextAwareInserter = TextInsertion(
+      pasteboard: pasteboard,
+      restoreDelay: .zero,
+      postPasteShortcut: {
+        contextAwarePaste = pasteboard.string(forType: .string) ?? ""
+      }
+    )
+    let cleanTranscriptRetained = try await contextAwareInserter.paste(
+      "Next sentence",
+      keepOnClipboard: true,
+      context: TextInsertionContext(precedingCharacter: ".", hasSelection: false)
+    )
+    precondition(cleanTranscriptRetained)
+    precondition(contextAwarePaste == " Next sentence")
+    precondition(pasteboard.string(forType: .string) == "Next sentence")
+
     let userCopyInserter = TextInsertion(
       pasteboard: pasteboard,
       restoreDelay: .milliseconds(20),
@@ -70,6 +87,37 @@ struct TextInsertionCheck {
     } catch is PasteEventFailure {
       precondition(pasteboard.string(forType: .string) == "fallback transcript")
     }
+
+    precondition(
+      TextInsertion.preparedText(
+        "Next sentence",
+        context: TextInsertionContext(precedingCharacter: ".", hasSelection: false)
+      ) == " Next sentence"
+    )
+    precondition(
+      TextInsertion.preparedText(
+        "Next sentence",
+        context: TextInsertionContext(precedingCharacter: " ", hasSelection: false)
+      ) == "Next sentence"
+    )
+    precondition(
+      TextInsertion.preparedText(
+        ".",
+        context: TextInsertionContext(precedingCharacter: "e", hasSelection: false)
+      ) == "."
+    )
+    precondition(
+      TextInsertion.preparedText(
+        "下一句",
+        context: TextInsertionContext(precedingCharacter: "。", hasSelection: false)
+      ) == "下一句"
+    )
+    precondition(
+      TextInsertion.preparedText(
+        "replacement",
+        context: TextInsertionContext(precedingCharacter: ".", hasSelection: true)
+      ) == "replacement"
+    )
 
     print("text insertion ok")
   }

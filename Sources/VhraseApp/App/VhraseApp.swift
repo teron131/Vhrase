@@ -9,14 +9,23 @@ struct VhraseApp: App {
   @StateObject private var appState: AppState
   @AppStorage("app.hasCompletedFirstLaunch") private var hasCompletedFirstLaunch = false
   @State private var didHandleInitialMainWindow = false
+  private let singleInstanceGuard: SingleInstanceGuard
   private let recorderHUD: RecorderHUDPanelController
 
   init() {
-    let appState = AppState()
+    let singleInstanceGuard = SingleInstanceGuard()
+    self.singleInstanceGuard = singleInstanceGuard
+    let appState = AppState(ownsInstance: singleInstanceGuard.ownsInstance)
     _appState = StateObject(wrappedValue: appState)
     recorderHUD = RecorderHUDPanelController(appState: appState)
-    Task {
-      appState.loadSavedAPIKeysAfterLaunch()
+    if singleInstanceGuard.ownsInstance {
+      Task {
+        appState.loadSavedAPIKeysAfterLaunch()
+      }
+    } else {
+      DispatchQueue.main.async {
+        singleInstanceGuard.handOffDuplicateLaunch()
+      }
     }
   }
 

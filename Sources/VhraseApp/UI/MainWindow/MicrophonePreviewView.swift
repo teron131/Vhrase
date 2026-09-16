@@ -21,8 +21,9 @@ struct MicrophonePreviewView: View {
       }
 
       HStack(spacing: 20) {
-        levelMeter("Microphone input", level: preview.inputLevel)
-        levelMeter("After processing", level: preview.level)
+        levelMeter(
+          "Microphone input", level: preview.inputLevel, history: preview.inputWaveformHistory)
+        levelMeter("After processing", level: preview.level, history: preview.waveformHistory)
       }
 
       HStack(spacing: 12) {
@@ -90,12 +91,17 @@ struct MicrophonePreviewView: View {
     return preview.isListening ? "Live · not recording" : "Waiting for microphone…"
   }
 
-  private func levelMeter(_ title: String, level: Double) -> some View {
+  private func levelMeter(_ title: String, level: Double, history: [Double]) -> some View {
     VStack(alignment: .leading, spacing: 8) {
       Text(title)
         .font(.caption)
         .foregroundStyle(.secondary)
-      WaveformView(level: level, response: .live, tint: VhraseTheme.accent, height: 112)
+      WaveformView(
+        history: history,
+        response: .live,
+        tint: VhraseTheme.accent,
+        height: 112
+      )
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(title)

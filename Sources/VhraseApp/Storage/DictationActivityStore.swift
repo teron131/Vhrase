@@ -13,6 +13,13 @@ struct DictationActivityDay: Codable {
   var processingSeconds = 0.0
   var estimatedCostUSD = 0.0
 
+  var dictatedWordsPerMinute: Double {
+    guard words > 0, recordingSeconds > 0 else {
+      return 0
+    }
+    return Double(words) / recordingSeconds * 60
+  }
+
   /// Compares aggregate elapsed time with a fixed typing baseline, retaining slower attempts in the total.
   var savedSeconds: Double {
     max(0, Double(words) / Self.typingWordsPerMinute * 60 - recordingSeconds - processingSeconds)

@@ -810,3 +810,62 @@ final class CredentialFocusMonitor {
     return containsTextInput(in: contentView)
   }
 }
+
+/// Owns the local Escape monitor because SwiftUI's exit command is not delivered consistently to accessory windows.
+@MainActor
+struct MainWindowEscapeMonitor: NSViewRepresentable {
+  let onEscape: () -> Bool
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator(onEscape: onEscape)
+  }
+
+  func makeNSView(context: Context) -> NSView {
+    let view = NSView(frame: .zero)
+    context.coordinator.view = view
+    context.coordinator.start()
+    return view
+  }
+
+  func updateNSView(_ view: NSView, context: Context) {
+    context.coordinator.onEscape = onEscape
+  }
+
+  static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
+    coordinator.stop()
+  }
+
+  @MainActor
+  final class Coordinator {
+    var onEscape: () -> Bool
+    weak var view: NSView?
+    private var eventMonitor: Any?
+
+    init(onEscape: @escaping () -> Bool) {
+      self.onEscape = onEscape
+    }
+
+    func start() {
+      guard eventMonitor == nil else {
+        return
+      }
+      eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        guard event.keyCode == 53, let self,
+          let window = self.view?.window,
+          window.isVisible, event.window === window, window.attachedSheet == nil
+        else {
+          return event
+        }
+        return self.onEscape() ? nil : event
+      }
+    }
+
+    func stop() {
+      guard let eventMonitor else {
+        return
+      }
+      NSEvent.removeMonitor(eventMonitor)
+      self.eventMonitor = nil
+    }
+  }
+}

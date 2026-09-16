@@ -1,12 +1,11 @@
-// Keeps recorder height stable across every workflow state while reserving error width for recovery controls.
+// Keeps one stable recorder capsule across every workflow state.
 
 import Foundation
 
 enum StatusPopupContentPolicy {
-  private static let height: CGFloat = 52
+  private static let capsuleSize = CGSize(width: 184, height: 52)
 
-  static func size(for status: AppStatus) -> CGSize {
-    if case .failed = status { return CGSize(width: 340, height: height) }
-    return CGSize(width: 144, height: height)
+  static func size(for _: AppStatus) -> CGSize {
+    capsuleSize
   }
 }
