@@ -60,6 +60,7 @@ final class AppState: ObservableObject {
   @Published var savesTranscriptHistory = true
   @Published var lastAdjustmentWarning = ""
   @Published var lastDelivery: TranscriptDelivery = .none
+  @Published var lastCompletion: WorkflowCompletion = .transcript(.none)
   @Published var targetAppLabel = ""
   @Published var customizationNotice = ""
   @Published var openCCInstallationState = OpenCCInstallationState.idle
@@ -76,6 +77,7 @@ final class AppState: ObservableObject {
   private let apiKeys: APIKeyStore
   private let customizationTransfer = CustomizationTransfer()
   private let inserter = TextInsertion()
+  private let focusedTextService = FocusedTextService()
   private let permissionManager = PermissionManager()
   private let appContext = AppContext()
   private let openCCInstaller = OpenCCInstaller()
@@ -94,7 +96,10 @@ final class AppState: ObservableObject {
   private var recordingSpeechPresence: SpeechPresenceGate?
   private var processingAudioURL: URL?
   private var isShortcutCaptureActive = false
-  private var lastHotkeyPressDate: Date?
+  private var shortcutGesture = ShortcutGestureInterpreter()
+  private var textPolishTask: Task<Void, Never>?
+  private var textPolishID: UUID?
+  private var activeWorkflow = ActiveWorkflow.dictation
   private var apiKeySaveTask: Task<Void, Never>?
   private var pendingAPIKeySaves: Set<SecretKey> = []
   private var editedAPIKeys: Set<SecretKey> = []
@@ -131,7 +136,7 @@ final class AppState: ObservableObject {
     xaiAPIKey = ""
     elevenLabsAPIKey = ""
     geminiAPIKey = ""
-    llmAPIKey = ""
+    llmAPIKey = apiKeys.savedLLMCredentialReference()
     shouldLoadSavedAPIKeysAfterLaunch = developmentEnvironmentFileURL == nil
     history = historyStore.load()
     activityDays = activityStore.load()
@@ -151,7 +156,11 @@ final class AppState: ObservableObject {
     shouldLoadSavedAPIKeysAfterLaunch = false
 
     let apiKeys = apiKeys
-    let keys = SecretKey.allCases.filter { !editedAPIKeys.contains($0) }
+    let keys = SecretKey.allCases.filter { key in
+      !editedAPIKeys.contains(key)
+        && !(key == .llmAPIKey
+          && APIKeyStore.isCredentialEnvironmentVariableName(llmAPIKey))
+    }
     Task {
       let loaded = await Task.detached {
         var values: [SecretKey: String] = [:]
@@ -235,6 +244,7 @@ final class AppState: ObservableObject {
       liveTranscript: liveTranscript,
       recordingElapsedSeconds: recordingElapsedSeconds,
       delivery: lastDelivery,
+      completion: lastCompletion,
       geminiAPIKey: effectiveGeminiAPIKey
     )
   }
@@ -251,6 +261,10 @@ final class AppState: ObservableObject {
       return true
     }
     return false
+  }
+
+  var isTextPolishing: Bool {
+    textPolishID != nil
   }
 
   var setupDiagnostics: [SetupDiagnostic] {
@@ -330,6 +344,16 @@ final class AppState: ObservableObject {
     }
   }
 
+  /// Repeats the workflow that most recently failed without changing the configured shortcut gesture.
+  func retryLastWorkflow() {
+    switch activeWorkflow {
+    case .dictation:
+      toggleRecording()
+    case .textPolish:
+      beginTextPolish()
+    }
+  }
+
   /// Cancels microphone startup or active capture without sending audio to a provider.
   func cancelRecording() {
     guard status == .preparing || status == .recording else {
@@ -385,23 +409,27 @@ final class AppState: ObservableObject {
   }
 
   func handleHotkeyPressed() {
-    guard !isShortcutCaptureActive, !shouldIgnoreDuplicateHotkeyPress() else {
-      logger.notice("Shortcut press ignored during capture or debounce")
+    guard !isShortcutCaptureActive else {
+      logger.notice("Shortcut press ignored during capture")
       return
     }
 
     customizationNotice = "Shortcut \(settings.hotkeyDisplay) pressed."
-    logger.notice(
-      "Shortcut pressed behavior=\(self.settings.shortcutBehavior.rawValue, privacy: .public)")
-    performShortcutAction(
-      settings.shortcutBehavior.action(for: .pressed, status: status)
+    let action = shortcutGesture.press(
+      at: ProcessInfo.processInfo.systemUptime,
+      status: status
     )
+    logger.notice("Shortcut pressed action=\(String(describing: action), privacy: .public)")
+    performShortcutAction(action)
   }
 
   func handleHotkeyReleased() {
     logger.notice("Shortcut released")
     performShortcutAction(
-      settings.shortcutBehavior.action(for: .released, status: status)
+      shortcutGesture.release(
+        at: ProcessInfo.processInfo.systemUptime,
+        status: status
+      )
     )
   }
 
@@ -412,8 +440,19 @@ final class AppState: ObservableObject {
     }
     var failures: [String] = []
     for key in keys {
+      let value = self[keyPath: apiKeyPath(for: key)]
+      if key == .llmAPIKey,
+        APIKeyStore.isCredentialEnvironmentVariableName(value)
+      {
+        apiKeys.saveLLMCredentialReference(value)
+        unsavedAPIKeys.remove(key)
+        continue
+      }
+      if key == .llmAPIKey {
+        apiKeys.saveLLMCredentialReference("")
+      }
       do {
-        try apiKeys.save(self[keyPath: apiKeyPath(for: key)], for: key)
+        try apiKeys.save(value, for: key)
         unsavedAPIKeys.remove(key)
       } catch {
         unsavedAPIKeys.insert(key)
@@ -422,7 +461,7 @@ final class AppState: ObservableObject {
     }
     customizationNotice =
       failures.isEmpty
-      ? "API key changes saved in macOS Keychain."
+      ? "Credential changes saved. Secrets use macOS Keychain; environment references use local preferences."
       : failures.joined(separator: " ") + " Unsaved changes apply only for this session."
   }
 
@@ -607,8 +646,11 @@ final class AppState: ObservableObject {
 
     lastTranscript = latestTranscript
     lastDelivery = .none
+    if lastCompletion.isTranscript {
+      lastCompletion = .transcript(.none)
+    }
     lastAdjustmentWarning = ""
-    if status == .completed {
+    if status == .completed, lastCompletion.isTranscript {
       status = .idle
     }
   }
@@ -616,6 +658,9 @@ final class AppState: ObservableObject {
   /// Releases active capture resources and removes any recording owned by an in-flight transcription before app exit.
   func prepareForTermination() {
     flushPendingAPIKeySave()
+    textPolishID = nil
+    textPolishTask?.cancel()
+    textPolishTask = nil
     recordingID = nil
     recordingTask?.cancel()
     recordingTask = nil
@@ -636,6 +681,7 @@ final class AppState: ObservableObject {
       return
     }
 
+    activeWorkflow = .dictation
     status = .transcribing
     Task {
       await runDemoDictationPipeline()
@@ -704,6 +750,7 @@ final class AppState: ObservableObject {
       return
     }
 
+    activeWorkflow = .dictation
     audioInputPreview.stop()
     recordingSequence += 1
     logger.notice(
@@ -1039,6 +1086,7 @@ final class AppState: ObservableObject {
   }
 
   private func registerHotkey() {
+    shortcutGesture.reset()
     hotkeyManager.register(
       settings,
       onPressed: { [weak self] in
@@ -1059,32 +1107,127 @@ final class AppState: ObservableObject {
     )
   }
 
-  private func shouldIgnoreDuplicateHotkeyPress() -> Bool {
-    let now = Date()
-    defer {
-      lastHotkeyPressDate = now
-    }
-
-    guard let lastHotkeyPressDate else {
-      return false
-    }
-
-    return now.timeIntervalSince(lastHotkeyPressDate) < 0.2
-  }
-
   private func performShortcutAction(_ action: ShortcutAction) {
     switch action {
-    case .toggleRecording:
-      toggleRecording()
     case .beginRecording:
       beginRecording()
     case .finishRecording:
       beginStopAndProcess()
     case .cancelRecording:
       cancelRecording()
+    case .cancelRecordingAndPolishText:
+      if status == .preparing || status == .recording {
+        cancelRecording()
+      } else if status == .completed || isFailed {
+        dismissWorkflowOutcome()
+      }
+      beginTextPolish()
     case .none:
       break
     }
+  }
+
+  private var isFailed: Bool {
+    if case .failed = status {
+      return true
+    }
+    return false
+  }
+
+  /// Captures the focused editor before contacting the LLM and replaces it only if the same source remains focused when the result returns.
+  private func beginTextPolish() {
+    guard status.canStartRecording else {
+      return
+    }
+
+    activeWorkflow = .textPolish
+    audioInputPreview.stop()
+    let target: FocusedTextTarget
+    let client: LLMAdjustmentClient
+    let model = settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
+    do {
+      target = try focusedTextService.capture()
+      guard !model.isEmpty else {
+        throw TextPolishError.missingModel
+      }
+      client = LLMAdjustmentClient(
+        apiKey: effectiveLLMAPIKey,
+        baseURL: effectiveLLMBaseURL
+      )
+      try client.validateConfiguration()
+    } catch {
+      status = .failed(error.localizedDescription)
+      return
+    }
+
+    let id = UUID()
+    let includeScreenshot = settings.includeScreenshot
+    textPolishID = id
+    status = .adjusting
+    customizationNotice = "Polishing text in \(target.app.name)…"
+    textPolishTask = Task { [weak self] in
+      guard let self else { return }
+      let screenshotDataURL = await self.textPolishScreenshotDataURL(
+        includeScreenshot: includeScreenshot
+      )
+      do {
+        let replacement = try await client.polish(
+          text: target.text,
+          screenshotDataURL: screenshotDataURL,
+          model: model,
+          app: target.app
+        )
+        try Task.checkCancellation()
+        guard self.textPolishID == id else {
+          return
+        }
+        guard await self.appContext.activate(target.app) else {
+          throw TextPolishError.targetUnavailable
+        }
+        try target.prepareReplacement()
+        _ = try await self.inserter.paste(replacement, keepOnClipboard: false)
+        guard self.textPolishID == id else {
+          return
+        }
+        self.textPolishTask = nil
+        self.textPolishID = nil
+        self.lastCompletion = .textPolished
+        self.customizationNotice = "Polished the focused text in \(target.app.name)."
+        self.status = .completed
+      } catch is CancellationError {
+        guard self.textPolishID == id else { return }
+        self.textPolishTask = nil
+        self.textPolishID = nil
+        self.status = .idle
+      } catch {
+        guard self.textPolishID == id else { return }
+        self.textPolishTask = nil
+        self.textPolishID = nil
+        self.status = .failed(error.localizedDescription)
+      }
+    }
+  }
+
+  /// Cancels an in-flight text rewrite without modifying the focused editor.
+  func cancelTextPolish() {
+    guard textPolishID != nil else {
+      return
+    }
+    textPolishID = nil
+    textPolishTask?.cancel()
+    textPolishTask = nil
+    status = .idle
+    customizationNotice = "Text polishing cancelled."
+  }
+
+  private func textPolishScreenshotDataURL(includeScreenshot: Bool) async -> String? {
+    guard includeScreenshot else {
+      return nil
+    }
+    return await Task.detached(priority: .userInitiated) {
+      ScreenContext().mainDisplayPNGDataURL()
+    }
+    .value
   }
 
   /// Prevents late provider callbacks from mutating a newer recording generation.
@@ -1106,6 +1249,7 @@ final class AppState: ObservableObject {
     recordingLevel = 0
     recordingElapsedSeconds = 0
     lastDelivery = .none
+    lastCompletion = .transcript(.none)
     lastAdjustmentWarning = ""
   }
 
@@ -1208,6 +1352,7 @@ final class AppState: ObservableObject {
       }
     }
     lastDelivery = delivery ?? .none
+    lastCompletion = .transcript(lastDelivery)
     lastAdjustmentWarning = warnings.joined(separator: " ")
     clearRecordingContext()
     status = .completed
@@ -1288,6 +1433,25 @@ private struct RecordingConfiguration {
 private enum DeliveryPlan {
   case insert(keepOnClipboard: Bool)
   case copyOnly
+}
+
+private enum ActiveWorkflow {
+  case dictation
+  case textPolish
+}
+
+private enum TextPolishError: LocalizedError {
+  case missingModel
+  case targetUnavailable
+
+  var errorDescription: String? {
+    switch self {
+    case .missingModel:
+      "Choose an LLM model before polishing text."
+    case .targetUnavailable:
+      "The app containing the text is no longer available. Nothing was replaced."
+    }
+  }
 }
 
 /// Accepts very quiet speech while rejecting recordings that never rise above the existing live-waveform noise floor.

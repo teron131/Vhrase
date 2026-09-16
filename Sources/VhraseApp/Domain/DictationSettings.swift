@@ -91,7 +91,6 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var includeScreenshot: Bool
   var hotkeyPreset: HotkeyPreset
   var customHotkey: CustomHotkey?
-  var shortcutBehavior: ShortcutBehavior
   var geminiSmartTranscription: Bool = true
   var geminiLanguageHints: String = ""
   var xaiFormatText: Bool = true
@@ -130,8 +129,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
     adjustmentPrompt: defaultAdjustmentPrompt,
     includeScreenshot: false,
     hotkeyPreset: .controlOptionSpace,
-    customHotkey: nil,
-    shortcutBehavior: .toggle
+    customHotkey: nil
   )
 
   var hotkeyDisplay: String {
@@ -257,7 +255,6 @@ extension DictationSettings {
     case includeScreenshot
     case hotkeyPreset
     case customHotkey
-    case shortcutBehavior
     case geminiSmartTranscription
     case geminiLanguageHints
     case xaiFormatText
@@ -299,7 +296,6 @@ extension DictationSettings {
     includeScreenshot = try values.decode(Bool.self, forKey: .includeScreenshot)
     hotkeyPreset = try values.decode(HotkeyPreset.self, forKey: .hotkeyPreset)
     customHotkey = try values.decodeIfPresent(CustomHotkey.self, forKey: .customHotkey)
-    shortcutBehavior = try values.decode(ShortcutBehavior.self, forKey: .shortcutBehavior)
     geminiSmartTranscription = try values.decode(Bool.self, forKey: .geminiSmartTranscription)
     geminiLanguageHints = try values.decode(String.self, forKey: .geminiLanguageHints)
     xaiFormatText = try values.decode(Bool.self, forKey: .xaiFormatText)

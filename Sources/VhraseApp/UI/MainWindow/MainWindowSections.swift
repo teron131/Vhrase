@@ -771,27 +771,39 @@ extension MainWindowView {
     VStack(alignment: .leading, spacing: 16) {
       workflowStageHeader(
         "Enhance",
-        description: "Optionally send the corrected transcript through your LLM before delivery.",
+        description: "Configure shortcut polishing and optional transcript enhancement.",
         systemImage: "wand.and.stars"
       )
 
+      compactField("Model", text: appState.settingsBinding(\.adjustmentModel))
+
       settingsToggle(
-        "Enhance with an LLM",
-        detail: "Apply your writing instructions before delivery.",
+        "Use screen context",
+        detail:
+          "Send a screenshot to the configured LLM endpoint when polishing text or enhancing a transcript.",
+        isOn: appState.settingsBinding(\.includeScreenshot)
+      )
+
+      Button {
+        appState.checkLLMModelAccess()
+      } label: {
+        Label(
+          appState.isCheckingLLMModelAccess ? "Checking model…" : "Check model access",
+          systemImage: "checkmark.seal"
+        )
+      }
+      .buttonStyle(.bordered)
+      .disabled(appState.isCheckingLLMModelAccess)
+
+      Divider()
+
+      settingsToggle(
+        "Enhance transcripts automatically",
+        detail: "Apply your transcript-specific writing instructions before delivery.",
         isOn: appState.settingsBinding(\.adjustWithLLM)
       )
 
       if appState.settings.adjustWithLLM {
-        Divider()
-
-        compactField("Model", text: appState.settingsBinding(\.adjustmentModel))
-
-        settingsToggle(
-          "Use screen context",
-          detail: "Send a screenshot to the configured LLM endpoint for additional context.",
-          isOn: appState.settingsBinding(\.includeScreenshot)
-        )
-
         settingsToggle(
           "Use local cleanup if the LLM fails",
           detail: "Return a locally normalized transcript instead of blocking delivery.",
@@ -804,20 +816,9 @@ extension MainWindowView {
           text: appState.settingsBinding(\.adjustmentPrompt),
           height: 150
         )
-
-        Button {
-          appState.checkLLMModelAccess()
-        } label: {
-          Label(
-            appState.isCheckingLLMModelAccess ? "Checking model…" : "Check model access",
-            systemImage: "checkmark.seal"
-          )
-        }
-        .buttonStyle(.bordered)
-        .disabled(appState.isCheckingLLMModelAccess)
       } else {
         Label(
-          "This stage is bypassed. Corrected text goes directly to delivery.",
+          "Automatic transcript enhancement is bypassed. Double-tap polishing remains available.",
           systemImage: "arrow.right"
         )
         .font(.callout)
@@ -833,7 +834,7 @@ extension MainWindowView {
     VStack(alignment: .leading, spacing: 14) {
       workflowStageHeader(
         "Trigger",
-        description: "Set the global shortcut that starts and finishes dictation.",
+        description: "Set the global shortcut for dictation and focused-text polishing.",
         systemImage: "keyboard"
       )
 
@@ -844,7 +845,7 @@ extension MainWindowView {
         Text(
           isCapturingHotkey
             ? "Press Fn/Globe or another shortcut. Press Escape to cancel."
-            : appState.settings.shortcutBehavior.summary
+            : ShortcutGestureInterpreter.summary
         )
         .font(.callout)
         .foregroundStyle(isCapturingHotkey ? VhraseTheme.accent : Color.secondary)
@@ -903,15 +904,6 @@ extension MainWindowView {
         .labelsHidden()
       }
 
-      labeledPicker("Behavior") {
-        Picker("Behavior", selection: appState.settingsBinding(\.shortcutBehavior)) {
-          ForEach(ShortcutBehavior.allCases) { behavior in
-            Text(behavior.title).tag(behavior)
-          }
-        }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-      }
     }
   }
 
@@ -1168,7 +1160,8 @@ extension MainWindowView {
       sectionHeader(
         "Provider credentials",
         description:
-          "Saved keys stay in your login Keychain. LLM_BASE_URL overrides the saved endpoint when present.")
+          "Secrets stay in your login Keychain. An uppercase _KEY name is saved as an environment reference. LLM_BASE_URL overrides the saved endpoint when present."
+      )
 
       Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 14) {
         keyField("xAI API key", key: .xaiAPIKey, text: apiKeyBinding(.xaiAPIKey))
@@ -1236,7 +1229,7 @@ extension MainWindowView {
       }
 
       Text(
-        "Credentials save automatically without password dialogs. If Keychain access is blocked, edits stay in memory for this session."
+        "Credentials save automatically without password dialogs. Environment references survive rebuilds without Keychain access; unsaved secrets remain in memory for this session."
       )
       .font(.caption)
       .foregroundStyle(.secondary)
@@ -1282,23 +1275,24 @@ extension MainWindowView {
           SecureField(title, text: text)
         }
       }
-        .textFieldStyle(.roundedBorder)
-        .frame(minWidth: 280, maxWidth: .infinity)
-        .gridColumnAlignment(.leading)
-        .transaction { transaction in
-          transaction.animation = nil
-        }
-        .focused($focusedSecretField, equals: key.rawValue)
-        .onSubmit {
-          finishAPIKeyEditing()
-        }
+      .textFieldStyle(.roundedBorder)
+      .frame(minWidth: 280, maxWidth: .infinity)
+      .gridColumnAlignment(.leading)
+      .transaction { transaction in
+        transaction.animation = nil
+      }
+      .focused($focusedSecretField, equals: key.rawValue)
+      .onSubmit {
+        finishAPIKeyEditing()
+      }
     }
   }
 
   private func showsCredentialReference(_ value: String) -> Bool {
-    !value.isEmpty && value.utf8.allSatisfy { byte in
-      byte == 95 || (65...90).contains(byte)
-    }
+    !value.isEmpty
+      && value.utf8.allSatisfy { byte in
+        byte == 95 || (65...90).contains(byte)
+      }
   }
 
   private func configurationField(

@@ -1,24 +1,33 @@
-// Verifies production shortcut policy across toggle, hold, startup, and processing phases.
+// Verifies the combined tap, hold, and double-tap shortcut policy across workflow phases.
 
 @main
 struct ShortcutBehaviorCheck {
   static func main() {
-    precondition(ShortcutBehavior.toggle.action(for: .pressed, status: .idle) == .toggleRecording)
+    var tap = ShortcutGestureInterpreter()
+    precondition(tap.press(at: 1, status: .idle) == .beginRecording)
+    precondition(tap.release(at: 1.1, status: .recording) == .none)
+    precondition(tap.press(at: 2, status: .recording) == .finishRecording)
+    precondition(tap.release(at: 2.1, status: .transcribing) == .none)
+
+    var hold = ShortcutGestureInterpreter()
+    precondition(hold.press(at: 1, status: .idle) == .beginRecording)
+    precondition(hold.release(at: 1.5, status: .recording) == .finishRecording)
+
+    var startupHold = ShortcutGestureInterpreter()
+    precondition(startupHold.press(at: 1, status: .idle) == .beginRecording)
+    precondition(startupHold.release(at: 1.5, status: .preparing) == .cancelRecording)
+
+    var doubleTap = ShortcutGestureInterpreter()
+    precondition(doubleTap.press(at: 1, status: .idle) == .beginRecording)
+    precondition(doubleTap.release(at: 1.05, status: .preparing) == .none)
     precondition(
-      ShortcutBehavior.toggle.action(for: .pressed, status: .preparing) == .toggleRecording)
-    precondition(
-      ShortcutBehavior.toggle.action(for: .pressed, status: .recording) == .toggleRecording)
-    precondition(ShortcutBehavior.toggle.action(for: .released, status: .recording) == .none)
-    precondition(ShortcutBehavior.toggle.action(for: .pressed, status: .transcribing) == .none)
-    precondition(
-      ShortcutBehavior.holdToRecord.action(for: .pressed, status: .idle) == .beginRecording)
-    precondition(ShortcutBehavior.holdToRecord.action(for: .pressed, status: .recording) == .none)
-    precondition(
-      ShortcutBehavior.holdToRecord.action(for: .released, status: .preparing) == .cancelRecording)
-    precondition(
-      ShortcutBehavior.holdToRecord.action(for: .released, status: .recording) == .finishRecording)
-    precondition(
-      ShortcutBehavior.holdToRecord.action(for: .released, status: .transcribing) == .none)
+      doubleTap.press(at: 1.2, status: .preparing) == .cancelRecordingAndPolishText)
+    precondition(doubleTap.release(at: 1.25, status: .adjusting) == .none)
+
+    var processing = ShortcutGestureInterpreter()
+    precondition(processing.press(at: 1, status: .transcribing) == .none)
+    precondition(processing.press(at: 1.1, status: .transcribing) == .none)
+    precondition(processing.release(at: 1.2, status: .transcribing) == .none)
 
     var settings = DictationSettings.defaults
     precondition(!settings.availableHotkeyPresets.contains(.custom))

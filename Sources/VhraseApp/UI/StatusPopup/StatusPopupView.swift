@@ -42,7 +42,7 @@ struct StatusPopupView: View {
       value: showsControls
     )
     .accessibilityElement(children: .contain)
-    .accessibilityLabel("Vhrase dictation")
+    .accessibilityLabel("Vhrase workflow")
   }
 
   @ViewBuilder
@@ -94,20 +94,34 @@ struct StatusPopupView: View {
     case .transcribing:
       activityIndicator("Transcribing with \(appState.settings.provider.title)")
     case .adjusting:
-      activityIndicator("Applying writing preferences")
+      if appState.isTextPolishing {
+        ZStack {
+          activityIndicator("Polishing focused text")
+          HStack {
+            Spacer()
+            hudButton("Cancel text polishing", systemImage: "xmark") {
+              appState.cancelTextPolish()
+            }
+            .opacity(showsControls ? 1 : 0)
+          }
+          .padding(.horizontal, 12)
+        }
+      } else {
+        activityIndicator("Applying writing preferences")
+      }
     case .completed:
       HStack(spacing: 8) {
-        Image(systemName: appState.lastDelivery.completionSystemImage)
+        Image(systemName: appState.lastCompletion.completionSystemImage)
           .font(.system(size: 13, weight: .semibold))
           .accessibilityHidden(true)
-        Text(appState.lastDelivery.completionTitle)
+        Text(appState.lastCompletion.completionTitle)
           .font(.callout.weight(.medium))
           .lineLimit(1)
       }
-      .help(appState.lastDelivery.completionDetail)
+      .help(appState.lastCompletion.completionDetail)
       .accessibilityElement(children: .combine)
       .contextMenu {
-        if !appState.lastTranscript.isEmpty {
+        if appState.lastCompletion.isTranscript, !appState.lastTranscript.isEmpty {
           Button("Copy transcript") { appState.copyLastTranscript() }
         }
         Button("Dismiss") { appState.dismissWorkflowOutcome() }
@@ -140,9 +154,9 @@ struct StatusPopupView: View {
         .font(.callout.weight(.medium))
         .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .help("Dictation failed: \(message)")
-        .accessibilityLabel("Dictation failed: \(message)")
-      hudButton("Try again", systemImage: "arrow.clockwise") { appState.toggleRecording() }
+        .help("Vhrase failed: \(message)")
+        .accessibilityLabel("Vhrase failed: \(message)")
+      hudButton("Try again", systemImage: "arrow.clockwise") { appState.retryLastWorkflow() }
       hudButton("Dismiss", systemImage: "xmark") { appState.dismissWorkflowOutcome() }
     }
     .padding(.horizontal, 12)

@@ -52,9 +52,7 @@ final class SettingsStore {
       includeScreenshot: bool("includeScreenshot", fallback.includeScreenshot),
       hotkeyPreset: HotkeyPreset(rawValue: defaults.string(forKey: "hotkeyPreset") ?? "")
         ?? fallback.hotkeyPreset,
-      customHotkey: customHotkey(),
-      shortcutBehavior: ShortcutBehavior(
-        rawValue: defaults.string(forKey: "shortcutBehavior") ?? "") ?? fallback.shortcutBehavior
+      customHotkey: customHotkey()
     )
     if settings.hotkeyPreset == .custom, settings.customHotkey == nil {
       settings.hotkeyPreset = fallback.hotkeyPreset
@@ -103,7 +101,6 @@ final class SettingsStore {
     defaults.set(settings.includeScreenshot, forKey: "includeScreenshot")
     defaults.set(settings.hotkeyPreset.rawValue, forKey: "hotkeyPreset")
     saveCustomHotkey(settings.customHotkey)
-    defaults.set(settings.shortcutBehavior.rawValue, forKey: "shortcutBehavior")
     defaults.set(settings.geminiSmartTranscription, forKey: "geminiSmartTranscription")
     defaults.set(settings.geminiLanguageHints, forKey: "geminiLanguageHints")
     defaults.set(settings.xaiFormatText, forKey: "xaiFormatText")

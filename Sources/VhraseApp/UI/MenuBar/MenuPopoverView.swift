@@ -95,8 +95,8 @@ struct MenuPopoverView: View {
   private var statusMessagePanel: some View {
     if appState.status == .completed {
       NoticeCard(
-        appState.lastDelivery.completionDetail,
-        systemImage: appState.lastDelivery.completionSystemImage,
+        appState.lastCompletion.completionDetail,
+        systemImage: appState.lastCompletion.completionSystemImage,
         color: presentation.statusTint,
         actionTitle: completedInsertionPermissionActionTitle,
         action: handleInsertionPermissionAction
@@ -368,7 +368,7 @@ struct MenuPopoverView: View {
 
   private var menuStatusSystemImage: String {
     appState.status == .completed
-      ? appState.lastDelivery.completionSystemImage : presentation.statusSystemImage
+      ? appState.lastCompletion.completionSystemImage : presentation.statusSystemImage
   }
 
   private var primarySetupDiagnostic: SetupDiagnostic {
@@ -384,6 +384,7 @@ struct MenuPopoverView: View {
 
   private var completedInsertionPermissionActionTitle: String? {
     guard appState.status == .completed,
+      appState.lastCompletion.isTranscript,
       appState.lastDelivery == .copied
     else {
       return nil

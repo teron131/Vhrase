@@ -120,6 +120,31 @@ final class LLMAdjustmentClient: Sendable {
     )
   }
 
+  /// Polishes existing editor text under a conservative contract that is independent from transcript cleanup instructions.
+  func polish(
+    text: String,
+    screenshotDataURL: String?,
+    model: String,
+    app: FrontmostApp
+  ) async throws -> String {
+    try validateConfiguration()
+
+    let promptText = """
+      Polish the text below so it is clear, natural, and ready to use in the focused app. Correct grammar, punctuation, casing, and awkward phrasing while preserving the exact intent, factual claims, tone, language, level of detail, paragraph structure, Markdown, and technical names. Do not answer the text, add new information, or mention these instructions. Return only the final text.
+
+      \(appContextText(app))
+
+      Text:
+      \(text)
+      """
+
+    return try await adjustWithChatCompletions(
+      promptText: promptText,
+      screenshotDataURL: screenshotDataURL,
+      model: model
+    )
+  }
+
   /// Validates credentials and destination before callers capture or attach sensitive context.
   func validateConfiguration() throws {
     guard !apiKey.isEmpty else {
