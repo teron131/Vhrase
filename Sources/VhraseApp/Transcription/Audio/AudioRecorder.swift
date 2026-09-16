@@ -15,6 +15,7 @@ typealias AudioChunkHandler = @Sendable (AudioChunk) -> Void
 /// Records microphone audio while keeping CoreAudio tap work off the main actor.
 @MainActor
 final class AudioRecorder {
+  private(set) var recordedSeconds = 0.0
   private let engine = AVAudioEngine()
   private var deviceCapture: DeviceAudioCapture?
   private var audioFile: AVAudioFile?
@@ -62,6 +63,7 @@ final class AudioRecorder {
     settings: DictationSettings, savesAudio: Bool, onAudioChunk: AudioChunkHandler?,
     onFailure: @escaping @MainActor (Error) -> Void
   ) async throws {
+    recordedSeconds = 0
     try Task.checkCancellation()
     let granted = await AVCaptureDevice.requestAccess(for: .audio)
     try Task.checkCancellation()
@@ -211,6 +213,7 @@ final class AudioRecorder {
     captureState?.stopAndWait()
     tapProcessor?.finish()
     let recordedFrameCount = audioFile?.length ?? 0
+    recordedSeconds = Double(recordedFrameCount) / PCM16AudioConverter.format.sampleRate
     let captureError = captureState?.firstError
     logger.notice(
       "Capture finished frames=\(recordedFrameCount) chunks=\(self.captureState?.chunkCount ?? 0)")

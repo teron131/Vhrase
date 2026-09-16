@@ -343,7 +343,7 @@ extension MainWindowView {
     VStack(alignment: .leading, spacing: 16) {
       HStack {
         sectionHeader(
-          "Activity", description: "A lightweight view of your local dictation activity.")
+          "Activity", description: "Local totals since tracking began. Works with history off.")
         Spacer()
         Button("View history") {
           selectedTab = .history
@@ -352,27 +352,44 @@ extension MainWindowView {
         .disabled(appState.history.isEmpty)
       }
 
-      HStack(spacing: 18) {
-        activityMetric(
-          "Today",
-          value: "\(appState.transcriptsTodayCount)",
-          detail: "completed dictations"
-        )
-        Divider()
-          .frame(height: 48)
-        activityMetric(
-          "Saved",
-          value: "\(appState.history.count)",
-          detail: "on this Mac"
-        )
-        Divider()
-          .frame(height: 48)
-        activityMetric(
-          "History",
-          value: appState.savesTranscriptHistory ? "On" : "Off",
-          detail: appState.savesTranscriptHistory
-            ? "saving new transcripts" : "not saving new transcripts"
-        )
+      Picker("Activity period", selection: $activityRange) {
+        ForEach(ActivityRange.allCases, id: \.self) { range in
+          Text(range.rawValue).tag(range)
+        }
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+      .frame(width: 360)
+
+      TimelineView(.periodic(from: .now, by: 60)) { context in
+        let totals = activityRange.totals(days: appState.activityDays, now: context.date)
+        HStack(spacing: 18) {
+          activityMetric("Dictations", value: totals.dictations.formatted(), detail: "completed")
+          Divider().frame(height: 48)
+          activityMetric("Words", value: totals.words.formatted(), detail: "dictated")
+          Divider().frame(height: 48)
+          activityMetric(
+            "Est. time saved", value: activityTimeSaved(totals.savedSeconds),
+            detail: "vs. typing at 55 WPM"
+          )
+          .help(
+            "Compared with typing at 55 words per minute, subtracting recording and all processing time. Language-aware word counts and time saved are estimates."
+          )
+          Divider().frame(height: 48)
+          activityMetric(
+            "Est. cost", value: activityCost(totals.estimatedCostUSD),
+            detail: "USD · transcription only"
+          )
+          .help(
+            "List-price estimate for completed dictations since tracking began. Excludes cleanup, failed requests, subscriptions, and free-tier credits. Gemini uses an approximate per-minute rate."
+          )
+        }
+      }
+
+      Divider()
+
+      TimelineView(.periodic(from: .now, by: 60)) { context in
+        DictationActivityChart(days: appState.activityDays, now: context.date, range: activityRange)
       }
 
       Divider()
@@ -403,6 +420,18 @@ extension MainWindowView {
       .buttonStyle(AccentLinkButtonStyle())
     }
     .contentSection()
+  }
+
+  private func activityTimeSaved(_ seconds: Double) -> String {
+    let wholeSeconds = Int(seconds)
+    if wholeSeconds < 60 { return "\(wholeSeconds)s" }
+    if wholeSeconds < 3_600 { return "\(wholeSeconds / 60)m \(wholeSeconds % 60)s" }
+    return "\(wholeSeconds / 3_600)h \(wholeSeconds % 3_600 / 60)m"
+  }
+
+  private func activityCost(_ dollars: Double) -> String {
+    if dollars > 0 && dollars < 0.01 { return "<$0.01" }
+    return dollars.formatted(.currency(code: "USD"))
   }
 
   var captureTab: some View {
