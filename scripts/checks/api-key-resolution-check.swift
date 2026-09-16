@@ -117,6 +117,23 @@ struct APIKeyResolutionCheck {
     )
     precondition(store.usesEnvironmentLLMBaseURL)
 
+    let referenceSuite = "Vhrase.APIKeyResolutionCheck.\(UUID().uuidString)"
+    guard let referenceDefaults = UserDefaults(suiteName: referenceSuite) else {
+      preconditionFailure("Could not create credential-reference defaults")
+    }
+    defer {
+      referenceDefaults.removePersistentDomain(forName: referenceSuite)
+    }
+    let referenceStore = APIKeyStore(
+      environment: environment,
+      defaultsSuiteName: referenceSuite
+    )
+    precondition(referenceStore.savedLLMCredentialReference().isEmpty)
+    referenceStore.saveLLMCredentialReference("AI_GATEWAY_API_KEY")
+    precondition(referenceStore.savedLLMCredentialReference() == "AI_GATEWAY_API_KEY")
+    referenceStore.saveLLMCredentialReference("not-a-reference")
+    precondition(referenceStore.savedLLMCredentialReference().isEmpty)
+
     let savedConfigurationStore = APIKeyStore(environment: [:])
     precondition(
       savedConfigurationStore.effectiveLLMBaseURL(savedValue: "http://localhost:8317/v1")

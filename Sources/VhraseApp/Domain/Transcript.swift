@@ -35,6 +35,18 @@ enum TranscriptDelivery: Equatable, Sendable {
   case pasteCommandSent(clipboardRetained: Bool)
 }
 
+enum WorkflowCompletion: Equatable, Sendable {
+  case transcript(TranscriptDelivery)
+  case textPolished
+
+  var isTranscript: Bool {
+    if case .transcript = self {
+      return true
+    }
+    return false
+  }
+}
+
 struct TranscriptHistoryItem: Identifiable, Codable, Equatable, Sendable {
   let id: UUID
   let createdAt: Date

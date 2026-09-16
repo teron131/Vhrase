@@ -73,7 +73,9 @@ Microphone, Input Monitoring, Screen Recording, and Accessibility can each produ
 Choose the provider and Upload or Realtime mode from the compact menu-bar controller or **Capture**.
 ElevenLabs uses `scribe_v2` for Upload and `scribe_v2_realtime` for Realtime; these transport-specific models are shown read-only so an unsupported combination cannot be saved.
 Start from the menu, **Dictate**, or the configured global shortcut.
-Toggle mode presses once to start and once to stop; Hold mode records while the shortcut is held and processes when it is released.
+Tap the shortcut once to start and once to stop, or hold it to record only until release.
+Double-tap the shortcut to polish selected text, or the entire focused editable field when nothing is selected.
+Vhrase replaces the source only if the same field, selection, and text remain unchanged while the LLM request is running.
 
 Vhrase remembers the external app that was active when recording began and returns the finalized transcript after restoring and confirming that target.
 The Output setting controls whether the transcript remains on the clipboard after insertion. When it is off, Vhrase restores the previous clipboard contents after sending the paste command.

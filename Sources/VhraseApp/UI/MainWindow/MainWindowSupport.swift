@@ -113,7 +113,7 @@ extension MainWindowView {
         id: .trigger,
         systemImage: "keyboard",
         title: "Trigger",
-        detail: "\(appState.settings.hotkeyDisplay) · \(appState.settings.shortcutBehavior.title)"
+        detail: appState.settings.hotkeyDisplay
       ),
       PipelineFlowNode(
         id: .listen,
@@ -649,16 +649,14 @@ extension MainWindowView {
     case .preparing:
       return "Starting the microphone and preparing \(appState.settings.provider.title)."
     case .recording:
-      if appState.settings.shortcutBehavior == .holdToRecord {
-        return "Listening. Release \(appState.settings.hotkeyDisplay) to transcribe."
-      }
-      return "Listening. Press \(appState.settings.hotkeyDisplay) again when you are done."
+      return
+        "Listening. Release after a hold, or tap \(appState.settings.hotkeyDisplay) again when you are done."
     case .transcribing:
       return "Transcribing with \(appState.settings.provider.title)."
     case .adjusting:
-      return "Cleaning up the transcript."
+      return "Applying writing preferences."
     case .completed:
-      return appState.lastDelivery.completionDetail
+      return appState.lastCompletion.completionDetail
     case .failed(let message):
       return message
     }

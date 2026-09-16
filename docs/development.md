@@ -87,7 +87,8 @@ Normal Finder launches read saved Keychain values first, then use launch-environ
 All credential operations run inside a serialized, process-local no-interaction scope and restore the previous interaction flag afterward.
 The file-based login Keychain ignores LAContext-only dialog suppression, so this boundary deliberately uses the deprecated SecKeychain interaction APIs while retaining existing items and their access controls.
 The focused `keychain-interaction-check.swift` creates and removes an isolated test Keychain under `.cache/checks`, proving locked reads and writes return without prompting; it never locks the user's login Keychain.
-`./scripts/build-and-run.sh` instead launches in development mode, which skips every Keychain read and resolves credentials from the launch environment, `~/.zshrc`, and the ignored repository `.env` file in that order.
+`./scripts/build-and-run.sh` skips Keychain reads and resolves credentials from the launch environment, `~/.zshrc`, and the ignored repository `.env` file in that order.
+An LLM field value such as `AI_GATEWAY_API_KEY` is a nonsecret credential reference stored in preferences, so it survives development rebuilds and resolves against those environment sources.
 Use this non-executable `.env` format:
 
 ```dotenv

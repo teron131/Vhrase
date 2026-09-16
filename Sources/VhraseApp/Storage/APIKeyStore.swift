@@ -26,15 +26,19 @@ enum SecretKey: String, CaseIterable {
 /// Persists secrets as generic-password items and resolves provider configuration without exposing environment values in editable state.
 final class APIKeyStore: Sendable {
   private static let supportedConfigurationKeys = Set(["LLM_BASE_URL"])
+  private static let llmCredentialReferenceKey = "credentialReference.LLM_API_KEY"
   private let service: String
   private let environment: [String: String]
+  private let defaultsSuiteName: String?
 
   init(
     service: String = "Vhrase",
-    environment: [String: String] = ProcessInfo.processInfo.environment
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    defaultsSuiteName: String? = nil
   ) {
     self.service = service
     self.environment = environment
+    self.defaultsSuiteName = defaultsSuiteName
   }
 
   /// Resolves supported development credentials without executing or expanding the environment file.
@@ -186,7 +190,22 @@ final class APIKeyStore: Sendable {
       && !environment[savedValue, default: ""].isEmpty
   }
 
-  private static func isCredentialEnvironmentVariableName(_ value: String) -> Bool {
+  /// Loads the nonsecret environment-variable name chosen for the LLM credential.
+  func savedLLMCredentialReference() -> String {
+    let value = defaults.string(forKey: Self.llmCredentialReferenceKey) ?? ""
+    return Self.isCredentialEnvironmentVariableName(value) ? value : ""
+  }
+
+  /// Persists an LLM environment-variable name outside Keychain because the reference is configuration, not a secret.
+  func saveLLMCredentialReference(_ value: String) {
+    if Self.isCredentialEnvironmentVariableName(value) {
+      defaults.set(value, forKey: Self.llmCredentialReferenceKey)
+    } else {
+      defaults.removeObject(forKey: Self.llmCredentialReferenceKey)
+    }
+  }
+
+  static func isCredentialEnvironmentVariableName(_ value: String) -> Bool {
     guard value.hasSuffix("_KEY"), let first = value.utf8.first,
       first == 95 || (65...90).contains(first)
     else {
@@ -195,6 +214,15 @@ final class APIKeyStore: Sendable {
     return value.utf8.allSatisfy { byte in
       byte == 95 || (48...57).contains(byte) || (65...90).contains(byte)
     }
+  }
+
+  private var defaults: UserDefaults {
+    guard let defaultsSuiteName,
+      let defaults = UserDefaults(suiteName: defaultsSuiteName)
+    else {
+      return .standard
+    }
+    return defaults
   }
 
   /// Saves or removes one credential and reports Keychain failures without including the secret value.

@@ -14,6 +14,7 @@ struct DictationPresentation {
   let liveTranscript: String
   let recordingElapsedSeconds: Int
   let delivery: TranscriptDelivery
+  let completion: WorkflowCompletion
   let transcriptionConfigurationIssue: String?
 
   /// Validates immutable settings once so every readiness label and action uses the same result.
@@ -26,6 +27,7 @@ struct DictationPresentation {
     liveTranscript: String,
     recordingElapsedSeconds: Int,
     delivery: TranscriptDelivery = .none,
+    completion: WorkflowCompletion? = nil,
     geminiAPIKey: String = ""
   ) {
     self.status = status
@@ -37,6 +39,7 @@ struct DictationPresentation {
     self.liveTranscript = liveTranscript
     self.recordingElapsedSeconds = recordingElapsedSeconds
     self.delivery = delivery
+    self.completion = completion ?? .transcript(delivery)
     do {
       try TranscriptionContract.validate(settings: settings)
       transcriptionConfigurationIssue = nil
@@ -100,7 +103,7 @@ struct DictationPresentation {
   }
 
   var compactWorkflowSummary: String {
-    "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) · \(settings.hotkeyDisplay) \(settings.shortcutBehavior.title.lowercased())"
+    "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) · \(settings.hotkeyDisplay)"
   }
 
   var fullWorkflowSummary: String {
@@ -128,7 +131,7 @@ struct DictationPresentation {
     case .adjusting:
       "Cleaning up"
     case .completed:
-      delivery.completionTitle
+      completion.completionTitle
     case .failed:
       "Couldn't finish"
     }
@@ -292,9 +295,9 @@ struct DictationPresentation {
     case .compact:
       let cleanup = settings.adjustWithLLM ? "LLM cleanup" : "Raw"
       return
-        "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) · \(cleanup) · \(settings.shortcutBehavior.summary)"
+        "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) · \(cleanup) · \(ShortcutGestureInterpreter.summary)"
     case .full:
-      return "\(settings.hotkeyDisplay) · \(settings.shortcutBehavior.summary)"
+      return "\(settings.hotkeyDisplay) · \(ShortcutGestureInterpreter.summary)"
     }
   }
 
@@ -408,6 +411,30 @@ extension TranscriptDelivery {
       "doc.on.clipboard.fill"
     case .none:
       "exclamationmark.triangle.fill"
+    }
+  }
+}
+
+extension WorkflowCompletion {
+  var completionTitle: String {
+    switch self {
+    case .transcript(let delivery): delivery.completionTitle
+    case .textPolished: "Text polished"
+    }
+  }
+
+  var completionDetail: String {
+    switch self {
+    case .transcript(let delivery): delivery.completionDetail
+    case .textPolished:
+      "The focused text was polished and replaced. Use Command-Z in the target app to undo."
+    }
+  }
+
+  var completionSystemImage: String {
+    switch self {
+    case .transcript(let delivery): delivery.completionSystemImage
+    case .textPolished: "wand.and.stars"
     }
   }
 }

@@ -25,7 +25,8 @@ These are feature-specific macOS privacy prompts and are separate from the one-t
 API keys entered in Vhrase are stored as generic-password items in macOS Keychain under the `Vhrase` service.
 A saved Keychain credential takes precedence.
 A nonempty `GEMINI_API_KEY`, `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `LLM_API_KEY` launch-environment value is used next, and a direct literal export in `~/.zshrc` fills any remaining key without executing shell code.
-The development run command additionally uses ignored `.env` values in memory without reading or modifying Keychain, which prevents rebuilt development binaries from producing repeated credential prompts.
+The development run command uses ignored `.env` values in memory without reading Keychain, preventing rebuilt development binaries from producing credential prompts.
+A nonsecret LLM credential reference such as `AI_GATEWAY_API_KEY` is stored in preferences, survives rebuilds, and resolves against the launch environment, `~/.zshrc`, or `.env`.
 Normal Finder and menu-bar launches prefer saved Keychain credentials before using the in-memory environment fallbacks.
 
 ## Source Layout
