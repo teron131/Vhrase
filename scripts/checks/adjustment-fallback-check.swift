@@ -119,6 +119,13 @@ struct AdjustmentFallbackCheck {
     precondition(body?["model"] as? String == "gpt-5.6-luna")
     precondition(body?["stream"] as? Bool == false)
     precondition(body?["reasoning_effort"] as? String == "low")
+    let messages = body?["messages"] as? [[String: Any]]
+    let content = messages?.first?["content"] as? [[String: Any]]
+    precondition(messages?.count == 1)
+    precondition(content?.count == 1)
+    precondition(content?.first?["type"] as? String == "text")
+    precondition(content?.first?["text"] as? String == "Reply with OK.")
+    precondition(content?.first?["image_url"] == nil)
   }
 
   /// Protects remote transport and URL composition policy without making a network request.
