@@ -27,6 +27,7 @@ final class AppState: ObservableObject {
     didSet {
       guard status != oldValue else { return }
       scheduleWorkflowOutcomeDismissal(for: status)
+      updateEscapeKeyMonitoring()
       let phase: String
       switch status {
       case .idle: phase = "idle"
@@ -52,6 +53,7 @@ final class AppState: ObservableObject {
   @Published var lastTranscriptionSeconds: Double?
   @Published var liveTranscript = ""
   @Published var recordingLevel = 0.0
+  @Published var recordingWaveformHistory: [Double] = []
   let audioInputPreview = AudioInputPreview()
   @Published var recordingElapsedSeconds = 0
   @Published var permissions: [PermissionSnapshot] = []
@@ -65,6 +67,11 @@ final class AppState: ObservableObject {
   @Published var customizationNotice = ""
   @Published var openCCInstallationState = OpenCCInstallationState.idle
   @Published private(set) var isCheckingLLMModelAccess = false
+  @Published private(set) var isWorkflowPopupDismissed = false {
+    didSet {
+      updateEscapeKeyMonitoring()
+    }
+  }
 
   /// Counts saved transcripts created today for the activity summaries across UI surfaces.
   var transcriptsTodayCount: Int {
@@ -83,9 +90,11 @@ final class AppState: ObservableObject {
   private let openCCInstaller = OpenCCInstaller()
   private let hotkeyManager = GlobalHotkeyManager()
   private let fnHotkeyManager = FnHotkeyManager()
+  private let escapeKeyMonitor = EscapeKeyMonitor()
   private var recorder: AudioRecorder?
   private let logger = Logger(subsystem: "local.codex.Vhrase", category: "Dictation")
   private var recordingSequence = 0
+  private var recordingWaveformTick = 0
   private var realtimeSession: RealtimeTranscriptionSession?
   private var recordingTask: Task<Void, Never>?
   private var recordingTimer: Timer?
@@ -104,8 +113,10 @@ final class AppState: ObservableObject {
   private var pendingAPIKeySaves: Set<SecretKey> = []
   private var editedAPIKeys: Set<SecretKey> = []
   private var shouldLoadSavedAPIKeysAfterLaunch = false
+  private let ownsInstance: Bool
 
-  init() {
+  init(ownsInstance: Bool) {
+    self.ownsInstance = ownsInstance
     let developmentEnvironmentFileURL = Self.developmentEnvironmentFileURL(
       arguments: CommandLine.arguments
     )
@@ -142,7 +153,9 @@ final class AppState: ObservableObject {
     activityDays = activityStore.load()
     savesTranscriptHistory = historyStore.savesHistory
     lastTranscript = history.first?.text ?? ""
-    AudioRecorder.removeAbandonedRecordings()
+    if ownsInstance {
+      AudioRecorder.removeAbandonedRecordings()
+    }
     customizationNotice = credentialNotices.joined(separator: " ")
     refreshPermissions()
     registerHotkey()
@@ -381,6 +394,32 @@ final class AppState: ObservableObject {
       status = .idle
     case .idle, .preparing, .recording, .transcribing, .adjusting:
       break
+    }
+  }
+
+  /// Cancels the active transient workflow when possible and otherwise hides its non-blocking feedback immediately.
+  @discardableResult
+  func handleEscapeCommand() -> Bool {
+    switch status {
+    case .preparing, .recording:
+      cancelRecording()
+      return true
+    case .adjusting where isTextPolishing:
+      cancelTextPolish()
+      return true
+    case .transcribing, .adjusting:
+      guard !isWorkflowPopupDismissed else { return false }
+      isWorkflowPopupDismissed = true
+      return true
+    case .completed, .failed:
+      dismissWorkflowOutcome()
+      return true
+    case .idle:
+      guard !customizationNotice.isEmpty else {
+        return false
+      }
+      customizationNotice = ""
+      return true
     }
   }
 
@@ -657,6 +696,8 @@ final class AppState: ObservableObject {
 
   /// Releases active capture resources and removes any recording owned by an in-flight transcription before app exit.
   func prepareForTermination() {
+    guard ownsInstance else { return }
+    escapeKeyMonitor.setEnabled(false, onEscape: {})
     flushPendingAPIKeySave()
     textPolishID = nil
     textPolishTask?.cancel()
@@ -683,6 +724,7 @@ final class AppState: ObservableObject {
 
     activeWorkflow = .dictation
     status = .transcribing
+    isWorkflowPopupDismissed = false
     Task {
       await runDemoDictationPipeline()
     }
@@ -751,6 +793,7 @@ final class AppState: ObservableObject {
     }
 
     activeWorkflow = .dictation
+    isWorkflowPopupDismissed = false
     audioInputPreview.stop()
     recordingSequence += 1
     logger.notice(
@@ -799,6 +842,16 @@ final class AppState: ObservableObject {
             return
           }
           self.recordingLevel = chunk.level
+          self.recordingWaveformTick += 1
+          if self.recordingWaveformTick >= 3 {
+            self.recordingWaveformTick = 0
+            self.recordingWaveformHistory.append(chunk.level)
+            if self.recordingWaveformHistory.count > 24 {
+              self.recordingWaveformHistory.removeFirst(
+                self.recordingWaveformHistory.count - 24
+              )
+            }
+          }
         }
       } onFailure: { [weak self] error in
         guard let self, self.recordingID == id else { return }
@@ -1086,6 +1139,9 @@ final class AppState: ObservableObject {
   }
 
   private func registerHotkey() {
+    guard ownsInstance else {
+      return
+    }
     shortcutGesture.reset()
     hotkeyManager.register(
       settings,
@@ -1103,6 +1159,18 @@ final class AppState: ObservableObject {
       },
       onReleased: { [weak self] in
         self?.handleHotkeyReleased()
+      }
+    )
+  }
+
+  private func updateEscapeKeyMonitoring() {
+    guard ownsInstance else {
+      return
+    }
+    escapeKeyMonitor.setEnabled(
+      status.showsWorkflowPopup && !isWorkflowPopupDismissed,
+      onEscape: { [weak self] in
+        self?.handleEscapeCommand()
       }
     )
   }
@@ -1141,6 +1209,7 @@ final class AppState: ObservableObject {
     }
 
     activeWorkflow = .textPolish
+    isWorkflowPopupDismissed = false
     audioInputPreview.stop()
     let target: FocusedTextTarget
     let client: LLMAdjustmentClient
@@ -1247,6 +1316,8 @@ final class AppState: ObservableObject {
   private func resetLiveRecordingState() {
     liveTranscript = ""
     recordingLevel = 0
+    recordingWaveformHistory = []
+    recordingWaveformTick = 0
     recordingElapsedSeconds = 0
     lastDelivery = .none
     lastCompletion = .transcript(.none)
@@ -1274,6 +1345,8 @@ final class AppState: ObservableObject {
     recordingTimer?.invalidate()
     recordingTimer = nil
     recordingLevel = 0
+    recordingWaveformHistory = []
+    recordingWaveformTick = 0
   }
 
   private func finalizeTranscript(
@@ -1325,9 +1398,11 @@ final class AppState: ObservableObject {
         await appContext.activate(targetApp)
       {
         do {
+          let insertionContext = focusedTextService.insertionContext()
           let clipboardRetained = try await inserter.paste(
             finalized.text,
-            keepOnClipboard: keepOnClipboard
+            keepOnClipboard: keepOnClipboard,
+            context: insertionContext
           )
           delivery = .pasteCommandSent(
             clipboardRetained: clipboardRetained

@@ -1,15 +1,9 @@
-// Visualizes normalized microphone level with one allocation-light shared waveform.
+// Renders recent microphone levels chronologically, padding missing history with quiet bars.
 
 import SwiftUI
 
 struct WaveformView: View {
-  private static let profiles: [CGFloat] = [
-    0.34, 0.52, 0.76, 0.48, 0.9, 0.62, 1, 0.72,
-    0.42, 0.82, 0.56, 0.94, 0.68, 0.38, 0.78, 0.5,
-    0.88, 0.64, 0.98, 0.58, 0.74, 0.44, 0.84, 0.54,
-  ]
-
-  let level: Double
+  let history: [Double]
   var response = WaveformResponse.standard
   var barCount = 24
   var tint = VhraseTheme.statusRecording
@@ -23,11 +17,12 @@ struct WaveformView: View {
       let width = max(2, (proxy.size.width - CGFloat(barCount - 1) * spacing) / CGFloat(barCount))
       HStack(alignment: .center, spacing: spacing) {
         ForEach(0..<barCount, id: \.self) { index in
+          let displayLevel = barLevel(index: index)
           Capsule()
-            .fill(tint.opacity(0.34 + 0.66 * normalizedLevel))
+            .fill(tint.opacity(0.34 + 0.66 * displayLevel))
             .frame(
               width: width,
-              height: barHeight(index: index, availableHeight: proxy.size.height)
+              height: max(4, proxy.size.height * (0.12 + displayLevel * 0.88))
             )
         }
       }
@@ -36,20 +31,23 @@ struct WaveformView: View {
     .frame(height: height)
     .animation(
       VhraseMotion.respectingReduceMotion(
-        .easeOut(duration: response.animationDuration),
+        .easeInOut(duration: max(0.22, response.animationDuration)),
         reduceMotion: reduceMotion
       ),
-      value: level
+      value: history
     )
     .accessibilityHidden(true)
   }
 
-  private var normalizedLevel: CGFloat {
-    CGFloat(WaveformLevelResponse.displayLevel(level, response: response))
-  }
-
-  private func barHeight(index: Int, availableHeight: CGFloat) -> CGFloat {
-    let profile = Self.profiles[index % Self.profiles.count]
-    return max(4, availableHeight * (0.12 + normalizedLevel * 0.88) * profile)
+  private func barLevel(index: Int) -> CGFloat {
+    let padding = max(0, barCount - history.count)
+    guard index >= padding else {
+      return 0
+    }
+    let visibleHistory = history.suffix(barCount)
+    let sampleIndex = visibleHistory.index(visibleHistory.startIndex, offsetBy: index - padding)
+    return CGFloat(
+      WaveformLevelResponse.displayLevel(visibleHistory[sampleIndex], response: response)
+    )
   }
 }

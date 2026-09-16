@@ -77,12 +77,14 @@ APP_CORE_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"
   Sources/VhraseApp/Adjustment/Local/TextReplacementProcessor.swift
   Sources/VhraseApp/Adjustment/Local/LocalAdjustment.swift
+  Sources/VhraseApp/Storage/DictationActivityStore.swift
   Sources/VhraseApp/Storage/SettingsStore.swift
   Sources/VhraseApp/Storage/TranscriptHistoryStore.swift
 )
 APP_CORE_CHECKS=(
   scripts/checks/status-flow-check.swift
   scripts/checks/shortcut-behavior-check.swift
+  scripts/checks/dictation-activity-check.swift
   scripts/checks/replacement-rules-check.swift
   scripts/checks/customization-snapshot-check.swift
   scripts/checks/history-check.swift

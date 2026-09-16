@@ -50,12 +50,14 @@ enum ActivityRange: String, CaseIterable {
 
 private enum ActivityChartMetric: String, CaseIterable {
   case words = "Words"
+  case rate = "Dictation rate"
   case dictations = "Dictations"
   case saved = "Est. time saved"
 
   func value(_ day: DictationActivityDay) -> Double {
     switch self {
     case .words: Double(day.words)
+    case .rate: day.dictatedWordsPerMinute
     case .dictations: Double(day.dictations)
     case .saved: day.savedSeconds / 60
     }
@@ -63,7 +65,11 @@ private enum ActivityChartMetric: String, CaseIterable {
 
   func label(_ day: DictationActivityDay) -> String {
     let number = value(day).formatted(.number.precision(.fractionLength(0...1)))
-    return self == .saved ? "\(number) min" : number
+    switch self {
+    case .rate: return "\(number) WPM"
+    case .saved: return "\(number) min"
+    case .words, .dictations: return number
+    }
   }
 }
 
@@ -91,8 +97,9 @@ struct DictationActivityChart: View {
               Text(item.rawValue).tag(item)
             }
           }
+          .pickerStyle(.segmented)
           .labelsHidden()
-          .frame(width: 170)
+          .frame(width: 480)
           Text(metric.label(totals))
             .font(.system(size: 30, weight: .medium, design: .rounded).monospacedDigit())
           Text("\(range.rawValue) · \(range.component == .day ? "Daily" : "Monthly")")

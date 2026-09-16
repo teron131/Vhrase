@@ -8,6 +8,8 @@ import Foundation
 final class AudioInputPreview: NSObject, ObservableObject, AVAudioPlayerDelegate {
   @Published private(set) var level = 0.0
   @Published private(set) var inputLevel = 0.0
+  @Published private(set) var waveformHistory: [Double] = []
+  @Published private(set) var inputWaveformHistory: [Double] = []
   @Published private(set) var isListening = false
   @Published private(set) var isStarting = false
   @Published private(set) var errorMessage = ""
@@ -22,6 +24,7 @@ final class AudioInputPreview: NSObject, ObservableObject, AVAudioPlayerDelegate
   private var playbackSettings: DictationSettings?
   private var testDeadline: Task<Void, Never>?
   private var inputDeviceUID = ""
+  private var waveformTick = 0
 
   /// Updates running capture in place; only initial startup needs to acquire the microphone.
   func start(settings: DictationSettings) {
@@ -89,6 +92,16 @@ final class AudioInputPreview: NSObject, ObservableObject, AVAudioPlayerDelegate
     // Smooth only the display; captured samples and playback retain their original timing and level.
     level += (chunk.level - level) * 0.3
     inputLevel += (chunk.inputLevel - inputLevel) * 0.3
+    waveformTick += 1
+    if waveformTick >= 3 {
+      waveformTick = 0
+      waveformHistory.append(chunk.level)
+      inputWaveformHistory.append(chunk.inputLevel)
+      if waveformHistory.count > 24 {
+        waveformHistory.removeFirst(waveformHistory.count - 24)
+        inputWaveformHistory.removeFirst(inputWaveformHistory.count - 24)
+      }
+    }
     if !isListening { isListening = true }
     if isRecordingTest {
       testClip.append(chunk.data)
@@ -181,6 +194,9 @@ final class AudioInputPreview: NSObject, ObservableObject, AVAudioPlayerDelegate
     recorder = nil
     level = 0
     inputLevel = 0
+    waveformHistory = []
+    inputWaveformHistory = []
+    waveformTick = 0
     isListening = false
     isStarting = false
   }

@@ -20,6 +20,11 @@ protocol TextPasteboard: AnyObject {
 
 extension NSPasteboard: TextPasteboard {}
 
+struct TextInsertionContext: Equatable {
+  let precedingCharacter: Character?
+  let hasSelection: Bool
+}
+
 @MainActor
 struct TextInsertion {
   private let pasteboard: any TextPasteboard
@@ -55,27 +60,72 @@ struct TextInsertion {
   /// Posts finalized text through Command-V and reports whether it remains on the clipboard.
   func paste(
     _ text: String,
-    keepOnClipboard: Bool
+    keepOnClipboard: Bool,
+    context: TextInsertionContext? = nil
   ) async throws -> Bool {
     let snapshot = PasteboardSnapshot(pasteboard)
-    try copy(text)
+    let insertionText = Self.preparedText(text, context: context)
+    try copy(insertionText)
     let transcriptChangeCount = pasteboard.changeCount
     try postPasteShortcut()
 
-    guard !keepOnClipboard else {
-      return true
-    }
+    if keepOnClipboard && insertionText == text { return true }
 
     // Restoration is cleanup; cancellation must not leave Vhrase's transient text behind.
     try? await Task.sleep(for: restoreDelay)
     guard pasteboard.changeCount == transcriptChangeCount else {
       return false
     }
-    guard snapshot.restore(to: pasteboard) else {
+    if keepOnClipboard || !snapshot.restore(to: pasteboard) {
       try copy(text)
       return true
     }
     return false
+  }
+
+  /// Adds one separator for collapsed Latin-script cursor boundaries without changing replacements or punctuation attachment.
+  static func preparedText(_ text: String, context: TextInsertionContext?) -> String {
+    guard let context, !context.hasSelection,
+      let precedingCharacter = context.precedingCharacter,
+      let firstCharacter = text.first,
+      needsSeparator(between: precedingCharacter, and: firstCharacter)
+    else {
+      return text
+    }
+    return " " + text
+  }
+
+  private static func needsSeparator(between preceding: Character, and incoming: Character) -> Bool
+  {
+    guard !isWhitespace(preceding), !isWhitespace(incoming) else {
+      return false
+    }
+    guard !isCJK(preceding), !isCJK(incoming) else {
+      return false
+    }
+    let punctuationThatClosesWithoutLeadingSpace = CharacterSet(charactersIn: ".,!?;:%)]}›»”’")
+    guard !incoming.unicodeScalars.allSatisfy(punctuationThatClosesWithoutLeadingSpace.contains)
+    else {
+      return false
+    }
+    let punctuationThatOpensWithoutTrailingSpace = CharacterSet(charactersIn: "([{‹«“‘")
+    return !preceding.unicodeScalars.allSatisfy(punctuationThatOpensWithoutTrailingSpace.contains)
+  }
+
+  private static func isWhitespace(_ character: Character) -> Bool {
+    character.unicodeScalars.allSatisfy(CharacterSet.whitespacesAndNewlines.contains)
+  }
+
+  private static func isCJK(_ character: Character) -> Bool {
+    character.unicodeScalars.contains { scalar in
+      switch scalar.value {
+      case 0x2E80...0x2FFF, 0x3040...0x30FF, 0x3400...0x4DBF, 0x4E00...0x9FFF,
+        0xAC00...0xD7AF, 0xF900...0xFAFF:
+        true
+      default:
+        false
+      }
+    }
   }
 
   private static func postPasteShortcutEvent() throws {

@@ -230,7 +230,7 @@ extension MainWindowView {
         .fixedSize(horizontal: false, vertical: true)
 
       if appState.isRecording {
-        WaveformView(level: appState.recordingLevel)
+        WaveformView(history: appState.recordingWaveformHistory)
           .transition(.opacity.combined(with: .scale(scale: 0.96)))
       }
 
@@ -512,19 +512,23 @@ extension MainWindowView {
         systemImage: "waveform"
       )
 
-      LabeledContent("Provider") {
-        ProviderPicker(selection: appState.settingsBinding(\.provider), style: .segmented)
-          .fixedSize()
-      }
-
-      labeledPicker("Mode") {
-        Picker("Mode", selection: appState.settingsBinding(\.transcriptionMode)) {
-          ForEach(appState.settings.provider.availableModes) { mode in
-            Text(mode.title).tag(mode)
-          }
+      Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
+        GridRow {
+          Text("Provider")
+            .gridColumnAlignment(.trailing)
+          ProviderPicker(selection: appState.settingsBinding(\.provider), style: .segmented)
+            .fixedSize()
+            .gridColumnAlignment(.leading)
         }
-        .labelsHidden()
-        .pickerStyle(.segmented)
+
+        GridRow {
+          Text("Mode")
+          TranscriptionModePicker(
+            selection: appState.settingsBinding(\.transcriptionMode),
+            enabledModes: appState.settings.provider.availableModes
+          )
+          .fixedSize()
+        }
       }
 
       Text(appState.settings.provider.detail)
@@ -741,7 +745,7 @@ extension MainWindowView {
       workflowStageHeader(
         "Deliver",
         description:
-          "Control clipboard and history retention after the transcript returns to your app.",
+          "Control clipboard retention after the transcript returns to your app.",
         systemImage: "text.insert"
       )
 
@@ -750,18 +754,6 @@ extension MainWindowView {
         detail:
           "Vhrase always returns text to the app where you started dictating. Keep the same text ready to paste elsewhere.",
         isOn: appState.settingsBinding(\.keepTranscriptOnClipboard)
-      )
-
-      Divider()
-
-      settingsToggle(
-        "Save transcripts to history",
-        detail:
-          "Keep future transcripts on this Mac. Turning this off does not delete anything already saved.",
-        isOn: Binding(
-          get: { appState.savesTranscriptHistory },
-          set: { appState.updateTranscriptHistorySaving($0) }
-        )
       )
     }
     .toggleStyle(.switch)

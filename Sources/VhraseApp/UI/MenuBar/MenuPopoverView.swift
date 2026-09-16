@@ -136,7 +136,7 @@ struct MenuPopoverView: View {
 
       if appState.isRecording {
         WaveformView(
-          level: appState.recordingLevel,
+          history: appState.recordingWaveformHistory,
           barCount: 16,
           height: 28
         )
@@ -250,8 +250,9 @@ struct MenuPopoverView: View {
         .accessibilityLabel("Transcription provider")
 
       Picker("Mode", selection: appState.settingsBinding(\.transcriptionMode)) {
-        ForEach(appState.settings.provider.availableModes) { mode in
+        ForEach(TranscriptionMode.allCases) { mode in
           Text(mode.title).tag(mode)
+            .disabled(!appState.settings.provider.availableModes.contains(mode))
         }
       }
       .labelsHidden()

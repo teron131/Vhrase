@@ -9,14 +9,17 @@ extension MainWindowView {
         HStack(alignment: .firstTextBaseline) {
           sectionHeader("Activity", description: "A local summary of your saved dictations.")
           Spacer()
-          if !appState.savesTranscriptHistory {
-            Button {
-              selectedTab = .output
-            } label: {
-              Label("History saving is off", systemImage: "pause.circle")
-            }
-            .buttonStyle(AccentLinkButtonStyle())
-          }
+          Toggle(
+            "Save future transcripts",
+            isOn: Binding(
+              get: { appState.savesTranscriptHistory },
+              set: { appState.updateTranscriptHistorySaving($0) }
+            )
+          )
+          .toggleStyle(.switch)
+          .help(
+            "Keep future transcripts on this Mac. Turning this off does not delete anything already saved."
+          )
         }
 
         historyStatsCard
@@ -123,14 +126,14 @@ extension MainWindowView {
       Text(
         appState.savesTranscriptHistory
           ? "Future completed dictations will appear here."
-          : "History saving is off. You can enable it in Output."
+          : "History saving is off. Existing transcripts remain on this Mac."
       )
     } actions: {
-      Button(appState.savesTranscriptHistory ? "Run a demo dictation" : "Open Output settings") {
+      Button(appState.savesTranscriptHistory ? "Run a demo dictation" : "Enable history saving") {
         if appState.savesTranscriptHistory {
           appState.runDemoDictation()
         } else {
-          selectedTab = .output
+          appState.updateTranscriptHistorySaving(true)
         }
       }
       .buttonStyle(.borderedProminent)

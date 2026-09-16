@@ -1,5 +1,6 @@
 // Hosts Vhrase's sidebar control center and its selection-driven recording surfaces.
 
+import AppKit
 import SwiftUI
 
 enum MainWindowTab: String, CaseIterable, Hashable, Identifiable {
@@ -82,14 +83,33 @@ struct MainWindowView: View {
         .navigationTitle(selectedTab.title)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VhraseTheme.canvas)
-        .safeAreaInset(edge: .top, spacing: 0) {
+        .overlay(alignment: .top) {
           if !appState.customizationNotice.isEmpty {
             actionNoticeBanner
+              .transition(.move(edge: .top).combined(with: .opacity))
+              .zIndex(1)
           }
         }
     }
     .frame(minWidth: 1020, minHeight: 680)
     .tint(VhraseTheme.accent)
+    .background {
+      MainWindowEscapeMonitor {
+        guard !isCapturingHotkey,
+          !isClearHistoryConfirmationPresented,
+          !isOpenCCInstallConfirmationPresented
+        else {
+          return false
+        }
+        if !appState.handleEscapeCommand() {
+          let window =
+            NSApp.keyWindow ?? NSApp.mainWindow
+            ?? NSApp.windows.first { $0.isVisible && $0.canBecomeMain }
+          window?.orderOut(nil)
+        }
+        return true
+      }
+    }
     .animation(
       VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
       value: selectedTab

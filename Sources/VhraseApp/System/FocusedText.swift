@@ -130,6 +130,34 @@ struct FocusedTextService {
     )
   }
 
+  /// Reads only the collapsed cursor boundary needed to separate consecutive dictations safely.
+  func insertionContext() -> TextInsertionContext? {
+    guard AXIsProcessTrusted(), let element = focusedElement() else {
+      return nil
+    }
+    let subrole = stringAttribute(kAXSubroleAttribute as CFString, of: element)
+    guard subrole != (kAXSecureTextFieldSubrole as String),
+      let selection = selectedRange(of: element)
+    else {
+      return nil
+    }
+    guard selection.length == 0 else {
+      return TextInsertionContext(precedingCharacter: nil, hasSelection: true)
+    }
+    guard selection.location > 0 else {
+      return TextInsertionContext(precedingCharacter: nil, hasSelection: false)
+    }
+
+    let precedingCharacter = precedingCharacter(
+      element: element,
+      cursorLocation: selection.location
+    )
+    return TextInsertionContext(
+      precedingCharacter: precedingCharacter,
+      hasSelection: false
+    )
+  }
+
   func focusedElement() -> AXUIElement? {
     let system = AXUIElementCreateSystemWide()
     var value: CFTypeRef?
@@ -184,6 +212,35 @@ struct FocusedTextService {
     else {
       throw FocusedTextError.targetChanged
     }
+  }
+
+  private func precedingCharacter(element: AXUIElement, cursorLocation: Int) -> Character? {
+    if let value = stringAttribute(kAXValueAttribute as CFString, of: element) {
+      let text = value as NSString
+      guard cursorLocation <= text.length else {
+        return nil
+      }
+      let range = text.rangeOfComposedCharacterSequence(at: cursorLocation - 1)
+      return text.substring(with: range).first
+    }
+
+    var range = CFRange(location: max(0, cursorLocation - 2), length: min(2, cursorLocation))
+    guard let rangeValue = AXValueCreate(.cfRange, &range) else {
+      return nil
+    }
+    var value: CFTypeRef?
+    guard
+      AXUIElementCopyParameterizedAttributeValue(
+        element,
+        kAXStringForRangeParameterizedAttribute as CFString,
+        rangeValue,
+        &value
+      ) == .success,
+      let text = value as? String
+    else {
+      return nil
+    }
+    return text.last
   }
 }
 

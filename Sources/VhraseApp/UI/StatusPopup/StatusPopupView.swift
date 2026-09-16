@@ -56,13 +56,13 @@ struct StatusPopupView: View {
         .opacity(showsControls ? 1 : 0)
 
         WaveformView(
-          level: appState.recordingLevel,
+          history: appState.recordingWaveformHistory,
           response: .live,
-          barCount: 6,
+          barCount: 14,
           tint: .white,
           height: 20
         )
-        .frame(width: 44)
+        .frame(width: 104)
         .contentShape(Rectangle())
         .onTapGesture { showsControls = true }
         .accessibilityElement(children: .ignore)
@@ -150,11 +150,11 @@ struct StatusPopupView: View {
       Image(systemName: "exclamationmark.circle")
         .font(.system(size: 13, weight: .semibold))
         .accessibilityHidden(true)
-      Text(message)
+      Text("Failed")
         .font(.callout.weight(.medium))
         .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .help("Vhrase failed: \(message)")
+        .help(message)
         .accessibilityLabel("Vhrase failed: \(message)")
       hudButton("Try again", systemImage: "arrow.clockwise") { appState.retryLastWorkflow() }
       hudButton("Dismiss", systemImage: "xmark") { appState.dismissWorkflowOutcome() }
@@ -264,11 +264,11 @@ final class RecorderHUDPanelController: NSWindowController {
 
     super.init(window: panel)
 
-    statusObservation = appState.$status.removeDuplicates()
-      .sink { [weak self] status in
-        self?.update(for: status)
+    statusObservation = appState.$status.combineLatest(appState.$isWorkflowPopupDismissed)
+      .sink { [weak self] status, isDismissed in
+        self?.update(for: status, isDismissed: isDismissed)
       }
-    update(for: appState.status)
+    update(for: appState.status, isDismissed: appState.isWorkflowPopupDismissed)
   }
 
   @available(*, unavailable)
@@ -277,14 +277,14 @@ final class RecorderHUDPanelController: NSWindowController {
   }
 
   /// Mirrors the current workflow state without taking ownership of outcome timing.
-  func update(for status: AppStatus) {
+  func update(for status: AppStatus, isDismissed: Bool) {
     let startsNewWorkflow =
       previousStatus.canStartRecording
       && status != previousStatus
       && status.showsWorkflowPopup
     previousStatus = status
 
-    guard status.showsWorkflowPopup, let panel = window else {
+    guard status.showsWorkflowPopup, !isDismissed, let panel = window else {
       window?.orderOut(nil)
       workflowScreen = nil
       return
