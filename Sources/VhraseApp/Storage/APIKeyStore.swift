@@ -1,4 +1,4 @@
-// Stores editable Vhrase API credentials in Keychain and resolves safe environment fallbacks for missing keys.
+// Stores editable Vhrase API credentials in Keychain and resolves safe environment-backed provider configuration.
 
 import Foundation
 import Security
@@ -23,8 +23,9 @@ enum SecretKey: String, CaseIterable {
   }
 }
 
-/// Persists secrets as generic-password items and never reads the retired plaintext preference keys.
+/// Persists secrets as generic-password items and resolves provider configuration without exposing environment values in editable state.
 final class APIKeyStore: Sendable {
+  private static let supportedConfigurationKeys = Set(["LLM_BASE_URL"])
   private let service: String
   private let environment: [String: String]
 
@@ -93,7 +94,11 @@ final class APIKeyStore: Sendable {
       }
 
       let key = String(assignment[..<separator]).trimmingCharacters(in: .whitespaces)
-      guard supportedKeys.contains(key), environment[key, default: ""].isEmpty else {
+      guard
+        (supportedKeys.contains(key) || supportedConfigurationKeys.contains(key)
+          || isCredentialEnvironmentVariableName(key)),
+        environment[key, default: ""].isEmpty
+      else {
         continue
       }
 
@@ -109,6 +114,20 @@ final class APIKeyStore: Sendable {
 
   func environmentValue(for key: SecretKey) -> String {
     environment[key.rawValue] ?? ""
+  }
+
+  /// Resolves the non-secret LLM endpoint from the environment before the saved UI setting.
+  func effectiveLLMBaseURL(savedValue: String) -> String {
+    llmBaseURLFromEnvironment.isEmpty ? savedValue : llmBaseURLFromEnvironment
+  }
+
+  var usesEnvironmentLLMBaseURL: Bool {
+    !llmBaseURLFromEnvironment.isEmpty
+  }
+
+  private var llmBaseURLFromEnvironment: String {
+    environment["LLM_BASE_URL", default: ""]
+      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   /// Reads only the editable Keychain value without prompting, keeping launch nonblocking and environment fallbacks out of persisted UI state.
@@ -141,19 +160,41 @@ final class APIKeyStore: Sendable {
     }
   }
 
-  /// Resolves an explicitly saved credential before its launch-environment fallback.
+  /// Resolves an explicitly saved credential before its launch-environment fallback, treating a conventional variable name in the LLM field as an indirect secret reference.
   func effectiveValue(
     for key: SecretKey,
     savedValue: String
   ) -> String {
-    savedValue.isEmpty ? environmentValue(for: key) : savedValue
+    guard !savedValue.isEmpty else {
+      return environmentValue(for: key)
+    }
+    guard key == .llmAPIKey, Self.isCredentialEnvironmentVariableName(savedValue) else {
+      return savedValue
+    }
+    return environment[savedValue] ?? ""
   }
 
   func usesEnvironmentFallback(
     for key: SecretKey,
     savedValue: String
   ) -> Bool {
-    savedValue.isEmpty && !environmentValue(for: key).isEmpty
+    if savedValue.isEmpty {
+      return !environmentValue(for: key).isEmpty
+    }
+    return key == .llmAPIKey
+      && Self.isCredentialEnvironmentVariableName(savedValue)
+      && !environment[savedValue, default: ""].isEmpty
+  }
+
+  private static func isCredentialEnvironmentVariableName(_ value: String) -> Bool {
+    guard value.hasSuffix("_KEY"), let first = value.utf8.first,
+      first == 95 || (65...90).contains(first)
+    else {
+      return false
+    }
+    return value.utf8.allSatisfy { byte in
+      byte == 95 || (48...57).contains(byte) || (65...90).contains(byte)
+    }
   }
 
   /// Saves or removes one credential and reports Keychain failures without including the secret value.

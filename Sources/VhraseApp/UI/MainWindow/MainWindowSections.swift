@@ -785,7 +785,6 @@ extension MainWindowView {
         Divider()
 
         compactField("Model", text: appState.settingsBinding(\.adjustmentModel))
-        compactField("Base URL", text: appState.settingsBinding(\.adjustmentBaseURL))
 
         settingsToggle(
           "Use screen context",
@@ -809,9 +808,13 @@ extension MainWindowView {
         Button {
           appState.checkLLMModelAccess()
         } label: {
-          Label("Check model access", systemImage: "checkmark.seal")
+          Label(
+            appState.isCheckingLLMModelAccess ? "Checking model…" : "Check model access",
+            systemImage: "checkmark.seal"
+          )
         }
         .buttonStyle(.bordered)
+        .disabled(appState.isCheckingLLMModelAccess)
       } else {
         Label(
           "This stage is bypassed. Corrected text goes directly to delivery.",
@@ -1165,7 +1168,7 @@ extension MainWindowView {
       sectionHeader(
         "Provider credentials",
         description:
-          "Saved values stay in your login Keychain. Environment values fill only empty fields.")
+          "Saved keys stay in your login Keychain. LLM_BASE_URL overrides the saved endpoint when present.")
 
       Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 14) {
         keyField("xAI API key", key: .xaiAPIKey, text: apiKeyBinding(.xaiAPIKey))
@@ -1173,6 +1176,17 @@ extension MainWindowView {
           "ElevenLabs API key", key: .elevenLabsAPIKey, text: apiKeyBinding(.elevenLabsAPIKey))
         keyField("Gemini API key", key: .geminiAPIKey, text: apiKeyBinding(.geminiAPIKey))
         keyField("LLM API key", key: .llmAPIKey, text: apiKeyBinding(.llmAPIKey))
+        configurationField(
+          "LLM base URL",
+          text: Binding(
+            get: { appState.effectiveLLMBaseURL },
+            set: { value in
+              guard !appState.usesEnvironmentLLMBaseURL else { return }
+              appState.updateSettings { $0.adjustmentBaseURL = value }
+            }
+          ),
+          environmentName: appState.usesEnvironmentLLMBaseURL ? "LLM_BASE_URL" : nil
+        )
       }
       .frame(maxWidth: .infinity)
 
@@ -1197,6 +1211,28 @@ extension MainWindowView {
         keyStatus(
           "Gemini", isReady: !appState.effectiveGeminiAPIKey.isEmpty,
           usesEnvironmentFallback: appState.usesEnvironmentFallback(for: .geminiAPIKey))
+      }
+
+      HStack(spacing: 10) {
+        Button {
+          appState.checkLLMModelAccess()
+        } label: {
+          HStack(spacing: 6) {
+            if appState.isCheckingLLMModelAccess {
+              ProgressView()
+                .controlSize(.small)
+            } else {
+              Image(systemName: "bolt.horizontal.circle")
+            }
+            Text(appState.isCheckingLLMModelAccess ? "Testing LLM…" : "Test LLM")
+          }
+        }
+        .buttonStyle(.bordered)
+        .disabled(appState.isCheckingLLMModelAccess || appState.effectiveLLMAPIKey.isEmpty)
+
+        Text("Sends only a tiny “Reply with OK” request using the configured model.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
 
       Text(
@@ -1239,7 +1275,13 @@ extension MainWindowView {
         .font(.callout.weight(.medium))
         .gridColumnAlignment(.trailing)
 
-      SecureField(title, text: text)
+      Group {
+        if showsCredentialReference(text.wrappedValue) {
+          TextField(title, text: text)
+        } else {
+          SecureField(title, text: text)
+        }
+      }
         .textFieldStyle(.roundedBorder)
         .frame(minWidth: 280, maxWidth: .infinity)
         .gridColumnAlignment(.leading)
@@ -1250,6 +1292,37 @@ extension MainWindowView {
         .onSubmit {
           finishAPIKeyEditing()
         }
+    }
+  }
+
+  private func showsCredentialReference(_ value: String) -> Bool {
+    !value.isEmpty && value.utf8.allSatisfy { byte in
+      byte == 95 || (65...90).contains(byte)
+    }
+  }
+
+  private func configurationField(
+    _ title: String,
+    text: Binding<String>,
+    environmentName: String?
+  ) -> some View {
+    GridRow {
+      Text(title)
+        .font(.callout.weight(.medium))
+        .gridColumnAlignment(.trailing)
+
+      VStack(alignment: .leading, spacing: 5) {
+        TextField(title, text: text)
+          .textFieldStyle(.roundedBorder)
+          .disabled(environmentName != nil)
+        if let environmentName {
+          Label("Loaded from \(environmentName)", systemImage: "checkmark.circle.fill")
+            .font(.caption)
+            .foregroundStyle(VhraseTheme.statusSuccess)
+        }
+      }
+      .frame(minWidth: 280, maxWidth: .infinity)
+      .gridColumnAlignment(.leading)
     }
   }
 

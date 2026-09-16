@@ -18,7 +18,9 @@ struct APIKeyResolutionCheck {
     ELEVENLABS_API_KEY="file-elevenlabs"
     GEMINI_API_KEY="file-gemini"
     LLM_API_KEY='file-llm'
-    IGNORED_KEY=ignored
+    AI_GATEWAY_API_KEY=file-gateway
+    LLM_BASE_URL=https://gateway.example/v1
+    IGNORED_VALUE=ignored
     """.write(to: fixtureURL, atomically: true, encoding: .utf8)
 
     let environment = try APIKeyStore.developmentEnvironment(
@@ -29,7 +31,9 @@ struct APIKeyResolutionCheck {
     precondition(environment[SecretKey.elevenLabsAPIKey.rawValue] == "file-elevenlabs")
     precondition(environment[SecretKey.geminiAPIKey.rawValue] == "file-gemini")
     precondition(environment[SecretKey.llmAPIKey.rawValue] == "file-llm")
-    precondition(environment["IGNORED_KEY"] == nil)
+    precondition(environment["AI_GATEWAY_API_KEY"] == "file-gateway")
+    precondition(environment["LLM_BASE_URL"] == "https://gateway.example/v1")
+    precondition(environment["IGNORED_VALUE"] == nil)
 
     let zshrcURL = fixtureURL.appendingPathExtension("zshrc")
     defer {
@@ -39,9 +43,11 @@ struct APIKeyResolutionCheck {
     export XAI_API_KEY="zshrc-xai"
     export ELEVENLABS_API_KEY=zshrc-elevenlabs
     export GEMINI_API_KEY=zshrc-gemini
+    export AI_GATEWAY_API_KEY=zshrc-gateway
+    export LLM_BASE_URL=https://zshrc-gateway.example/v1
     LLM_API_KEY=not-exported
     export LLM_API_KEY=$(ignored-command)
-    export IGNORED_KEY=ignored
+    export IGNORED_VALUE=ignored
     """.write(to: zshrcURL, atomically: true, encoding: .utf8)
 
     let zshrcEnvironment = try APIKeyStore.zshrcEnvironment(
@@ -51,8 +57,10 @@ struct APIKeyResolutionCheck {
     precondition(zshrcEnvironment[SecretKey.xaiAPIKey.rawValue] == "process-xai")
     precondition(zshrcEnvironment[SecretKey.elevenLabsAPIKey.rawValue] == "zshrc-elevenlabs")
     precondition(zshrcEnvironment[SecretKey.geminiAPIKey.rawValue] == "zshrc-gemini")
+    precondition(zshrcEnvironment["AI_GATEWAY_API_KEY"] == "zshrc-gateway")
+    precondition(zshrcEnvironment["LLM_BASE_URL"] == "https://zshrc-gateway.example/v1")
     precondition(zshrcEnvironment[SecretKey.llmAPIKey.rawValue] == nil)
-    precondition(zshrcEnvironment["IGNORED_KEY"] == nil)
+    precondition(zshrcEnvironment["IGNORED_VALUE"] == nil)
 
     let missingEnvironment = try APIKeyStore.developmentEnvironment(
       fileURL: fixtureURL.appendingPathExtension("missing"),
@@ -70,11 +78,51 @@ struct APIKeyResolutionCheck {
     precondition(
       store.effectiveValue(
         for: .llmAPIKey,
+        savedValue: "GEMINI_API_KEY"
+      ) == "file-gemini"
+    )
+    precondition(
+      store.effectiveValue(
+        for: .llmAPIKey,
+        savedValue: "AI_GATEWAY_API_KEY"
+      ) == "file-gateway"
+    )
+    precondition(
+      store.effectiveValue(
+        for: .llmAPIKey,
+        savedValue: "MISSING_API_KEY"
+      ).isEmpty
+    )
+    precondition(
+      store.effectiveValue(
+        for: .geminiAPIKey,
+        savedValue: "AI_GATEWAY_API_KEY"
+      ) == "AI_GATEWAY_API_KEY"
+    )
+    precondition(
+      store.effectiveValue(
+        for: .llmAPIKey,
         savedValue: ""
       ) == "file-llm"
     )
     precondition(store.usesEnvironmentFallback(for: .llmAPIKey, savedValue: ""))
+    precondition(store.usesEnvironmentFallback(for: .llmAPIKey, savedValue: "GEMINI_API_KEY"))
+    precondition(
+      store.usesEnvironmentFallback(for: .llmAPIKey, savedValue: "AI_GATEWAY_API_KEY"))
+    precondition(!store.usesEnvironmentFallback(for: .llmAPIKey, savedValue: "MISSING_API_KEY"))
     precondition(!store.usesEnvironmentFallback(for: .llmAPIKey, savedValue: "saved-llm"))
+    precondition(
+      store.effectiveLLMBaseURL(savedValue: "http://localhost:8317/v1")
+        == "https://gateway.example/v1"
+    )
+    precondition(store.usesEnvironmentLLMBaseURL)
+
+    let savedConfigurationStore = APIKeyStore(environment: [:])
+    precondition(
+      savedConfigurationStore.effectiveLLMBaseURL(savedValue: "http://localhost:8317/v1")
+        == "http://localhost:8317/v1"
+    )
+    precondition(!savedConfigurationStore.usesEnvironmentLLMBaseURL)
 
     print("API key development resolution ok")
   }

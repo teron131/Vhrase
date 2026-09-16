@@ -63,6 +63,7 @@ final class AppState: ObservableObject {
   @Published var targetAppLabel = ""
   @Published var customizationNotice = ""
   @Published var openCCInstallationState = OpenCCInstallationState.idle
+  @Published private(set) var isCheckingLLMModelAccess = false
 
   /// Counts saved transcripts created today for the activity summaries across UI surfaces.
   var transcriptsTodayCount: Int {
@@ -213,6 +214,14 @@ final class AppState: ObservableObject {
 
   var effectiveLLMAPIKey: String {
     effectiveAPIKey(.llmAPIKey)
+  }
+
+  var effectiveLLMBaseURL: String {
+    apiKeys.effectiveLLMBaseURL(savedValue: settings.adjustmentBaseURL)
+  }
+
+  var usesEnvironmentLLMBaseURL: Bool {
+    apiKeys.usesEnvironmentLLMBaseURL
   }
 
   /// Creates the shared UI projection from the current application state.
@@ -662,6 +671,9 @@ final class AppState: ObservableObject {
   }
 
   func checkLLMModelAccess() {
+    guard !isCheckingLLMModelAccess else {
+      return
+    }
     let apiKey = effectiveLLMAPIKey
     guard !apiKey.isEmpty else {
       customizationNotice = "Add LLM API key before checking model access."
@@ -669,9 +681,11 @@ final class AppState: ObservableObject {
     }
 
     let model = settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
-    let baseURL = settings.adjustmentBaseURL
+    let baseURL = effectiveLLMBaseURL
+    isCheckingLLMModelAccess = true
     customizationNotice = "Checking LLM model: \(model)…"
     Task {
+      defer { isCheckingLLMModelAccess = false }
       do {
         try await LLMModelAccessClient(
           apiKey: apiKey,
@@ -944,8 +958,10 @@ final class AppState: ObservableObject {
   }
 
   private func currentRecordingConfiguration() -> RecordingConfiguration {
-    RecordingConfiguration(
-      settings: settings,
+    var resolvedSettings = settings
+    resolvedSettings.adjustmentBaseURL = effectiveLLMBaseURL
+    return RecordingConfiguration(
+      settings: resolvedSettings,
       providerAPIKey: effectiveAPIKey(secretKey(for: settings.provider)),
       llmAPIKey: effectiveLLMAPIKey
     )
