@@ -21,10 +21,12 @@ enum OpenCCInstallationState: Equatable {
 @MainActor
 final class AppState: ObservableObject {
   private static let developmentEnvironmentFileArgument = "--development-environment-file"
+  private static let workflowOutcomeDisplayDuration = Duration.seconds(4)
 
   @Published var status: AppStatus = .idle {
     didSet {
       guard status != oldValue else { return }
+      scheduleWorkflowOutcomeDismissal(for: status)
       let phase: String
       switch status {
       case .idle: phase = "idle"
@@ -82,9 +84,11 @@ final class AppState: ObservableObject {
   private var realtimeSession: RealtimeTranscriptionSession?
   private var recordingTask: Task<Void, Never>?
   private var recordingTimer: Timer?
+  private var workflowOutcomeDismissTask: Task<Void, Never>?
   private var recordingID: UUID?
   private var recordingTargetApp: FrontmostApp?
   private var recordingConfiguration: RecordingConfiguration?
+  private var recordingSpeechPresence: SpeechPresenceGate?
   private var processingAudioURL: URL?
   private var isShortcutCaptureActive = false
   private var lastHotkeyPressDate: Date?
@@ -341,6 +345,30 @@ final class AppState: ObservableObject {
       status = .idle
     case .idle, .preparing, .recording, .transcribing, .adjusting:
       break
+    }
+  }
+
+  /// Owns the lifetime of transient outcomes so the model and recorder HUD return to idle together.
+  private func scheduleWorkflowOutcomeDismissal(for outcome: AppStatus) {
+    workflowOutcomeDismissTask?.cancel()
+    workflowOutcomeDismissTask = nil
+
+    switch outcome {
+    case .completed, .failed:
+      break
+    case .idle, .preparing, .recording, .transcribing, .adjusting:
+      return
+    }
+
+    workflowOutcomeDismissTask = Task { [weak self] in
+      do {
+        try await Task.sleep(for: Self.workflowOutcomeDisplayDuration)
+      } catch {
+        return
+      }
+      guard let self, self.status == outcome else { return }
+      self.workflowOutcomeDismissTask = nil
+      self.dismissWorkflowOutcome()
     }
   }
 
@@ -686,6 +714,8 @@ final class AppState: ObservableObject {
     recordingTargetApp = appContext.targetApp()
     targetAppLabel = recordingTargetApp?.name ?? ""
     resetLiveRecordingState()
+    let speechPresence = SpeechPresenceGate()
+    recordingSpeechPresence = speechPresence
     var session: RealtimeTranscriptionSession?
     do {
       try validateRecordingPermissions()
@@ -698,6 +728,7 @@ final class AppState: ObservableObject {
       try ensureCurrentRecording(id)
       realtimeSession = startedSession
       try await recorder.start(settings: configuration.settings) { chunk in
+        speechPresence.observe(level: chunk.level)
         startedSession?.sendAudioChunk(chunk.data)
         Task { @MainActor in
           guard self.recordingID == id else {
@@ -780,6 +811,9 @@ final class AppState: ObservableObject {
       stopRecordingTimer()
       self.recorder = nil
       realtimeSession = nil
+      guard recordingSpeechPresence?.hasLikelySpeech == true else {
+        throw RecordingContentError.noSpeechDetected
+      }
       let started = Date()
       let result: TranscriptionResult
       if let session {
@@ -1185,6 +1219,7 @@ final class AppState: ObservableObject {
   private func clearRecordingContext() {
     recordingID = nil
     recordingConfiguration = nil
+    recordingSpeechPresence = nil
     recordingTargetApp = nil
     targetAppLabel = ""
   }
@@ -1219,4 +1254,34 @@ private struct RecordingConfiguration {
 private enum DeliveryPlan {
   case insert(keepOnClipboard: Bool)
   case copyOnly
+}
+
+/// Accepts very quiet speech while rejecting recordings that never rise above the existing live-waveform noise floor.
+private final class SpeechPresenceGate: @unchecked Sendable {
+  private static let minimumLevel = 0.012
+  private static let requiredChunks = 2
+
+  private let lock = NSLock()
+  private var audibleChunkCount = 0
+
+  func observe(level: Double) {
+    guard level > Self.minimumLevel else { return }
+    lock.withLock {
+      audibleChunkCount += 1
+    }
+  }
+
+  var hasLikelySpeech: Bool {
+    lock.withLock {
+      audibleChunkCount >= Self.requiredChunks
+    }
+  }
+}
+
+private enum RecordingContentError: LocalizedError {
+  case noSpeechDetected
+
+  var errorDescription: String? {
+    "No speech was detected."
+  }
 }

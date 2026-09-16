@@ -27,7 +27,7 @@ final class XAITranscriptionClient: SpeechToTextClient {
 
     var request = URLRequest(url: URL(string: "https://api.x.ai/v1/stt")!)
     request.httpMethod = "POST"
-    request.timeoutInterval = 60
+    request.timeoutInterval = 10
     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     request.setValue(
       "multipart/form-data; boundary=\(form.boundary)", forHTTPHeaderField: "Content-Type")
