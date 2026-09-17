@@ -78,6 +78,26 @@ struct HistorySearchCheck {
     precondition(HistorySearch.matches(items, query: "", dateFilter: .custom, provider: "").isEmpty)
     let cleared = HistorySearch.matches(items, query: "  \n", dateFilter: .anyTime, provider: "")
     precondition(cleared.map(\.id) == [recent.id, metadataMatch.id, unrelated.id, older.id])
+
+    let archive = (0..<41).map { index in
+      item(
+        text: "Entry \(index)", provider: "Gemini",
+        createdAt: now.addingTimeInterval(Double(-index)))
+    }
+    let firstPage = HistorySearch.Page(matches: archive, requestedIndex: 0)
+    precondition(firstPage.matchCount == 41 && firstPage.count == 3 && firstPage.index == 0)
+    precondition(firstPage.items == Array(archive.prefix(20)))
+    let secondPage = HistorySearch.Page(matches: archive, requestedIndex: 1)
+    precondition(secondPage.items == Array(archive[20..<40]))
+    let lastPage = HistorySearch.Page(matches: archive, requestedIndex: 2)
+    precondition(lastPage.items == [archive[40]])
+    let afterDeletion = HistorySearch.Page(matches: Array(archive.prefix(20)), requestedIndex: 2)
+    precondition(afterDeletion.count == 1 && afterDeletion.index == 0)
+    precondition(afterDeletion.items == Array(archive.prefix(20)))
+    let emptyPage = HistorySearch.Page(matches: [], requestedIndex: 9)
+    precondition(emptyPage.count == 1 && emptyPage.index == 0 && emptyPage.items.isEmpty)
+    precondition(HistorySearch.Page(matches: archive, requestedIndex: -1).index == 0)
+    print("history search and pagination ok")
   }
 
   private static func item(

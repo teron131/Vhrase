@@ -10,7 +10,6 @@ struct CustomizationSnapshotCheck {
     settings.transcriptionMode = .realtime
     settings.language = ""
     settings.keyterms = "OpenAI\nxAI"
-    settings.replacementRules = "open AI => OpenAI"
     settings.adjustmentPrompt = "Keep identifiers intact."
     settings.polishPreferences.moneyStyle = .symbols
     settings.polishPreferences.unitStyle = .spelledOut
@@ -32,6 +31,7 @@ struct CustomizationSnapshotCheck {
     precondition(!json.localizedCaseInsensitiveContains("LLM_API_KEY"))
     precondition(json.contains("\"keepTranscriptOnClipboard\" : true"))
     precondition(!json.contains("pasteAfterTranscription"))
+    precondition(!json.contains("replacementRules"))
 
     let decoded = try JSONDecoder().decode(CustomizationSnapshot.self, from: data)
     precondition(decoded == snapshot)

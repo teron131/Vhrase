@@ -2,14 +2,14 @@
 
 ## Native transcription providers
 
-Select Gemini, xAI (Grok), or ElevenLabs in Capture → Transcribe, or switch providers directly from Dictate or the menu bar.
+Select Gemini, xAI (Grok), or ElevenLabs in Transcription → Transcribe, or switch providers directly from Dictate or the menu bar.
 Gemini uses `gemini-3.5-transcribe` directly with your `GEMINI_API_KEY`; it uploads the completed recording when you stop and requests `store: false`.
 Gemini realtime is not enabled in Vhrase; choosing Gemini switches capture to Upload while retaining realtime support for Grok and ElevenLabs.
 All providers read the same Shared vocabulary list, with duplicate lines ignored and provider limits checked before recording.
 “Add developer vocabulary” adds a small editable set including Vercel, refactor, backpropagation, and Monte Carlo without removing existing entries.
 
 Gemini Smart transcription removes fillers, applies spoken corrections, and formats text; turn it off when preservation matters more than formatting.
-If both Smart and LLM enhancement are enabled, Capture explains the second cleanup pass and offers “Use Smart only.”
+If both Smart and LLM enhancement are enabled, Transcription explains the second cleanup pass and offers “Use Smart only.”
 Listen accepts Gemini-specific BCP-47 language hints such as `en-US, yue-Hant-HK`; leave them blank for automatic detection.
 Grok's “Keep filler words” and “Format numbers and currency” are independent controls; formatting uses the language in Listen.
 For Grok realtime, lowering the speech detection threshold may help quiet speech but can admit background noise; Smart Turn controls turn timing, not text cleanup.
@@ -20,7 +20,7 @@ Long history entries can be expanded with “Read full transcript.”
 
 ## Microphone processing
 
-Capture → Listen contains the shared audio controls for every provider and mode.
+Transcription → Listen contains the shared audio controls for every provider and mode.
 Input device lists physical microphones and excludes virtual audio drivers and temporary aggregate devices; System default follows the Mac's current input, while an explicit choice applies only to Vhrase's preview and dictation.
 The choice is saved by stable device identity and included in settings exports; a disconnected selection stays visible and must be replaced before capture can start.
 The live microphone preview shows separate microphone-input and after-processing levels while this panel is in the active window, without saving audio, creating a history entry, or contacting a provider.
@@ -30,7 +30,7 @@ Choose “Record 5-second test” and then “Play test” to hear the processed
 The test is held only in memory, discarded when leaving the panel or changing audio settings, and never added to transcript history or sent to an API.
 Microphone capture pauses during test playback to prevent feedback and resumes afterward; “Stop playback” ends the test early.
 Control changes refresh the preview automatically; leaving the panel, deactivating its window, or starting dictation releases the preview microphone.
-Returning to Vhrase resumes the visible preview; clicking Listen again, or Capture while Listen is already selected, explicitly reacquires the microphone after another app has used it.
+Returning to Vhrase resumes the visible preview; clicking Listen again, or Transcription while Listen is already selected, explicitly reacquires the microphone after another app has used it.
 Processing applies only to captured microphone samples; Vhrase does not enable Apple's duplex voice-processing mode or control speaker/headphone playback.
 Automatic volume leveling is on by default and uses SpeexDSP with a maximum 6 dB automatic boost and gradual gain changes.
 Volume adjustment defaults to 0 dB and allows a −6 to +6 dB trim after noise reduction, with PCM saturation protection.
@@ -70,7 +70,7 @@ Microphone, Input Monitoring, Screen Recording, and Accessibility can each produ
 
 ## Dictate
 
-Choose the provider and Upload or Realtime mode from the compact menu-bar controller or **Capture**.
+Choose the provider and Upload or Realtime mode from the compact menu-bar controller or **Transcription**.
 ElevenLabs uses `scribe_v2` for Upload and `scribe_v2_realtime` for Realtime; these transport-specific models are shown read-only so an unsupported combination cannot be saved.
 Start from the menu, **Dictate**, or the configured global shortcut.
 Tap the shortcut once to start and once to stop, or hold it to record only until release.
@@ -78,7 +78,7 @@ Double-tap the shortcut to polish selected text, or the entire focused editable 
 Vhrase replaces the source only if the same field, selection, and text remain unchanged while the LLM request is running.
 
 Vhrase remembers the external app that was active when recording began and returns the finalized transcript after restoring and confirming that target.
-The Output setting controls whether the transcript remains on the clipboard after insertion. When it is off, Vhrase restores the previous clipboard contents after sending the paste command.
+The Refinement setting controls whether the transcript remains on the clipboard after insertion. When it is off, Vhrase restores the previous clipboard contents after sending the paste command.
 If Accessibility or the target app is unavailable, the transcript stays on the clipboard as a safety fallback and Vhrase reports why it did not insert.
 
 ## Surfaces
@@ -86,8 +86,8 @@ If Accessibility or the target app is unavailable, the transcript stays on the c
 - **Floating recorder:** a small black pill at the bottom of the active screen, with six white audio bars while listening and a progress indicator while processing. Hover or click the waveform to reveal cancel and finish controls without taking focus from the target app. Completion briefly confirms delivery; right-click it to copy again. Errors expand to show the explanation and retry action. Transcript previews remain in Dictate and the menu bar rather than expanding the pill.
 - **Menu bar:** start capture, review compact activity stats, open the main window, and switch provider or mode when no workflow is active.
 - **Dictate:** current readiness, latest transcript, local activity, and the fastest route to capture or system controls.
-- **Capture:** one stage editor for the global shortcut, listening language, provider tuning, transport mode, and provider keyterms.
-- **Output:** one stage editor for exact replacements, optional LLM enhancement, delivery, and history saving.
+- **Transcription:** one stage editor for the global shortcut, listening language, provider tuning, transport mode, and provider keyterms.
+- **Refinement:** one page for the LLM model, shared vocabulary, writing preferences, and clipboard delivery.
 - **System:** Keychain credentials, macOS permissions, and actionable diagnostics.
 - **History:** saved-activity statistics plus searchable, copyable, and removable transcripts.
 
@@ -95,16 +95,20 @@ Workflow-shaping controls are locked while a recording or transcription is activ
 
 ## Cleanup And Chinese Output
 
-Replacement rules and OpenCC `s2hk` normalization run before optional LLM cleanup.
+Shared vocabulary supplies recognition hints and context-sensitive spelling references to LLM polishing; it does not perform automatic text substitutions.
+OpenCC `s2hk` normalization runs after optional LLM cleanup.
 Install `opencc` to normalize Chinese output to Hong Kong Traditional Chinese; when it is unavailable, Vhrase preserves the transcript and shows a warning.
 LLM cleanup uses the configured OpenAI-compatible endpoint and can include the recorded target-app identity as context.
 Screenshot context is off by default; enabling it captures only the main display, sends that image to the configured cleanup endpoint for the current transcript, and removes the disposable local capture immediately after it is read.
 If the LLM call fails, Vhrase uses deterministic local cleanup when that fallback is enabled; otherwise it preserves the raw transcript.
 
 Keyterms are validated against the selected provider and transport before recording can start.
-ElevenLabs keyterm prompting carries a 20% usage premium, which **Capture** calls out alongside its batch or realtime limits.
+ElevenLabs keyterm prompting carries a 20% usage premium, which **Transcription** calls out alongside its batch or realtime limits.
 
-Use **Check model access** in **Output** to send a minimal request through the configured model without running a transcription.
+Vocabulary can be edited alongside provider options in **Transcription → Transcribe** or writing options in **Refinement**; both edit the same saved list.
+Existing replacement-rule targets are migrated into vocabulary on upgrade or customization import.
+
+Use **Check model access** in **Refinement** to send a minimal request through the configured model without running a transcription.
 Import and Export move customization settings between machines without including API keys.
 Imports accept only regular JSON files up to 1 MiB and validate local settings, provider keyterm limits, and the LLM endpoint before changing anything.
 Before persisting an import, Vhrase shows the exact sensitive changes for review when the file changes the LLM endpoint or global shortcut, enables LLM cleanup or screenshot context, or retains finalized text on the clipboard.

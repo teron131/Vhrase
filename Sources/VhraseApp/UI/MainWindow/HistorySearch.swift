@@ -65,7 +65,8 @@ struct HistorySearch {
     calendar: Calendar = .current
   ) -> [TranscriptHistoryItem] {
     let filtered = items.filter { item in
-      dateFilter.includes(item.createdAt, relativeTo: now, calendar: calendar, customRange: customRange)
+      dateFilter.includes(
+        item.createdAt, relativeTo: now, calendar: calendar, customRange: customRange)
         && (provider.isEmpty
           || item.provider.localizedCaseInsensitiveCompare(provider) == .orderedSame)
     }
@@ -125,6 +126,22 @@ struct HistorySearch {
         || (left.score == right.score && left.item.createdAt > right.item.createdAt)
     }
     .map(\.item)
+  }
+
+  /// Keeps pagination on one immutable search result so rendering labels and rows never repeats lexical ranking.
+  struct Page {
+    let items: [TranscriptHistoryItem]
+    let matchCount: Int
+    let index: Int
+    let count: Int
+
+    init(matches: [TranscriptHistoryItem], requestedIndex: Int) {
+      matchCount = matches.count
+      count = max(1, (matchCount + HistorySearch.visibleLimit - 1) / HistorySearch.visibleLimit)
+      index = min(max(0, requestedIndex), count - 1)
+      items = Array(
+        matches.dropFirst(index * HistorySearch.visibleLimit).prefix(HistorySearch.visibleLimit))
+    }
   }
 
   private struct SearchDocument {

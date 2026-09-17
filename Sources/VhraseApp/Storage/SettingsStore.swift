@@ -11,6 +11,13 @@ final class SettingsStore {
 
   func load() -> DictationSettings {
     let fallback = DictationSettings.defaults
+    // Persist the vocabulary first so another launch cannot lose retired preferred spellings.
+    if let rules = defaults.string(forKey: "replacementRules") {
+      let vocabulary = DictationSettings.migratingVocabulary(
+        storedString("keyterms", fallback.keyterms), replacementRules: rules)
+      defaults.set(vocabulary, forKey: "keyterms")
+      defaults.removeObject(forKey: "replacementRules")
+    }
     var settings = DictationSettings(
       provider: STTProvider(rawValue: defaults.string(forKey: "provider") ?? "")
         ?? fallback.provider,
@@ -30,7 +37,6 @@ final class SettingsStore {
         "elevenLabsMinSilenceDuration", fallback.elevenLabsMinSilenceDuration, range: 50...2_000),
       language: storedString("language", fallback.language),
       keyterms: storedString("keyterms", fallback.keyterms),
-      replacementRules: storedString("replacementRules", fallback.replacementRules),
       includeFillerWords: bool("includeFillerWords", fallback.includeFillerWords),
       xaiRealtimeEndpointing: boundedInt(
         "xaiRealtimeEndpointing", fallback.xaiRealtimeEndpointing, range: 0...5_000),
@@ -110,7 +116,7 @@ final class SettingsStore {
     defaults.set(settings.elevenLabsMinSilenceDuration, forKey: "elevenLabsMinSilenceDuration")
     defaults.set(settings.language, forKey: "language")
     defaults.set(settings.keyterms, forKey: "keyterms")
-    defaults.set(settings.replacementRules, forKey: "replacementRules")
+    defaults.removeObject(forKey: "replacementRules")
     defaults.set(settings.includeFillerWords, forKey: "includeFillerWords")
     defaults.set(settings.xaiRealtimeEndpointing, forKey: "xaiRealtimeEndpointing")
     defaults.set(settings.xaiSmartTurnEnabled, forKey: "xaiSmartTurnEnabled")

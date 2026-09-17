@@ -7,9 +7,6 @@ enum PipelineStage: String, Hashable {
   case trigger
   case listen
   case transcribe
-  case correct
-  case enhance
-  case deliver
 }
 
 /// Describes one stage and the live state summarized in the workflow rail.

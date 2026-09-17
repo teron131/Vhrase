@@ -16,6 +16,13 @@ struct AdjustmentFallbackCheck {
     precondition(raw.warning.isEmpty)
     precondition(raw.cleanup == .raw)
 
+    let vocabularyOnly = try await finalize(
+      rawTranscript: "Send this to cloud fair.",
+      adjustWithLLM: false,
+      vocabulary: "Cloudflare"
+    )
+    precondition(vocabularyOnly.text == "Send this to cloud fair.")
+
     let fallback = try await finalize(
       rawTranscript: "  Custom dictation raw text.  ",
       useLocalFallback: false
@@ -215,6 +222,7 @@ struct AdjustmentFallbackCheck {
     rawTranscript: String,
     adjustment: AdjustmentExecution = .provider,
     adjustWithLLM: Bool = true,
+    vocabulary: String = "",
     includeScreenshot: Bool = false,
     useLocalFallback: Bool = false,
     chineseTextConverter: ChineseTextConverter? = nil,
@@ -224,6 +232,7 @@ struct AdjustmentFallbackCheck {
   ) async throws -> FinalizedTranscript {
     var settings = DictationSettings.defaults
     settings.adjustWithLLM = adjustWithLLM
+    settings.keyterms = vocabulary
     settings.includeScreenshot = includeScreenshot
     settings.useLocalAdjustmentFallback = useLocalFallback
     let converter =

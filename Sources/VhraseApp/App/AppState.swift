@@ -698,6 +698,9 @@ final class AppState: ObservableObject {
   func prepareForTermination() {
     guard ownsInstance else { return }
     escapeKeyMonitor.setEnabled(false, onEscape: {})
+    workflowOutcomeDismissTask?.cancel()
+    workflowOutcomeDismissTask = nil
+    audioInputPreview.stop()
     flushPendingAPIKeySave()
     textPolishID = nil
     textPolishTask?.cancel()

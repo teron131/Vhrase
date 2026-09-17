@@ -176,3 +176,15 @@ python3 scripts/live-adjustment-smoke.py --require-screenshot
 The adjustment smoke test resolves the matching `Vhrase` Keychain item before using a nonempty `LLM_API_KEY` environment fallback, reads nonsecret `adjustmentBaseURL` and `adjustmentModel` values from app defaults when present, captures `.cache/live-adjustment-smoke/screen.png` with macOS `screencapture`, sends the screenshot plus a sample transcript to `/chat/completions`, and checks that the adjusted text contains `OpenAI`.
 Unlike the app's opt-in disposable screenshot path, this explicit development smoke keeps its named screenshot artifact for inspection; pass `--no-screenshot` to avoid capture.
 The model-list check verifies that the current key can see configured language models before spending time debugging prompt or screenshot behavior.
+
+## UI and application lifecycle
+
+`AppLifecycle` owns the single-instance guard, app state, recorder panel, deferred credential loading, and normal termination cleanup.
+`VhraseApp` composes the main scene, menu-bar extra, and commands; `MainWindowCoordinator` owns first-launch visibility and the shared route used by menu actions and Command-comma.
+Closing or hiding the main window keeps the menu-bar app running, while normal application termination flushes credential edits and releases capture resources.
+
+`MainWindowView` retains sidebar selection, Transcription stage selection, activity range, and History browsing state across destination changes.
+`DictationView`, `CaptureView`, `OutputView`, `HistoryView`, and `SystemView` own their destination controls and display policy.
+The Transcription destination releases shortcut editing and microphone preview when leaving the destination or deactivating its window; System ends credential editing and flushes pending saves at those boundaries.
+`MainWindowEvents` scopes Escape and activation callbacks to the actual host window, and `MainWindowControls` contains only shared visual building blocks.
+The recorder's panel lifecycle belongs to `RecorderHUDPanelController`, separately from the SwiftUI pill content.

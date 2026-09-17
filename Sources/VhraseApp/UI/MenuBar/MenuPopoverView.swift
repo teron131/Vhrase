@@ -6,6 +6,7 @@ import SwiftUI
 struct MenuPopoverView: View {
   @ObservedObject var appState: AppState
   @Environment(\.openWindow) private var openWindow
+  @EnvironmentObject private var mainWindow: MainWindowCoordinator
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private var presentation: DictationPresentation {
@@ -328,7 +329,6 @@ struct MenuPopoverView: View {
         .frame(height: 16)
 
       Button {
-        appState.prepareForTermination()
         NSApplication.shared.terminate(nil)
       } label: {
         Image(systemName: "power")
@@ -421,11 +421,7 @@ struct MenuPopoverView: View {
   }
 
   private func openMainWindow(_ tab: MainWindowTab = .dictate) {
-    UserDefaults.standard.set(tab.rawValue, forKey: "mainWindow.selectedTab")
-    openWindow(id: "main")
-    DispatchQueue.main.async {
-      NSApplication.shared.activate()
-    }
+    mainWindow.open(tab, using: openWindow)
   }
 
 }
