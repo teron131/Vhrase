@@ -43,6 +43,12 @@ Every LLM completion request fixes `reasoning_effort` to `low`, including the mo
 Screenshot context is off by default and, when explicitly enabled, captures only the main display into a disposable cache directory, sends it as base64 PNG OpenAI-compatible `image_url` content to the configured adjustment endpoint, and removes the complete capture directory immediately afterward.
 Configured keyterms are included as preferred vocabulary spellings in the prompt, and replacement rules are applied before the LLM call.
 
+Automatic transcript cleanup and double-tap editor polishing share `PolishPreferences.systemInstruction`.
+Writing preferences, vocabulary, and additional instructions are sent in a system message; source text, application context, and any screenshot stay in the user message.
+The Natural default uses adaptive formatting and natural rewriting, sentence breaks, and paragraph structure.
+Reset restores only the writing preferences, preserving custom instructions, provider settings, model configuration, and credentials.
+Older settings and customization exports receive default writing preferences, and the previous built-in prompt is removed from the custom-instructions field while user-authored instructions are retained.
+
 Deterministic checks cover request shapes, ordered realtime accumulation, xAI chunk-final semantics, ElevenLabs multi-commit draining, documented errors, timeout, and cancellation.
 Live provider accuracy and service-side behavior still require the explicit generated-audio or microphone smokes in [Development](development.md), which may consume provider usage.
 

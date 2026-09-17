@@ -57,6 +57,30 @@ final class SettingsStore {
     if settings.hotkeyPreset == .custom, settings.customHotkey == nil {
       settings.hotkeyPreset = fallback.hotkeyPreset
     }
+    if settings.adjustmentPrompt == DictationSettings.legacyDefaultAdjustmentPrompt {
+      settings.adjustmentPrompt = ""
+    }
+    settings.polishPreferences = PolishPreferences(
+      rewriteLevel: enumValue(
+        "polishRewriteLevel", fallback.polishPreferences.rewriteLevel),
+      numberStyle: enumValue(
+        "polishNumberStyle", fallback.polishPreferences.numberStyle),
+      ordinalStyle: enumValue(
+        "polishOrdinalStyle", fallback.polishPreferences.ordinalStyle),
+      moneyStyle: enumValue(
+        "polishMoneyStyle", fallback.polishPreferences.moneyStyle),
+      unitStyle: enumValue(
+        "polishUnitStyle", fallback.polishPreferences.unitStyle),
+      contractionStyle: enumValue(
+        "polishContractionStyle", fallback.polishPreferences.contractionStyle),
+      sentenceStyle: enumValue(
+        "polishSentenceStyle", fallback.polishPreferences.sentenceStyle),
+      structureStyle: enumValue(
+        "polishStructureStyle", fallback.polishPreferences.structureStyle),
+      allowsLeadingConjunctions: bool(
+        "polishAllowsLeadingConjunctions",
+        fallback.polishPreferences.allowsLeadingConjunctions)
+    )
     settings.geminiSmartTranscription = bool(
       "geminiSmartTranscription", fallback.geminiSmartTranscription)
     settings.geminiLanguageHints = storedString("geminiLanguageHints", fallback.geminiLanguageHints)
@@ -98,6 +122,21 @@ final class SettingsStore {
     defaults.set(settings.adjustmentBaseURL, forKey: "adjustmentBaseURL")
     defaults.set(settings.adjustmentModel, forKey: "adjustmentModel")
     defaults.set(settings.adjustmentPrompt, forKey: "adjustmentPrompt")
+    defaults.set(settings.polishPreferences.rewriteLevel.rawValue, forKey: "polishRewriteLevel")
+    defaults.set(settings.polishPreferences.numberStyle.rawValue, forKey: "polishNumberStyle")
+    defaults.set(settings.polishPreferences.ordinalStyle.rawValue, forKey: "polishOrdinalStyle")
+    defaults.set(settings.polishPreferences.moneyStyle.rawValue, forKey: "polishMoneyStyle")
+    defaults.set(settings.polishPreferences.unitStyle.rawValue, forKey: "polishUnitStyle")
+    defaults.set(
+      settings.polishPreferences.contractionStyle.rawValue,
+      forKey: "polishContractionStyle")
+    defaults.set(settings.polishPreferences.sentenceStyle.rawValue, forKey: "polishSentenceStyle")
+    defaults.set(
+      settings.polishPreferences.structureStyle.rawValue,
+      forKey: "polishStructureStyle")
+    defaults.set(
+      settings.polishPreferences.allowsLeadingConjunctions,
+      forKey: "polishAllowsLeadingConjunctions")
     defaults.set(settings.includeScreenshot, forKey: "includeScreenshot")
     defaults.set(settings.hotkeyPreset.rawValue, forKey: "hotkeyPreset")
     saveCustomHotkey(settings.customHotkey)
@@ -121,6 +160,14 @@ final class SettingsStore {
       return fallback
     }
     return defaults.string(forKey: key) ?? fallback
+  }
+
+  private func enumValue<Value: RawRepresentable>(_ key: String, _ fallback: Value) -> Value
+  where Value.RawValue == String {
+    guard let rawValue = defaults.string(forKey: key), let value = Value(rawValue: rawValue) else {
+      return fallback
+    }
+    return value
   }
 
   private func bool(_ key: String, _ fallback: Bool) -> Bool {

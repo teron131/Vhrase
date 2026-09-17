@@ -1213,7 +1213,8 @@ final class AppState: ObservableObject {
     audioInputPreview.stop()
     let target: FocusedTextTarget
     let client: LLMAdjustmentClient
-    let model = settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
+    let polishSettings = settings
+    let model = polishSettings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
     do {
       target = try focusedTextService.capture()
       guard !model.isEmpty else {
@@ -1243,7 +1244,7 @@ final class AppState: ObservableObject {
         let replacement = try await client.polish(
           text: target.text,
           screenshotDataURL: screenshotDataURL,
-          model: model,
+          settings: polishSettings,
           app: target.app
         )
         try Task.checkCancellation()

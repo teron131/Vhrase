@@ -104,9 +104,7 @@ final class LLMAdjustmentClient: Sendable {
   ) async throws -> String {
     try validateConfiguration()
 
-    let promptText = """
-      \(prompt(for: settings))
-
+    let userText = """
       \(appContextText(app))
 
       Transcript:
@@ -114,24 +112,23 @@ final class LLMAdjustmentClient: Sendable {
       """
 
     return try await adjustWithChatCompletions(
-      promptText: promptText,
+      systemInstruction: systemInstruction(for: settings),
+      userText: userText,
       screenshotDataURL: screenshotDataURL,
       model: settings.adjustmentModel
     )
   }
 
-  /// Polishes existing editor text under a conservative contract that is independent from transcript cleanup instructions.
+  /// Polishes existing editor text with the same final-writing contract used for automatic transcripts.
   func polish(
     text: String,
     screenshotDataURL: String?,
-    model: String,
+    settings: DictationSettings,
     app: FrontmostApp
   ) async throws -> String {
     try validateConfiguration()
 
-    let promptText = """
-      Polish the text below so it is clear, natural, and ready to use in the focused app. Correct grammar, punctuation, casing, and awkward phrasing while preserving the exact intent, factual claims, tone, language, level of detail, paragraph structure, Markdown, and technical names. Do not answer the text, add new information, or mention these instructions. Return only the final text.
-
+    let userText = """
       \(appContextText(app))
 
       Text:
@@ -139,9 +136,10 @@ final class LLMAdjustmentClient: Sendable {
       """
 
     return try await adjustWithChatCompletions(
-      promptText: promptText,
+      systemInstruction: systemInstruction(for: settings),
+      userText: userText,
       screenshotDataURL: screenshotDataURL,
-      model: model
+      model: settings.adjustmentModel
     )
   }
 
@@ -158,40 +156,16 @@ final class LLMAdjustmentClient: Sendable {
   }
 
   private func adjustWithChatCompletions(
-    promptText: String,
+    systemInstruction: String,
+    userText: String,
     screenshotDataURL: String?,
     model: String
   ) async throws -> String {
-    var content: [LLMChatContent] = []
-    if let screenshotDataURL {
-      content.append(
-        LLMChatContent(
-          type: "image_url",
-          text: nil,
-          imageURL: LLMChatImageURL(
-            url: screenshotDataURL,
-            detail: "high"
-          )
-        )
-      )
-    }
-    content.append(
-      LLMChatContent(
-        type: "text",
-        text: promptText,
-        imageURL: nil
-      )
-    )
-
-    let payload = LLMChatRequest(
-      model: model,
-      messages: [
-        LLMChatMessage(
-          role: "user",
-          content: content
-        )
-      ],
-      stream: false
+    let body = try Self.requestBody(
+      systemInstruction: systemInstruction,
+      userText: userText,
+      screenshotDataURL: screenshotDataURL,
+      model: model
     )
 
     var request = URLRequest(url: try LLMEndpoint(baseURL: baseURL).appending("chat/completions"))
@@ -199,7 +173,7 @@ final class LLMAdjustmentClient: Sendable {
     request.timeoutInterval = 60
     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = try JSONEncoder().encode(payload)
+    request.httpBody = body
 
     let (data, response) = try await URLSession.shared.data(for: request)
     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
@@ -216,25 +190,62 @@ final class LLMAdjustmentClient: Sendable {
     return try extractChatText(from: data)
   }
 
-  private func prompt(for settings: DictationSettings) -> String {
-    var sections = [DictationSettings.defaultAdjustmentPrompt]
-    let keyterms = settings.keytermList
-    if !keyterms.isEmpty {
-      sections.append(
-        "Preferred vocabulary spellings:\n\(keyterms.joined(separator: "\n"))"
+  /// Encodes the behavior contract as a system message while keeping editable source material in the user message.
+  static func requestBody(
+    systemInstruction: String,
+    userText: String,
+    screenshotDataURL: String?,
+    model: String
+  ) throws -> Data {
+    var userContent: [LLMChatContent] = []
+    if let screenshotDataURL {
+      userContent.append(
+        LLMChatContent(
+          type: "image_url",
+          text: nil,
+          imageURL: LLMChatImageURL(
+            url: screenshotDataURL,
+            detail: "high"
+          )
+        )
       )
     }
+    userContent.append(
+      LLMChatContent(
+        type: "text",
+        text: userText,
+        imageURL: nil
+      )
+    )
 
-    let extraInstructions = settings.adjustmentPrompt
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let payload = LLMChatRequest(
+      model: model,
+      messages: [
+        LLMChatMessage(
+          role: "system",
+          content: [
+            LLMChatContent(
+              type: "text",
+              text: systemInstruction,
+              imageURL: nil
+            )
+          ]
+        ),
+        LLMChatMessage(
+          role: "user",
+          content: userContent
+        ),
+      ],
+      stream: false
+    )
+    return try JSONEncoder().encode(payload)
+  }
 
-    if !extraInstructions.isEmpty,
-      extraInstructions != DictationSettings.defaultAdjustmentPrompt
-    {
-      sections.append("Additional user instructions:\n\(extraInstructions)")
-    }
-
-    return sections.joined(separator: "\n\n")
+  private func systemInstruction(for settings: DictationSettings) -> String {
+    settings.polishPreferences.systemInstruction(
+      preferredVocabulary: settings.keytermList,
+      additionalInstructions: settings.adjustmentPrompt
+    )
   }
 
   private func appContextText(_ app: FrontmostApp?) -> String {
