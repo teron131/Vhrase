@@ -43,6 +43,20 @@ struct ProviderPicker: NSViewRepresentable {
     }
   }()
 
+  /// Reuses cached provider artwork for persisted history labels, including Smart and Realtime variants.
+  static func icon(forHistoryLabel label: String) -> NSImage? {
+    if label == "Local Demo" {
+      return NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: nil)
+    }
+    guard
+      let provider = providers.first(where: {
+        label == $0.title || label.hasPrefix("\($0.title) · ")
+          || label == "\($0.title) Realtime"
+      })
+    else { return nil }
+    return icons[provider]
+  }
+
   func makeCoordinator() -> Coordinator {
     Coordinator(selection: $selection)
   }
@@ -108,6 +122,45 @@ struct ProviderPicker: NSViewRepresentable {
       }
       guard ProviderPicker.providers.indices.contains(index) else { return }
       selection.wrappedValue = ProviderPicker.providers[index]
+    }
+  }
+}
+
+/// Uses native menu image slots so history filters retain provider artwork on macOS.
+struct HistoryProviderPicker: NSViewRepresentable {
+  @Binding var selection: String
+  let providers: [String]
+
+  func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
+
+  func makeNSView(context: Context) -> NSPopUpButton {
+    let menu = NSPopUpButton(frame: .zero, pullsDown: false)
+    menu.target = context.coordinator
+    menu.action = #selector(Coordinator.select(_:))
+    menu.setAccessibilityLabel("History provider filter")
+    return menu
+  }
+
+  func updateNSView(_ menu: NSPopUpButton, context: Context) {
+    context.coordinator.selection = $selection
+    let labels = ["All providers"] + providers
+    if menu.itemTitles != labels {
+      menu.removeAllItems()
+      for label in labels {
+        menu.addItem(withTitle: label)
+        menu.lastItem?.image = ProviderPicker.icon(forHistoryLabel: label)
+      }
+    }
+    menu.selectItem(at: providers.firstIndex(of: selection).map { $0 + 1 } ?? 0)
+  }
+
+  @MainActor
+  final class Coordinator: NSObject {
+    var selection: Binding<String>
+    init(selection: Binding<String>) { self.selection = selection }
+    @objc func select(_ sender: NSPopUpButton) {
+      selection.wrappedValue =
+        sender.indexOfSelectedItem == 0 ? "" : sender.titleOfSelectedItem ?? ""
     }
   }
 }

@@ -81,6 +81,7 @@ APP_CORE_CHECK_SOURCES=(
   Sources/VhraseApp/Storage/DictationActivityStore.swift
   Sources/VhraseApp/Storage/SettingsStore.swift
   Sources/VhraseApp/Storage/TranscriptHistoryStore.swift
+  Sources/VhraseApp/UI/MainWindow/HistorySearch.swift
 )
 APP_CORE_CHECKS=(
   scripts/checks/status-flow-check.swift
@@ -90,6 +91,7 @@ APP_CORE_CHECKS=(
   scripts/checks/polish-preferences-check.swift
   scripts/checks/customization-snapshot-check.swift
   scripts/checks/history-check.swift
+  scripts/checks/history-search-check.swift
   scripts/checks/demo-adjustment-check.swift
 )
 APP_PROVIDER_CHECK_SOURCES=(

@@ -1,7 +1,6 @@
 // Retains content-free daily totals independently of transcript history and derives usage estimates.
 
 import Foundation
-import NaturalLanguage
 
 struct DictationActivityDay: Codable {
   private static let typingWordsPerMinute = 55.0
@@ -57,15 +56,7 @@ final class DictationActivityStore {
     text: String, recordingSeconds: Double, processingSeconds: Double,
     settings: DictationSettings, days: [DictationActivityDay], now: Date = Date()
   ) -> [DictationActivityDay] {
-    let tokenizer = NLTokenizer(unit: .word)
-    tokenizer.string = text
-    var words = 0
-    tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
-      if text[range].unicodeScalars.contains(where: { CharacterSet.alphanumerics.contains($0) }) {
-        words += 1
-      }
-      return true
-    }
+    let words = TranscriptHistoryItem.countWords(in: text)
 
     let date = Calendar.current.startOfDay(for: now)
     let entry = DictationActivityDay(

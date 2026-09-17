@@ -628,18 +628,28 @@ extension MainWindowView {
     }
   }
 
-  var filteredHistory: [TranscriptHistoryItem] {
-    let query = historyQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !query.isEmpty else {
-      return appState.history
-    }
-    return appState.history.filter { item in
-      item.text.localizedCaseInsensitiveContains(query)
-        || item.provider.localizedCaseInsensitiveContains(query)
-        || item.transcriptionMode.localizedCaseInsensitiveContains(query)
-        || item.cleanup.title.localizedCaseInsensitiveContains(query)
-        || item.targetAppName?.localizedCaseInsensitiveContains(query) == true
-    }
+  var historyMatches: [TranscriptHistoryItem] {
+    HistorySearch.matches(
+      appState.history,
+      query: historyQuery,
+      dateFilter: historyDateFilter,
+      provider: historyProviderFilter,
+      customRange: Calendar.current.startOfDay(
+        for: historyStartDate)...Calendar.current.startOfDay(for: historyEndDate)
+    )
+  }
+
+  var visibleHistory: [TranscriptHistoryItem] {
+    let start = currentHistoryPage * HistorySearch.visibleLimit
+    return Array(historyMatches.dropFirst(start).prefix(HistorySearch.visibleLimit))
+  }
+
+  var historyPageCount: Int {
+    max(1, (historyMatches.count + HistorySearch.visibleLimit - 1) / HistorySearch.visibleLimit)
+  }
+
+  var currentHistoryPage: Int {
+    min(historyPageIndex, historyPageCount - 1)
   }
 
   var keytermGuidance: String {
