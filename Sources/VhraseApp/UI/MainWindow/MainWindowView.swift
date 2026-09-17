@@ -3,78 +3,27 @@
 import AppKit
 import SwiftUI
 
-enum MainWindowTab: String, CaseIterable, Hashable, Identifiable {
-  case dictate
-  case capture
-  case output
-  case history
-  case system
-
-  var id: String { rawValue }
-
-  init(storedRawValue: String) {
-    self = MainWindowTab(rawValue: storedRawValue) ?? .dictate
-  }
-
-  var title: String {
-    switch self {
-    case .dictate: "Dictate"
-    case .history: "History"
-    case .capture: "Capture"
-    case .output: "Output"
-    case .system: "System"
-    }
-  }
-
-  var detail: String {
-    switch self {
-    case .dictate: "Record and review"
-    case .history: "Saved transcripts"
-    case .capture: "Speech and shortcut"
-    case .output: "Delivery and cleanup"
-    case .system: "Access and readiness"
-    }
-  }
-
-  var systemImage: String {
-    switch self {
-    case .dictate: "waveform"
-    case .history: "clock.arrow.circlepath"
-    case .capture: "mic.and.signal.meter"
-    case .output: "text.badge.checkmark"
-    case .system: "wrench.and.screwdriver"
-    }
-  }
-}
-
 struct MainWindowView: View {
   @ObservedObject var appState: AppState
   @Environment(\.accessibilityReduceMotion) var reduceMotion
   @Environment(\.scenePhase) private var scenePhase
   @AppStorage("mainWindow.selectedTab") private var selectedTabRawValue = MainWindowTab.dictate
     .rawValue
-  @State var isCapturingHotkey = false
-  @State var isClearHistoryConfirmationPresented = false
-  @State var isOpenCCInstallConfirmationPresented = false
-  @State var historyQuery = ""
-  @State var historyDateFilter = HistoryDateFilter.anyTime
-  @State var historyStartDate = Calendar.current.startOfDay(for: Date())
-  @State var historyEndDate = Calendar.current.startOfDay(for: Date())
-  @State var historyProviderFilter = ""
-  @State var historyPageIndex = 0
+  @State private var historyBrowsing = HistoryBrowsingState()
   @State var activityRange = ActivityRange.week
-  @State var inputDevices: [AudioInputDevice] = []
-  @State var inputDeviceError = ""
   @State var hoveredTab: MainWindowTab?
   @State var selectedCapturePipelineStage = PipelineStage.transcribe
-  @State var selectedOutputPipelineStage = PipelineStage.enhance
-  @State var credentialFocusMonitor = CredentialFocusMonitor()
-  @FocusState var focusedSecretField: String?
   @Namespace var navigationSelection
 
   var selectedTab: MainWindowTab {
     get { MainWindowTab(storedRawValue: selectedTabRawValue) }
     nonmutating set { selectedTabRawValue = newValue.rawValue }
+  }
+
+  var presentation: DictationPresentation { appState.presentation }
+
+  private var selection: Binding<MainWindowTab> {
+    Binding(get: { selectedTab }, set: { selectedTab = $0 })
   }
 
   var body: some View {
@@ -98,69 +47,18 @@ struct MainWindowView: View {
     }
     .frame(minWidth: 1020, minHeight: 680)
     .tint(VhraseTheme.accent)
-    .background {
-      MainWindowEscapeMonitor {
-        guard !isCapturingHotkey,
-          !isClearHistoryConfirmationPresented,
-          !isOpenCCInstallConfirmationPresented
-        else {
-          return false
-        }
-        if !appState.handleEscapeCommand() {
-          let window =
-            NSApp.keyWindow ?? NSApp.mainWindow
-            ?? NSApp.windows.first { $0.isVisible && $0.canBecomeMain }
-          window?.orderOut(nil)
-        }
-        return true
-      }
-    }
     .animation(
       VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
       value: selectedTab
     )
-    .confirmationDialog(
-      "Install OpenCC?",
-      isPresented: $isOpenCCInstallConfirmationPresented,
-      titleVisibility: .visible
-    ) {
-      Button("Install with Homebrew") {
-        appState.installOpenCC()
-      }
-      Button("Cancel", role: .cancel) {}
-    } message: {
-      Text(
-        "Vhrase will run “brew install opencc”. Homebrew may download OpenCC and its required packages."
-      )
-    }
     .onAppear {
       if selectedTabRawValue != selectedTab.rawValue {
         selectedTabRawValue = selectedTab.rawValue
       }
       appState.refreshPermissions()
     }
-    .onChange(of: selectedTab) { oldTab, newTab in
-      if newTab != .capture {
-        cancelShortcutCaptureIfNeeded()
-      }
-      if oldTab == .system {
-        finishAPIKeyEditing()
-      }
-    }
-    .onChange(of: focusedSecretField) { _, field in
-      if field != nil {
-        credentialFocusMonitor.start(onOutsideClick: finishAPIKeyEditing)
-      }
-    }
     .onChange(of: scenePhase) { _, newPhase in
-      if newPhase == .active {
-        appState.refreshPermissions()
-        refreshInputDevices()
-      }
-    }
-    .onDisappear {
-      cancelShortcutCaptureIfNeeded()
-      finishAPIKeyEditing()
+      if newPhase == .active { appState.refreshPermissions() }
     }
     .task(id: appState.customizationNotice) {
       let notice = appState.customizationNotice
@@ -190,15 +88,17 @@ struct MainWindowView: View {
   private var content: some View {
     switch selectedTab {
     case .dictate:
-      dictationTab
+      DictationView(appState: appState, selectedTab: selection, activityRange: $activityRange)
     case .history:
-      historyTab
+      HistoryView(appState: appState, browsing: $historyBrowsing)
     case .capture:
-      captureTab
+      CaptureView(
+        appState: appState, selectedTab: selection,
+        selectedCapturePipelineStage: $selectedCapturePipelineStage)
     case .output:
-      outputTab
+      OutputView(appState: appState)
     case .system:
-      systemTab
+      SystemView(appState: appState, selectedTab: selection)
     }
   }
 }

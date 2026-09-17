@@ -1,4 +1,4 @@
-// Finalizes provider transcripts through replacement, conversion, adjustment, and validation policy.
+// Finalizes provider transcripts through LLM polishing, Chinese conversion, and validation policy.
 
 import Foundation
 
@@ -8,7 +8,6 @@ struct TranscriptFinalizer {
   let settings: DictationSettings
   let llmAPIKey: String
   let screenshotDataURLProvider: @Sendable () -> String?
-  let replacementProcessor: TextReplacementProcessor
   let chineseTextConverter: ChineseTextConverter
 
   init(
@@ -17,13 +16,11 @@ struct TranscriptFinalizer {
     screenshotDataURLProvider: @escaping @Sendable () -> String? = {
       ScreenContext().mainDisplayPNGDataURL()
     },
-    replacementProcessor: TextReplacementProcessor = TextReplacementProcessor(),
     chineseTextConverter: ChineseTextConverter = ChineseTextConverter()
   ) {
     self.settings = settings
     self.llmAPIKey = llmAPIKey
     self.screenshotDataURLProvider = screenshotDataURLProvider
-    self.replacementProcessor = replacementProcessor
     self.chineseTextConverter = chineseTextConverter
   }
 
@@ -35,10 +32,6 @@ struct TranscriptFinalizer {
     var finalText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
     var warnings: [String] = []
 
-    finalText =
-      replacementProcessor
-      .apply(settings.replacements, to: finalText)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
     try validateTranscript(finalText)
 
     var cleanup: TranscriptCleanup = .raw

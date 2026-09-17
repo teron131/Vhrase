@@ -2,8 +2,30 @@
 
 import SwiftUI
 
-extension MainWindowView {
-  var historyTab: some View {
+struct HistoryView: View {
+  @ObservedObject var appState: AppState
+  @Binding var browsing: HistoryBrowsingState
+  @State private var isClearHistoryConfirmationPresented = false
+  private var presentation: DictationPresentation { appState.presentation }
+
+  var body: some View {
+    let page = HistorySearch.Page(matches: historyMatches, requestedIndex: browsing.pageIndex)
+    return historyTab(page).mainWindowEvents(
+      appState: appState, blocksEscape: isClearHistoryConfirmationPresented)
+  }
+
+  private var historyMatches: [TranscriptHistoryItem] {
+    HistorySearch.matches(
+      appState.history,
+      query: browsing.query,
+      dateFilter: browsing.dateFilter,
+      provider: browsing.provider,
+      customRange: Calendar.current.startOfDay(
+        for: browsing.startDate)...Calendar.current.startOfDay(for: browsing.endDate)
+    )
+  }
+
+  private func historyTab(_ page: HistorySearch.Page) -> some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         HStack(alignment: .firstTextBaseline) {
@@ -26,29 +48,29 @@ extension MainWindowView {
         historyActivityCard
 
         HStack(alignment: .firstTextBaseline) {
-          sectionHeader("Recent transcripts", description: historyCountTitle)
+          sectionHeader("Recent transcripts", description: historyCountTitle(page))
           Spacer()
-          if historyPageCount > 1 {
+          if page.count > 1 {
             Button {
-              historyPageIndex = max(0, currentHistoryPage - 1)
+              browsing.pageIndex = max(0, page.index - 1)
             } label: {
               Label("Newer", systemImage: "chevron.left")
             }
             .buttonStyle(AccentLinkButtonStyle())
-            .disabled(currentHistoryPage == 0)
+            .disabled(page.index == 0)
 
-            Text("\(currentHistoryPage + 1) of \(historyPageCount)")
+            Text("\(page.index + 1) of \(page.count)")
               .font(VhraseFont.micro.monospacedDigit())
               .foregroundStyle(VhraseTheme.inkSecondary)
 
             Button {
-              historyPageIndex = min(historyPageCount - 1, currentHistoryPage + 1)
+              browsing.pageIndex = min(page.count - 1, page.index + 1)
             } label: {
               Label("Older", systemImage: "chevron.right")
                 .labelStyle(.titleAndIcon)
             }
             .buttonStyle(AccentLinkButtonStyle())
-            .disabled(currentHistoryPage == historyPageCount - 1)
+            .disabled(page.index == page.count - 1)
           }
           Button(role: .destructive) {
             isClearHistoryConfirmationPresented = true
@@ -61,26 +83,26 @@ extension MainWindowView {
 
         if !appState.history.isEmpty {
           historySearchControls
-          if historyDateFilter == .custom {
+          if browsing.dateFilter == .custom {
             HStack(spacing: 16) {
               DatePicker(
-                "From", selection: $historyStartDate, in: ...historyEndDate,
+                "From", selection: $browsing.startDate, in: ...browsing.endDate,
                 displayedComponents: .date)
               DatePicker(
-                "Through", selection: $historyEndDate, in: historyStartDate...,
+                "Through", selection: $browsing.endDate, in: browsing.startDate...,
                 displayedComponents: .date)
               Spacer()
             }
             .datePickerStyle(.field)
-            .onChange(of: historyStartDate) { _, _ in historyPageIndex = 0 }
-            .onChange(of: historyEndDate) { _, _ in historyPageIndex = 0 }
+            .onChange(of: browsing.startDate) { _, _ in browsing.pageIndex = 0 }
+            .onChange(of: browsing.endDate) { _, _ in browsing.pageIndex = 0 }
           }
         }
 
         if appState.history.isEmpty {
           historyEmptyState
             .frame(maxWidth: .infinity, minHeight: 220)
-        } else if historyMatches.isEmpty {
+        } else if page.matchCount == 0 {
           ContentUnavailableView(
             "No matching transcripts",
             systemImage: "magnifyingglass",
@@ -102,7 +124,7 @@ extension MainWindowView {
             Divider()
             ScrollView {
               LazyVStack(spacing: 0) {
-                ForEach(visibleHistory) { item in
+                ForEach(page.items) { item in
                   HistoryTranscriptRow(
                     item: item,
                     metadata: presentation.historyMetadata(item),
@@ -121,7 +143,7 @@ extension MainWindowView {
             RoundedRectangle(cornerRadius: VhraseTheme.sectionCornerRadius)
               .strokeBorder(VhraseTheme.hairline)
           }
-          .id(historyListIdentity)
+          .id(historyListIdentity(pageIndex: page.index))
         }
       }
       .frame(maxWidth: 1040, alignment: .topLeading)
@@ -140,33 +162,33 @@ extension MainWindowView {
     } message: {
       Text("This permanently deletes every saved transcript.")
     }
-    .onChange(of: historyQuery) { _, _ in
-      historyPageIndex = 0
+    .onChange(of: browsing.query) { _, _ in
+      browsing.pageIndex = 0
     }
-    .onChange(of: historyDateFilter) { _, _ in
-      historyPageIndex = 0
+    .onChange(of: browsing.dateFilter) { _, _ in
+      browsing.pageIndex = 0
     }
-    .onChange(of: historyProviderFilter) { _, _ in
-      historyPageIndex = 0
+    .onChange(of: browsing.provider) { _, _ in
+      browsing.pageIndex = 0
     }
     .onChange(of: appState.history.count) { _, _ in
-      historyPageIndex = min(historyPageIndex, historyPageCount - 1)
+      browsing.pageIndex = min(browsing.pageIndex, page.count - 1)
     }
   }
 
-  var historySearchControls: some View {
+  private var historySearchControls: some View {
     HStack(spacing: 10) {
       Image(systemName: "magnifyingglass")
         .foregroundStyle(VhraseTheme.inkSecondary)
         .accessibilityHidden(true)
 
-      TextField("Search all saved transcripts", text: $historyQuery)
+      TextField("Search all saved transcripts", text: $browsing.query)
         .textFieldStyle(.plain)
         .accessibilityLabel("Search transcript history")
 
-      if !historyQuery.isEmpty {
+      if !browsing.query.isEmpty {
         Button {
-          historyQuery = ""
+          browsing.query = ""
         } label: {
           Image(systemName: "xmark.circle.fill")
         }
@@ -178,7 +200,7 @@ extension MainWindowView {
 
       Divider().frame(height: 20)
 
-      Picker("Date", selection: $historyDateFilter) {
+      Picker("Date", selection: $browsing.dateFilter) {
         ForEach(HistoryDateFilter.allCases) { filter in
           Text(filter.title).tag(filter)
         }
@@ -188,7 +210,7 @@ extension MainWindowView {
       .fixedSize()
       .accessibilityLabel("History date filter")
 
-      HistoryProviderPicker(selection: $historyProviderFilter, providers: historyProviders)
+      HistoryProviderPicker(selection: $browsing.provider, providers: historyProviders)
         .fixedSize()
         .accessibilityLabel("History provider filter")
     }
@@ -197,7 +219,7 @@ extension MainWindowView {
     .insetField()
   }
 
-  var historyStatsCard: some View {
+  private var historyStatsCard: some View {
     HStack(spacing: 18) {
       HistoryMetric(
         value: "\(appState.transcriptsTodayCount)",
@@ -226,7 +248,7 @@ extension MainWindowView {
     .contentSection()
   }
 
-  var historyActivityCard: some View {
+  private var historyActivityCard: some View {
     VStack(alignment: .leading, spacing: 16) {
       sectionHeader("Last 7 days", description: "Saved dictations by day.")
       HistoryActivityChart(days: historyDays)
@@ -236,7 +258,7 @@ extension MainWindowView {
   }
 
   @ViewBuilder
-  var historyEmptyState: some View {
+  private var historyEmptyState: some View {
     ContentUnavailableView {
       Label("No saved transcripts", systemImage: "text.bubble")
         .foregroundStyle(VhraseTheme.accent)
@@ -300,23 +322,23 @@ extension MainWindowView {
     }
   }
 
-  private var historyCountTitle: String {
+  private func historyCountTitle(_ page: HistorySearch.Page) -> String {
     if appState.history.isEmpty {
       return "Nothing saved"
     }
-    guard !historyMatches.isEmpty else {
+    guard page.matchCount > 0 else {
       return "No results"
     }
-    let start = currentHistoryPage * HistorySearch.visibleLimit + 1
-    let end = start + visibleHistory.count - 1
-    let resultLabel = historyMatches.count == 1 ? "result" : "results"
-    if historyQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-      historyDateFilter == .anyTime,
-      historyProviderFilter.isEmpty
+    let start = page.index * HistorySearch.visibleLimit + 1
+    let end = start + page.items.count - 1
+    let resultLabel = page.matchCount == 1 ? "result" : "results"
+    if browsing.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      browsing.dateFilter == .anyTime,
+      browsing.provider.isEmpty
     {
       return "\(start)–\(end) of \(appState.history.count)"
     }
-    return "\(start)–\(end) of \(historyMatches.count) \(resultLabel)"
+    return "\(start)–\(end) of \(page.matchCount) \(resultLabel)"
   }
 
   private var historyProviders: [String] {
@@ -325,8 +347,8 @@ extension MainWindowView {
     }
   }
 
-  private var historyListIdentity: String {
-    "\(currentHistoryPage)|\(historyQuery)|\(historyDateFilter.rawValue)|\(historyProviderFilter)|\(historyStartDate)|\(historyEndDate)"
+  private func historyListIdentity(pageIndex: Int) -> String {
+    "\(pageIndex)|\(browsing.query)|\(browsing.dateFilter.rawValue)|\(browsing.provider)|\(browsing.startDate)|\(browsing.endDate)"
   }
 }
 
@@ -513,4 +535,14 @@ private struct HistoryTranscriptRow: View {
   private func seconds(_ value: Double?) -> String {
     value.map { "\($0.formatted(.number.precision(.fractionLength(2)))) s" } ?? "—"
   }
+}
+
+/// Retains archive navigation for the lifetime of the main window without retaining active view resources.
+struct HistoryBrowsingState {
+  var query = ""
+  var dateFilter = HistoryDateFilter.anyTime
+  var startDate = Calendar.current.startOfDay(for: Date())
+  var endDate = Calendar.current.startOfDay(for: Date())
+  var provider = ""
+  var pageIndex = 0
 }

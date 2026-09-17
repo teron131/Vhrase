@@ -33,13 +33,13 @@ Normal Finder and menu-bar launches prefer saved Keychain credentials before usi
 
 `Sources/VhraseApp` is grouped by ownership:
 
-- `App`: SwiftUI entrypoint and app-state orchestration.
+- `App`: scene composition, process launch/termination, and dictation workflow orchestration.
 - `Domain`: validated settings, shortcuts, workflow status, and transcript contracts.
-- `UI`: main window, menu-bar pop-up, and recorder HUD surfaces.
+- `UI`: main window, menu-bar pop-up, and recorder HUD surfaces; each main-window destination owns its controls and temporary editing lifecycle.
 - `Transcription/Audio`: microphone capture and PCM conversion.
 - `Transcription/Upload`: multipart upload provider adapters.
 - `Transcription/Realtime`: WebSocket sessions and ordered transcript accumulation.
-- `Adjustment`: LLM adjustment, local cleanup fallback, and replacement rules.
+- `Adjustment`: LLM polishing with shared vocabulary, Chinese conversion, and local cleanup fallback.
 - `System`: macOS permissions, hotkeys, frontmost app context, screenshots, and text insertion.
 - `Storage`: Keychain, settings, and transcript-history persistence.
 

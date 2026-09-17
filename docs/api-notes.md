@@ -41,7 +41,7 @@ LLM adjustment uses `POST {adjustmentBaseURL}/chat/completions`.
 The default base URL is `https://ai-gateway.vercel.sh/v1`, and the saved LLM API key uses the `LLM_API_KEY` Keychain account.
 Every LLM completion request fixes `reasoning_effort` to `low`, including the model-access check.
 Screenshot context is off by default and, when explicitly enabled, captures only the main display into a disposable cache directory, sends it as base64 PNG OpenAI-compatible `image_url` content to the configured adjustment endpoint, and removes the complete capture directory immediately afterward.
-Configured keyterms are included as preferred vocabulary spellings in the prompt, and replacement rules are applied before the LLM call.
+The shared vocabulary is included in the LLM prompt as reference spellings to use only when supported by the source context; Vhrase does not force vocabulary terms into the text or apply literal replacement rules.
 
 Automatic transcript cleanup and double-tap editor polishing share `PolishPreferences.systemInstruction`.
 Writing preferences, vocabulary, and additional instructions are sent in a system message; source text, application context, and any screenshot stay in the user message.

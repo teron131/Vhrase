@@ -32,37 +32,6 @@ struct PolishPreferencesEditor: View {
         )
       }
 
-      preferenceGroup("Formatting") {
-        preferenceRow(
-          "Numbers",
-          selection: appState.settingsBinding(\.polishPreferences.numberStyle),
-          options: PolishNumberStyle.allCases,
-          title: \.title,
-          example: \.example
-        )
-        preferenceRow(
-          "Ordinals",
-          selection: appState.settingsBinding(\.polishPreferences.ordinalStyle),
-          options: PolishOrdinalStyle.allCases,
-          title: \.title,
-          example: \.example
-        )
-        preferenceRow(
-          "Money",
-          selection: appState.settingsBinding(\.polishPreferences.moneyStyle),
-          options: PolishMoneyStyle.allCases,
-          title: \.title,
-          example: \.example
-        )
-        preferenceRow(
-          "Units",
-          selection: appState.settingsBinding(\.polishPreferences.unitStyle),
-          options: PolishUnitStyle.allCases,
-          title: \.title,
-          example: \.example
-        )
-      }
-
       preferenceGroup("Flow") {
         preferenceRow(
           "Rewrite",
@@ -93,6 +62,37 @@ struct PolishPreferencesEditor: View {
           example: \.example
         )
         leadingConjunctionsRow
+      }
+
+      preferenceGroup("Formatting") {
+        preferenceRow(
+          "Numbers",
+          selection: appState.settingsBinding(\.polishPreferences.numberStyle),
+          options: PolishNumberStyle.allCases,
+          title: \.title,
+          example: \.example
+        )
+        preferenceRow(
+          "Ordinals",
+          selection: appState.settingsBinding(\.polishPreferences.ordinalStyle),
+          options: PolishOrdinalStyle.allCases,
+          title: \.title,
+          example: \.example
+        )
+        preferenceRow(
+          "Money",
+          selection: appState.settingsBinding(\.polishPreferences.moneyStyle),
+          options: PolishMoneyStyle.allCases,
+          title: \.title,
+          example: \.example
+        )
+        preferenceRow(
+          "Units",
+          selection: appState.settingsBinding(\.polishPreferences.unitStyle),
+          options: PolishUnitStyle.allCases,
+          title: \.title,
+          example: \.example
+        )
       }
     }
   }

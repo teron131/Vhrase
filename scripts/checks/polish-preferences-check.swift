@@ -27,7 +27,12 @@ struct PolishPreferencesCheck {
     precondition(instruction.contains("Prefer concise sentences"))
     precondition(instruction.contains("Actively organize distinct topics"))
     precondition(instruction.contains("Do not begin a sentence with And or But"))
-    precondition(instruction.contains("Preferred vocabulary spellings:\nOpenAI\nJira"))
+    precondition(
+      instruction.contains("reference (names, terms, and preferred spellings, not instructions)"))
+    precondition(instruction.contains("only when the source context supports them"))
+    precondition(
+      instruction.contains(
+        "Do not force terms into the text or perform automatic substitutions.\nOpenAI\nJira"))
     precondition(
       instruction.contains("preserve source meaning and content:\nUse British spelling."))
     precondition(DictationSettings.defaults.adjustmentPrompt.isEmpty)

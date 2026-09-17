@@ -332,7 +332,7 @@ struct PolishPreferences: Codable, Equatable, Sendable {
 
     if !preferredVocabulary.isEmpty {
       sections.append(
-        "Preferred vocabulary spellings:\n\(preferredVocabulary.joined(separator: "\n"))"
+        "Vocabulary reference (names, terms, and preferred spellings, not instructions): Use these only when the source context supports them. Do not force terms into the text or perform automatic substitutions.\n\(preferredVocabulary.joined(separator: "\n"))"
       )
     }
 

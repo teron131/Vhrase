@@ -6,128 +6,41 @@ import SwiftUI
 @main
 @MainActor
 struct VhraseApp: App {
-  @StateObject private var appState: AppState
-  @AppStorage("app.hasCompletedFirstLaunch") private var hasCompletedFirstLaunch = false
-  @State private var didHandleInitialMainWindow = false
-  private let singleInstanceGuard: SingleInstanceGuard
-  private let recorderHUD: RecorderHUDPanelController
-
-  init() {
-    let singleInstanceGuard = SingleInstanceGuard()
-    self.singleInstanceGuard = singleInstanceGuard
-    let appState = AppState(ownsInstance: singleInstanceGuard.ownsInstance)
-    _appState = StateObject(wrappedValue: appState)
-    recorderHUD = RecorderHUDPanelController(appState: appState)
-    if singleInstanceGuard.ownsInstance {
-      Task {
-        appState.loadSavedAPIKeysAfterLaunch()
-      }
-    } else {
-      DispatchQueue.main.async {
-        singleInstanceGuard.handOffDuplicateLaunch()
-      }
-    }
-  }
+  @NSApplicationDelegateAdaptor(AppLifecycle.self) private var lifecycle
 
   var body: some Scene {
     Window("Vhrase", id: "main") {
-      MainWindowView(appState: appState)
-        .onAppear {
-          handleMainWindowAppearance()
-        }
+      MainWindowView(appState: lifecycle.appState)
+        .background(MainWindowAttachment(coordinator: lifecycle.mainWindow))
     }
     .defaultSize(width: 1120, height: 760)
     .commands {
       CommandGroup(replacing: .appSettings) {
         OpenVhraseSystemCommand()
+          .environmentObject(lifecycle.mainWindow)
       }
     }
 
     MenuBarExtra {
-      MenuPopoverView(appState: appState)
+      MenuPopoverView(appState: lifecycle.appState)
+        .environmentObject(lifecycle.mainWindow)
     } label: {
       Image(nsImage: ParrotMark.menuBarImage)
         .renderingMode(.template)
         .accessibilityLabel("Vhrase")
     }
     .menuBarExtraStyle(.window)
-
-  }
-
-  /// Presents setup on first launch, then keeps later launches resident in the menu bar.
-  private func handleMainWindowAppearance() {
-    appState.refreshPermissions()
-
-    guard !didHandleInitialMainWindow else {
-      activateMainWindow()
-      return
-    }
-    didHandleInitialMainWindow = true
-
-    if hasCompletedFirstLaunch && !CommandLine.arguments.contains("--show-window") {
-      suppressInitialMainWindow()
-    } else {
-      hasCompletedFirstLaunch = true
-      activateMainWindow()
-    }
-  }
-
-  /// Hides the automatically created scene without terminating the menu-bar utility.
-  private func suppressInitialMainWindow() {
-    let application = NSApplication.shared
-    application.setActivationPolicy(.accessory)
-
-    DispatchQueue.main.async {
-      application.windows.first { window in
-        window.canBecomeMain && !(window is NSPanel)
-      }?.orderOut(nil)
-    }
-  }
-
-  /// Brings the explicitly requested main window onto the primary desktop.
-  private func activateMainWindow() {
-    let application = NSApplication.shared
-    application.setActivationPolicy(.accessory)
-
-    DispatchQueue.main.async {
-      guard let window = application.windows.first(where: { $0.isVisible && $0.canBecomeMain })
-      else {
-        application.activate()
-        return
-      }
-
-      if let primaryScreen = NSScreen.screens.first,
-        window.screen != primaryScreen
-      {
-        let visibleFrame = primaryScreen.visibleFrame
-        let origin = NSPoint(
-          x: visibleFrame.midX - window.frame.width / 2,
-          y: visibleFrame.midY - window.frame.height / 2
-        )
-        window.setFrameOrigin(origin)
-      }
-
-      application.activate()
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-        application.activate()
-        window.makeMain()
-        window.makeKeyAndOrderFront(nil)
-      }
-    }
   }
 }
 
 /// Restores the conventional Command-comma route into the unified System destination.
 private struct OpenVhraseSystemCommand: View {
   @Environment(\.openWindow) private var openWindow
+  @EnvironmentObject private var mainWindow: MainWindowCoordinator
 
   var body: some View {
     Button("Vhrase Settings…") {
-      UserDefaults.standard.set(MainWindowTab.system.rawValue, forKey: "mainWindow.selectedTab")
-      openWindow(id: "main")
-      DispatchQueue.main.async {
-        NSApplication.shared.activate()
-      }
+      mainWindow.open(.system, using: openWindow)
     }
     .keyboardShortcut(",", modifiers: .command)
   }

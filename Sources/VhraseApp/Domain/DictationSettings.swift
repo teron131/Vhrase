@@ -76,7 +76,6 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var elevenLabsMinSilenceDuration: Int
   var language: String
   var keyterms: String
-  var replacementRules: String
   var includeFillerWords: Bool
   var xaiRealtimeEndpointing: Int
   var xaiSmartTurnEnabled: Bool
@@ -117,7 +116,6 @@ struct DictationSettings: Codable, Equatable, Sendable {
     elevenLabsMinSilenceDuration: 100,
     language: "en",
     keyterms: "",
-    replacementRules: "",
     includeFillerWords: false,
     xaiRealtimeEndpointing: 500,
     xaiSmartTurnEnabled: false,
@@ -171,10 +169,27 @@ struct DictationSettings: Codable, Equatable, Sendable {
     }
   }
 
-  var replacements: [TextReplacement] {
-    replacementRules
-      .split(whereSeparator: \.isNewline)
-      .compactMap { TextReplacement(rule: String($0)) }
+  /// Converts retired substitution targets into reference vocabulary without retaining executable replacement rules.
+  static func migratingVocabulary(_ vocabulary: String, replacementRules: String) -> String {
+    let targets = replacementRules.split(whereSeparator: \.isNewline).compactMap {
+      line -> String? in
+      let rule = String(line)
+      let separators = ["=>", "->", "="]
+      guard let range = separators.lazy.compactMap({ rule.range(of: $0) }).first else { return nil }
+      let source = rule[..<range.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+      let target = rule[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+      return source.isEmpty || target.isEmpty ? nil : target
+    }
+    guard !targets.isEmpty else { return vocabulary }
+    var seen = Set<String>()
+    return (vocabulary.components(separatedBy: .newlines) + targets)
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty && seen.insert($0).inserted }
+      .joined(separator: "\n")
+  }
+
+  private enum RetiredKeys: String, CodingKey {
+    case replacementRules
   }
 
   var recognitionLanguage: String {
@@ -242,7 +257,6 @@ extension DictationSettings {
     case elevenLabsMinSilenceDuration
     case language
     case keyterms
-    case replacementRules
     case includeFillerWords
     case xaiRealtimeEndpointing
     case xaiSmartTurnEnabled
@@ -284,7 +298,10 @@ extension DictationSettings {
       Int.self, forKey: .elevenLabsMinSilenceDuration)
     language = try values.decode(String.self, forKey: .language)
     keyterms = try values.decode(String.self, forKey: .keyterms)
-    replacementRules = try values.decode(String.self, forKey: .replacementRules)
+    let retired = try decoder.container(keyedBy: RetiredKeys.self)
+    if let rules = try retired.decodeIfPresent(String.self, forKey: .replacementRules) {
+      keyterms = Self.migratingVocabulary(keyterms, replacementRules: rules)
+    }
     includeFillerWords = try values.decode(Bool.self, forKey: .includeFillerWords)
     xaiRealtimeEndpointing = try values.decode(Int.self, forKey: .xaiRealtimeEndpointing)
     xaiSmartTurnEnabled = try values.decode(Bool.self, forKey: .xaiSmartTurnEnabled)
@@ -330,27 +347,5 @@ private struct ConfigurationValidationError: LocalizedError {
 
   var errorDescription: String? {
     message
-  }
-}
-
-struct TextReplacement: Sendable {
-  let source: String
-  let target: String
-
-  /// Splits at the first occurrence of the highest-priority delimiter, preserving delimiters in the replacement text.
-  init?(rule: String) {
-    let separators = ["=>", "->", "="]
-    guard let range = separators.lazy.compactMap({ rule.range(of: $0) }).first else {
-      return nil
-    }
-
-    let source = rule[..<range.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
-    let target = rule[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !source.isEmpty, !target.isEmpty else {
-      return nil
-    }
-
-    self.source = source
-    self.target = target
   }
 }
