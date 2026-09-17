@@ -50,6 +50,7 @@ fi
 echo "==> Running focused Swift checks"
 APP_DOMAIN_SOURCES=(
   Sources/VhraseApp/Domain/DictationSettings.swift
+  Sources/VhraseApp/Domain/PolishPreferences.swift
   Sources/VhraseApp/Domain/Shortcut.swift
   Sources/VhraseApp/Domain/Transcript.swift
   Sources/VhraseApp/Domain/WorkflowStatus.swift
@@ -86,6 +87,7 @@ APP_CORE_CHECKS=(
   scripts/checks/shortcut-behavior-check.swift
   scripts/checks/dictation-activity-check.swift
   scripts/checks/replacement-rules-check.swift
+  scripts/checks/polish-preferences-check.swift
   scripts/checks/customization-snapshot-check.swift
   scripts/checks/history-check.swift
   scripts/checks/demo-adjustment-check.swift
@@ -128,6 +130,7 @@ APP_FINALIZATION_CHECK_SOURCES=(
 )
 APP_FINALIZATION_CHECKS=(
   scripts/checks/adjustment-fallback-check.swift
+  scripts/checks/llm-adjustment-request-check.swift
   scripts/checks/opencc-installer-check.swift
 )
 APP_CREDENTIAL_CHECK_SOURCES=(

@@ -134,58 +134,12 @@ extension MainWindowView {
     ]
   }
 
-  /// Maps finalization settings onto Correct → Enhance → Deliver without repeating Capture controls.
-  var outputPipelineNodes: [PipelineFlowNode] {
-    var enhancementDetails: [String] = []
-    if appState.settings.includeScreenshot {
-      enhancementDetails.append("Screen context")
-    }
-    if appState.settings.useLocalAdjustmentFallback {
-      enhancementDetails.append("Local fallback")
-    }
-    var deliveryDetails: [String] = []
-    if appState.settings.keepTranscriptOnClipboard {
-      deliveryDetails.append("Kept on clipboard")
-    }
-    if appState.savesTranscriptHistory {
-      deliveryDetails.append("Saved to history")
-    }
-
-    let replacementCount = appState.settings.replacements.count
-    return [
-      PipelineFlowNode(
-        id: .correct,
-        systemImage: "text.badge.checkmark",
-        title: "Correct",
-        detail: replacementCount == 0
-          ? "No exact replacements"
-          : "\(replacementCount) exact \(replacementCount == 1 ? "replacement" : "replacements")",
-        isActive: replacementCount > 0,
-        isOptional: true
-      ),
-      PipelineFlowNode(
-        id: .enhance,
-        systemImage: "wand.and.stars",
-        title: "Enhance",
-        detail: appState.settings.adjustWithLLM
-          ? (appState.settings.adjustmentModel.isEmpty
-            ? "LLM enabled" : appState.settings.adjustmentModel)
-          : "Raw transcript passes through",
-        badge: enhancementDetails.isEmpty
-          ? nil
-          : enhancementDetails.joined(separator: " · "),
-        isActive: appState.settings.adjustWithLLM,
-        isOptional: true
-      ),
-      PipelineFlowNode(
-        id: .deliver,
-        systemImage: "text.insert",
-        title: "Deliver",
-        detail: "Return to active app",
-        badge: deliveryDetails.isEmpty
-          ? nil
-          : deliveryDetails.joined(separator: " · ")
-      ),
+  /// Output tabs need stable labels, independent of the live summaries shown in Capture's rail.
+  var outputStages: [(id: PipelineStage, systemImage: String, title: String)] {
+    [
+      (.correct, "text.badge.checkmark", "Correct"),
+      (.enhance, "wand.and.stars", "Polish"),
+      (.deliver, "text.insert", "Deliver"),
     ]
   }
 

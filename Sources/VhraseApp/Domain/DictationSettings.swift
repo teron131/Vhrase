@@ -88,6 +88,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var adjustmentBaseURL: String
   var adjustmentModel: String
   var adjustmentPrompt: String
+  var polishPreferences: PolishPreferences = .defaults
   var includeScreenshot: Bool
   var hotkeyPreset: HotkeyPreset
   var customHotkey: CustomHotkey?
@@ -100,9 +101,10 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var noiseReductionDB: Double = 6
   var inputDeviceUID: String = ""
 
-  static let defaultAdjustmentPrompt = """
+  static let legacyDefaultAdjustmentPrompt = """
     Rewrite the transcript into polished text that is ready to insert into the active app. Fix obvious speech-to-text mistakes, punctuation, casing, and awkward phrasing while preserving intent. Use the screenshot only as context. Return only the final text.
     """
+  static let defaultAdjustmentPrompt = ""
 
   static let defaults = DictationSettings(
     provider: .xai,
@@ -252,6 +254,7 @@ extension DictationSettings {
     case adjustmentBaseURL
     case adjustmentModel
     case adjustmentPrompt
+    case polishPreferences
     case includeScreenshot
     case hotkeyPreset
     case customHotkey
@@ -293,6 +296,12 @@ extension DictationSettings {
     adjustmentBaseURL = try values.decode(String.self, forKey: .adjustmentBaseURL)
     adjustmentModel = try values.decode(String.self, forKey: .adjustmentModel)
     adjustmentPrompt = try values.decode(String.self, forKey: .adjustmentPrompt)
+    if adjustmentPrompt == Self.legacyDefaultAdjustmentPrompt {
+      adjustmentPrompt = ""
+    }
+    polishPreferences =
+      try values.decodeIfPresent(
+        PolishPreferences.self, forKey: .polishPreferences) ?? .defaults
     includeScreenshot = try values.decode(Bool.self, forKey: .includeScreenshot)
     hotkeyPreset = try values.decode(HotkeyPreset.self, forKey: .hotkeyPreset)
     customHotkey = try values.decodeIfPresent(CustomHotkey.self, forKey: .customHotkey)

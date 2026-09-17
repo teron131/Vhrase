@@ -12,6 +12,8 @@ struct CustomizationSnapshotCheck {
     settings.keyterms = "OpenAI\nxAI"
     settings.replacementRules = "open AI => OpenAI"
     settings.adjustmentPrompt = "Keep identifiers intact."
+    settings.polishPreferences.moneyStyle = .symbols
+    settings.polishPreferences.unitStyle = .spelledOut
     settings.keepTranscriptOnClipboard = true
     settings.automaticVolumeLeveling = false
     settings.inputGainDB = -3
@@ -37,7 +39,10 @@ struct CustomizationSnapshotCheck {
 
     var oldExport = try JSONSerialization.jsonObject(with: data) as! [String: Any]
     var oldSettings = oldExport["settings"] as! [String: Any]
-    for key in ["automaticVolumeLeveling", "inputGainDB", "noiseReductionDB", "inputDeviceUID"] {
+    for key in [
+      "automaticVolumeLeveling", "inputGainDB", "noiseReductionDB", "inputDeviceUID",
+      "polishPreferences",
+    ] {
       oldSettings.removeValue(forKey: key)
     }
     oldExport["settings"] = oldSettings
@@ -47,6 +52,7 @@ struct CustomizationSnapshotCheck {
     precondition(migrated.settings.inputGainDB == 0 && migrated.settings.noiseReductionDB == 6)
     precondition(migrated.settings.keyterms == settings.keyterms)
     precondition(migrated.settings.inputDeviceUID.isEmpty)
+    precondition(migrated.settings.polishPreferences == .defaults)
 
     var invalidSettings = decoded.settings
     invalidSettings.elevenLabsVADThreshold = 1.1
@@ -67,6 +73,8 @@ struct CustomizationSnapshotCheck {
     store.save(settings)
     precondition(store.load().language.isEmpty)
     precondition(store.load().keepTranscriptOnClipboard)
+    precondition(store.load().polishPreferences.moneyStyle == .symbols)
+    precondition(store.load().polishPreferences.unitStyle == .spelledOut)
     precondition(store.load().automaticVolumeLeveling == settings.automaticVolumeLeveling)
     precondition(store.load().inputGainDB == -3 && store.load().noiseReductionDB == 9)
     precondition(store.load().inputDeviceUID == "test-microphone-uid")

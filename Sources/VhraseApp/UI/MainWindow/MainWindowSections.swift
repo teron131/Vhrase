@@ -487,15 +487,29 @@ extension MainWindowView {
           customizationActions
         }
 
-        workflowEditor(
-          "Output workflow",
-          description:
-            "Corrections run first, LLM enhancement is optional, and delivery completes the path.",
-          nodes: outputPipelineNodes,
-          selection: $selectedOutputPipelineStage
-        ) {
-          outputWorkflowStageEditor
+        HStack(spacing: 8) {
+          ForEach(outputStages, id: \.id) { node in
+            Button {
+              selectedOutputPipelineStage = node.id
+            } label: {
+              Label(node.title, systemImage: node.systemImage)
+                .font(.callout.weight(.medium))
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .foregroundStyle(
+                  selectedOutputPipelineStage == node.id ? VhraseTheme.accent : Color.secondary
+                )
+                .background(
+                  selectedOutputPipelineStage == node.id ? VhraseTheme.accentSubtle : Color.clear,
+                  in: RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(selectedOutputPipelineStage == node.id ? "Selected" : "")
+          }
+          Spacer()
         }
+        Divider()
+        outputWorkflowStageEditor
       }
       .frame(maxWidth: 1040, alignment: .topLeading)
       .padding(32)
@@ -761,63 +775,72 @@ extension MainWindowView {
 
   var enhancementStageSettings: some View {
     VStack(alignment: .leading, spacing: 16) {
-      workflowStageHeader(
-        "Enhance",
-        description: "Configure shortcut polishing and optional transcript enhancement.",
-        systemImage: "wand.and.stars"
-      )
-
-      compactField("Model", text: appState.settingsBinding(\.adjustmentModel))
-
-      settingsToggle(
-        "Use screen context",
-        detail:
-          "Send a screenshot to the configured LLM endpoint when polishing text or enhancing a transcript.",
-        isOn: appState.settingsBinding(\.includeScreenshot)
-      )
-
-      Button {
-        appState.checkLLMModelAccess()
-      } label: {
-        Label(
-          appState.isCheckingLLMModelAccess ? "Checking model…" : "Check model access",
-          systemImage: "checkmark.seal"
+      HStack {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Polish new transcripts automatically")
+          Text("Double-tap polishing uses the same writing preferences.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Toggle(
+          "Polish new transcripts automatically", isOn: appState.settingsBinding(\.adjustWithLLM)
         )
+        .labelsHidden()
+        .controlSize(.small)
       }
-      .buttonStyle(.bordered)
-      .disabled(appState.isCheckingLLMModelAccess)
 
-      Divider()
+      PolishPreferencesEditor(appState: appState)
+        .padding(.top, 8)
 
-      settingsToggle(
-        "Enhance transcripts automatically",
-        detail: "Apply your transcript-specific writing instructions before delivery.",
-        isOn: appState.settingsBinding(\.adjustWithLLM)
-      )
-
-      if appState.settings.adjustWithLLM {
-        settingsToggle(
-          "Use local cleanup if the LLM fails",
-          detail: "Return a locally normalized transcript instead of blocking delivery.",
-          isOn: appState.settingsBinding(\.useLocalAdjustmentFallback)
-        )
-
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Additional instructions")
+          .font(.title2.weight(.semibold))
         editorTile(
-          "Writing instructions",
+          "Custom instructions",
           systemImage: "text.alignleft",
           text: appState.settingsBinding(\.adjustmentPrompt),
-          height: 150
+          height: 110,
+          instruction:
+            "Optional rules that should override the choices above. Keep them specific and testable.",
+          placeholder: "Example: Keep Jira issue keys unchanged. Use British spelling."
         )
-      } else {
-        Label(
-          "Automatic transcript enhancement is bypassed. Double-tap polishing remains available.",
-          systemImage: "arrow.right"
-        )
-        .font(.callout)
-        .foregroundStyle(.secondary)
-        .padding(.vertical, 4)
-        .frame(maxWidth: .infinity, alignment: .leading)
       }
+      .padding(.top, 16)
+
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Model & context")
+          .font(.title2.weight(.semibold))
+        VStack(alignment: .leading, spacing: 14) {
+          compactField("Model", text: appState.settingsBinding(\.adjustmentModel))
+
+          settingsToggle(
+            "Use screen context",
+            detail:
+              "Send a screenshot to the configured LLM endpoint when polishing text or a transcript.",
+            isOn: appState.settingsBinding(\.includeScreenshot)
+          )
+
+          Button {
+            appState.checkLLMModelAccess()
+          } label: {
+            Label(
+              appState.isCheckingLLMModelAccess ? "Checking model…" : "Check model access",
+              systemImage: "checkmark.seal"
+            )
+          }
+          .buttonStyle(.bordered)
+          .disabled(appState.isCheckingLLMModelAccess)
+          if appState.settings.adjustWithLLM {
+            settingsToggle(
+              "Use local cleanup if the LLM fails",
+              detail: "Return a locally normalized transcript instead of blocking delivery.",
+              isOn: appState.settingsBinding(\.useLocalAdjustmentFallback)
+            )
+          }
+        }
+      }
+      .padding(.top, 16)
     }
     .toggleStyle(.switch)
   }
