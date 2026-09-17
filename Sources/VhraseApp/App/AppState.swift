@@ -945,7 +945,10 @@ final class AppState: ObservableObject {
       try await finalizeTranscript(
         result,
         adjustment: .provider,
-        configuration: configuration
+        configuration: configuration,
+        recordingSeconds: recorder.recordedSeconds,
+        transcriptionSeconds: transcriptionSeconds,
+        processingStarted: processingStarted
       )
       lastTranscriptionSeconds = transcriptionSeconds
       let elapsed = processingStarted.duration(to: .now).components
@@ -1353,7 +1356,10 @@ final class AppState: ObservableObject {
   private func finalizeTranscript(
     _ result: TranscriptionResult,
     adjustment: AdjustmentExecution,
-    configuration: RecordingConfiguration
+    configuration: RecordingConfiguration,
+    recordingSeconds: Double? = nil,
+    transcriptionSeconds: Double? = nil,
+    processingStarted: ContinuousClock.Instant? = nil
   ) async throws {
     let settings = configuration.settings
     let targetApp = recordingTargetApp ?? appContext.targetApp()
@@ -1376,13 +1382,6 @@ final class AppState: ObservableObject {
     lastRecognizedTranscript = result.text
     lastTranscript = finalized.text
     liveTranscript = ""
-    recordHistory(
-      text: finalized.text,
-      providerName: result.providerName,
-      transcriptionMode: settings.transcriptionMode.title,
-      targetApp: finalized.targetApp,
-      cleanup: finalized.cleanup
-    )
     var warnings = [finalized.warning].filter { !$0.isEmpty }
     var delivery: TranscriptDelivery?
     var copyFallbackReason: String?
@@ -1430,6 +1429,20 @@ final class AppState: ObservableObject {
     lastDelivery = delivery ?? .none
     lastCompletion = .transcript(lastDelivery)
     lastAdjustmentWarning = warnings.joined(separator: " ")
+    let processingSeconds = processingStarted.map { start in
+      let elapsed = start.duration(to: .now).components
+      return Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
+    }
+    recordHistory(
+      text: finalized.text,
+      providerName: result.providerName,
+      transcriptionMode: settings.transcriptionMode.title,
+      targetApp: finalized.targetApp,
+      cleanup: finalized.cleanup,
+      recordingSeconds: recordingSeconds,
+      transcriptionSeconds: transcriptionSeconds,
+      processingSeconds: processingSeconds
+    )
     clearRecordingContext()
     status = .completed
   }
@@ -1443,7 +1456,10 @@ final class AppState: ObservableObject {
     providerName: String,
     transcriptionMode: String,
     targetApp: FrontmostApp?,
-    cleanup: TranscriptCleanup
+    cleanup: TranscriptCleanup,
+    recordingSeconds: Double?,
+    transcriptionSeconds: Double?,
+    processingSeconds: Double?
   ) {
     guard !text.isEmpty else {
       return
@@ -1457,7 +1473,10 @@ final class AppState: ObservableObject {
       transcriptionMode: transcriptionMode,
       cleanup: cleanup,
       targetAppName: targetApp?.name,
-      targetAppBundleIdentifier: targetApp?.bundleIdentifier
+      targetAppBundleIdentifier: targetApp?.bundleIdentifier,
+      recordingSeconds: recordingSeconds,
+      transcriptionSeconds: transcriptionSeconds,
+      processingSeconds: processingSeconds
     )
     history = historyStore.prepend(item, to: history)
   }

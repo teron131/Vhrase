@@ -1,6 +1,7 @@
 // Defines transcription results, cleanup provenance, delivery outcomes, and persisted history records.
 
 import Foundation
+import NaturalLanguage
 
 struct FrontmostApp: Sendable {
   let name: String
@@ -56,4 +57,24 @@ struct TranscriptHistoryItem: Identifiable, Codable, Equatable, Sendable {
   let cleanup: TranscriptCleanup
   let targetAppName: String?
   let targetAppBundleIdentifier: String?
+  // Absent on older history and demos; processing includes finalization and delivery after recording stops.
+  var recordingSeconds: Double? = nil
+  var transcriptionSeconds: Double? = nil
+  var processingSeconds: Double? = nil
+
+  var wordCount: Int { Self.countWords(in: text) }
+
+  /// Counts language-aware words consistently for historical text and aggregate activity.
+  static func countWords(in text: String) -> Int {
+    let tokenizer = NLTokenizer(unit: .word)
+    tokenizer.string = text
+    var count = 0
+    tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
+      if text[range].unicodeScalars.contains(where: { CharacterSet.alphanumerics.contains($0) }) {
+        count += 1
+      }
+      return true
+    }
+    return count
+  }
 }

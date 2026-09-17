@@ -28,6 +28,28 @@ extension MainWindowView {
         HStack(alignment: .firstTextBaseline) {
           sectionHeader("Recent transcripts", description: historyCountTitle)
           Spacer()
+          if historyPageCount > 1 {
+            Button {
+              historyPageIndex = max(0, currentHistoryPage - 1)
+            } label: {
+              Label("Newer", systemImage: "chevron.left")
+            }
+            .buttonStyle(AccentLinkButtonStyle())
+            .disabled(currentHistoryPage == 0)
+
+            Text("\(currentHistoryPage + 1) of \(historyPageCount)")
+              .font(VhraseFont.micro.monospacedDigit())
+              .foregroundStyle(VhraseTheme.inkSecondary)
+
+            Button {
+              historyPageIndex = min(historyPageCount - 1, currentHistoryPage + 1)
+            } label: {
+              Label("Older", systemImage: "chevron.right")
+                .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(AccentLinkButtonStyle())
+            .disabled(currentHistoryPage == historyPageCount - 1)
+          }
           Button(role: .destructive) {
             isClearHistoryConfirmationPresented = true
           } label: {
@@ -37,34 +59,75 @@ extension MainWindowView {
           .disabled(appState.history.isEmpty)
         }
 
+        if !appState.history.isEmpty {
+          historySearchControls
+          if historyDateFilter == .custom {
+            HStack(spacing: 16) {
+              DatePicker(
+                "From", selection: $historyStartDate, in: ...historyEndDate,
+                displayedComponents: .date)
+              DatePicker(
+                "Through", selection: $historyEndDate, in: historyStartDate...,
+                displayedComponents: .date)
+              Spacer()
+            }
+            .datePickerStyle(.field)
+            .onChange(of: historyStartDate) { _, _ in historyPageIndex = 0 }
+            .onChange(of: historyEndDate) { _, _ in historyPageIndex = 0 }
+          }
+        }
+
         if appState.history.isEmpty {
           historyEmptyState
             .frame(maxWidth: .infinity, minHeight: 220)
-        } else if filteredHistory.isEmpty {
+        } else if historyMatches.isEmpty {
           ContentUnavailableView(
             "No matching transcripts",
             systemImage: "magnifyingglass",
-            description: Text("Try a different search.")
+            description: Text("Try a different keyword or filter.")
           )
           .frame(maxWidth: .infinity, minHeight: 220)
         } else {
-          LazyVStack(spacing: 12) {
-            ForEach(filteredHistory) { item in
-              HistoryCardRow(
-                item: item,
-                metadata: presentation.historyMetadata(item),
-                onCopy: { appState.copyHistoryItem(item) },
-                onDelete: { appState.deleteHistoryItem(item) }
-              )
+          VStack(spacing: 0) {
+            HStack(spacing: 16) {
+              Text("Transcript").frame(maxWidth: .infinity, alignment: .leading)
+              Text("Date").frame(width: 100, alignment: .leading)
+              Text("Source / App").frame(width: 112, alignment: .leading)
+              Color.clear.frame(width: 48, height: 1)
             }
+            .font(VhraseFont.micro)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            Divider()
+            ScrollView {
+              LazyVStack(spacing: 0) {
+                ForEach(visibleHistory) { item in
+                  HistoryTranscriptRow(
+                    item: item,
+                    metadata: presentation.historyMetadata(item),
+                    onCopy: { appState.copyHistoryItem(item) },
+                    onDelete: { appState.deleteHistoryItem(item) }
+                  )
+                  Divider().padding(.horizontal, 16)
+                }
+              }
+            }
+            .frame(height: 460)
           }
+          .background(VhraseTheme.card)
+          .clipShape(RoundedRectangle(cornerRadius: VhraseTheme.sectionCornerRadius))
+          .overlay {
+            RoundedRectangle(cornerRadius: VhraseTheme.sectionCornerRadius)
+              .strokeBorder(VhraseTheme.hairline)
+          }
+          .id(historyListIdentity)
         }
       }
       .frame(maxWidth: 1040, alignment: .topLeading)
       .padding(32)
       .frame(maxWidth: .infinity, alignment: .top)
     }
-    .searchable(text: $historyQuery, prompt: "Search transcripts")
     .confirmationDialog(
       "Clear transcript history?",
       isPresented: $isClearHistoryConfirmationPresented,
@@ -77,6 +140,61 @@ extension MainWindowView {
     } message: {
       Text("This permanently deletes every saved transcript.")
     }
+    .onChange(of: historyQuery) { _, _ in
+      historyPageIndex = 0
+    }
+    .onChange(of: historyDateFilter) { _, _ in
+      historyPageIndex = 0
+    }
+    .onChange(of: historyProviderFilter) { _, _ in
+      historyPageIndex = 0
+    }
+    .onChange(of: appState.history.count) { _, _ in
+      historyPageIndex = min(historyPageIndex, historyPageCount - 1)
+    }
+  }
+
+  var historySearchControls: some View {
+    HStack(spacing: 10) {
+      Image(systemName: "magnifyingglass")
+        .foregroundStyle(VhraseTheme.inkSecondary)
+        .accessibilityHidden(true)
+
+      TextField("Search all saved transcripts", text: $historyQuery)
+        .textFieldStyle(.plain)
+        .accessibilityLabel("Search transcript history")
+
+      if !historyQuery.isEmpty {
+        Button {
+          historyQuery = ""
+        } label: {
+          Image(systemName: "xmark.circle.fill")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(VhraseTheme.inkSecondary)
+        .help("Clear search")
+        .accessibilityLabel("Clear history search")
+      }
+
+      Divider().frame(height: 20)
+
+      Picker("Date", selection: $historyDateFilter) {
+        ForEach(HistoryDateFilter.allCases) { filter in
+          Text(filter.title).tag(filter)
+        }
+      }
+      .labelsHidden()
+      .pickerStyle(.menu)
+      .fixedSize()
+      .accessibilityLabel("History date filter")
+
+      HistoryProviderPicker(selection: $historyProviderFilter, providers: historyProviders)
+        .fixedSize()
+        .accessibilityLabel("History provider filter")
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 9)
+    .insetField()
   }
 
   var historyStatsCard: some View {
@@ -153,7 +271,7 @@ extension MainWindowView {
 
   private var historyWordCount: Int {
     appState.history.reduce(into: 0) { count, item in
-      count += item.text.split(whereSeparator: { $0.isWhitespace }).count
+      count += item.wordCount
     }
   }
 
@@ -183,11 +301,32 @@ extension MainWindowView {
   }
 
   private var historyCountTitle: String {
-    switch appState.history.count {
-    case 0: "Nothing saved"
-    case 1: "1 item on this Mac"
-    default: "\(appState.history.count) items on this Mac"
+    if appState.history.isEmpty {
+      return "Nothing saved"
     }
+    guard !historyMatches.isEmpty else {
+      return "No results"
+    }
+    let start = currentHistoryPage * HistorySearch.visibleLimit + 1
+    let end = start + visibleHistory.count - 1
+    let resultLabel = historyMatches.count == 1 ? "result" : "results"
+    if historyQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      historyDateFilter == .anyTime,
+      historyProviderFilter.isEmpty
+    {
+      return "\(start)–\(end) of \(appState.history.count)"
+    }
+    return "\(start)–\(end) of \(historyMatches.count) \(resultLabel)"
+  }
+
+  private var historyProviders: [String] {
+    Array(Set(appState.history.map(\.provider))).sorted {
+      $0.localizedStandardCompare($1) == .orderedAscending
+    }
+  }
+
+  private var historyListIdentity: String {
+    "\(currentHistoryPage)|\(historyQuery)|\(historyDateFilter.rawValue)|\(historyProviderFilter)|\(historyStartDate)|\(historyEndDate)"
   }
 }
 
@@ -256,82 +395,122 @@ private struct HistoryActivityChart: View {
   }
 }
 
-private struct HistoryCardRow: View {
-  private enum Action: Hashable {
-    case copy
-    case delete
-  }
-
+/// Expands complete selectable text below an aligned summary without inheriting table-cell truncation.
+private struct HistoryTranscriptRow: View {
   let item: TranscriptHistoryItem
   let metadata: String
   let onCopy: () -> Void
   let onDelete: () -> Void
-
-  @State private var isHovered = false
   @State private var isExpanded = false
-  @FocusState private var focusedAction: Action?
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Text(item.text)
-        .font(VhraseFont.transcript)
-        .lineLimit(isExpanded ? nil : 3)
-        .textSelection(.enabled)
-
-      if item.text.count > 160 || item.text.contains("\n") {
-        Button(isExpanded ? "Show less" : "Read full transcript") {
+    VStack(alignment: .leading, spacing: 0) {
+      HStack(spacing: 16) {
+        Button {
           isExpanded.toggle()
+        } label: {
+          HStack(spacing: 10) {
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .frame(width: 10)
+            Text(item.text.replacingOccurrences(of: "\n", with: " "))
+              .lineLimit(1)
+              .frame(maxWidth: .infinity, alignment: .leading)
+          }
+          .contentShape(Rectangle())
         }
-        .buttonStyle(AccentLinkButtonStyle())
+        .buttonStyle(.plain)
+        .help(isExpanded ? "Collapse transcript" : "Read full transcript")
+        VStack(alignment: .leading, spacing: 3) {
+          Text(
+            item.createdAt,
+            format: Date.VerbatimFormatStyle(
+              format: "\(year: .defaultDigits)-\(month: .twoDigits)-\(day: .twoDigits)",
+              timeZone: .current, calendar: Calendar(identifier: .gregorian)))
+          Text(
+            item.createdAt,
+            format: Date.VerbatimFormatStyle(
+              format:
+                "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits):\(second: .twoDigits)",
+              timeZone: .current, calendar: Calendar(identifier: .gregorian))
+          )
+          .foregroundStyle(.tertiary)
+        }
         .font(.caption)
-      }
-
-      HStack(spacing: 10) {
-        Text(metadata)
-          .font(VhraseFont.micro)
-          .foregroundStyle(VhraseTheme.inkSecondary)
-          .lineLimit(1)
-
-        Spacer()
-
-        HStack(spacing: 8) {
-          Button(action: onCopy) {
-            Image(systemName: "doc.on.doc")
+        .frame(width: 100, alignment: .leading)
+        VStack(alignment: .leading, spacing: 3) {
+          HStack(spacing: 6) {
+            if let icon = ProviderPicker.icon(forHistoryLabel: item.provider) {
+              Image(nsImage: icon)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 14, height: 14)
+                .accessibilityHidden(true)
+            }
+            Text(item.provider)
           }
-          .focused($focusedAction, equals: .copy)
-          .help("Copy transcript")
-          .accessibilityLabel("Copy transcript")
-
-          Button(role: .destructive, action: onDelete) {
-            Image(systemName: "trash")
-          }
-          .focused($focusedAction, equals: .delete)
-          .help("Delete transcript")
-          .accessibilityLabel("Delete transcript")
+          Text(item.targetAppName ?? "—").foregroundStyle(.tertiary)
         }
-        .buttonStyle(.borderless)
-        .opacity(isHovered || focusedAction != nil ? 1 : 0)
+        .font(.caption)
+        .lineLimit(1)
+        .frame(width: 112, alignment: .leading)
+        HStack(spacing: 12) {
+          Button(action: onCopy) { Image(systemName: "doc.on.doc") }
+            .help("Copy transcript")
+            .accessibilityLabel("Copy transcript")
+          Button(role: .destructive, action: onDelete) { Image(systemName: "trash") }
+            .help("Delete transcript")
+            .accessibilityLabel("Delete transcript")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .frame(width: 48)
+      }
+      .padding(16)
+      if isExpanded {
+        VStack(alignment: .leading, spacing: 12) {
+          Text(metadata)
+            .font(VhraseFont.micro)
+            .foregroundStyle(.secondary)
+          HStack(spacing: 24) {
+            metric("Words", value: item.wordCount.formatted())
+            metric("Recording", value: seconds(item.recordingSeconds))
+            metric("Transcription", value: seconds(item.transcriptionSeconds))
+              .help(
+                "Upload request time, or time to finish the stream after stopping realtime recording."
+              )
+            metric("Processing", value: seconds(item.processingSeconds))
+              .help(
+                "Total time from stopping recording through transcription, cleanup, and delivery.")
+          }
+          if item.recordingSeconds == nil {
+            Text("Timing was not recorded for this entry.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          Text(item.text)
+            .font(.body)
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 36)
+        .padding(.bottom, 20)
       }
     }
-    .padding(16)
-    .background(
-      VhraseTheme.card,
-      in: RoundedRectangle(cornerRadius: VhraseTheme.sectionCornerRadius, style: .continuous)
-    )
-    .overlay {
-      RoundedRectangle(cornerRadius: VhraseTheme.sectionCornerRadius, style: .continuous)
-        .strokeBorder(
-          isHovered ? VhraseTheme.accent.opacity(0.28) : VhraseTheme.hairline, lineWidth: 1)
+    .background(isExpanded ? VhraseTheme.field : Color.clear)
+  }
+
+  private func metric(_ label: String, value: String) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(label).font(.caption).foregroundStyle(.secondary)
+      Text(value).font(.callout.monospacedDigit())
     }
-    .onHover { isHovered = $0 }
-    .animation(
-      VhraseMotion.respectingReduceMotion(VhraseMotion.snappy, reduceMotion: reduceMotion),
-      value: isHovered
-    )
-    .contextMenu {
-      Button("Copy", action: onCopy)
-      Button("Delete", role: .destructive, action: onDelete)
-    }
+  }
+
+  private func seconds(_ value: Double?) -> String {
+    value.map { "\($0.formatted(.number.precision(.fractionLength(2)))) s" } ?? "—"
   }
 }

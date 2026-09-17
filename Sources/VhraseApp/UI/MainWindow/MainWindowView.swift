@@ -57,6 +57,11 @@ struct MainWindowView: View {
   @State var isClearHistoryConfirmationPresented = false
   @State var isOpenCCInstallConfirmationPresented = false
   @State var historyQuery = ""
+  @State var historyDateFilter = HistoryDateFilter.anyTime
+  @State var historyStartDate = Calendar.current.startOfDay(for: Date())
+  @State var historyEndDate = Calendar.current.startOfDay(for: Date())
+  @State var historyProviderFilter = ""
+  @State var historyPageIndex = 0
   @State var activityRange = ActivityRange.week
   @State var inputDevices: [AudioInputDevice] = []
   @State var inputDeviceError = ""
