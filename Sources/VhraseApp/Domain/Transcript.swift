@@ -30,6 +30,15 @@ enum TranscriptCleanup: String, Codable, Equatable, Sendable {
   }
 }
 
+/// Captures the exact text and instruction pair used by a successful LLM cleanup for later prompt evaluation.
+struct LLMRefinement: Codable, Equatable, Sendable {
+  let input: String
+  let output: String
+  let model: String
+  let systemInstruction: String
+  let includedScreenshot: Bool
+}
+
 enum TranscriptDelivery: Equatable, Sendable {
   case none
   case copied
@@ -57,6 +66,8 @@ struct TranscriptHistoryItem: Identifiable, Codable, Equatable, Sendable {
   let cleanup: TranscriptCleanup
   let targetAppName: String?
   let targetAppBundleIdentifier: String?
+  // Absent on older history and non-LLM results.
+  var refinement: LLMRefinement? = nil
   // Absent on older history and demos; processing includes finalization and delivery after recording stops.
   var recordingSeconds: Double? = nil
   var transcriptionSeconds: Double? = nil

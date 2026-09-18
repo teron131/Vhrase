@@ -1,4 +1,4 @@
-// Persists a bounded local history of finalized transcript records.
+// Persists the complete local history of finalized transcript records.
 
 import Foundation
 
@@ -6,11 +6,9 @@ final class TranscriptHistoryStore {
   private let defaults: UserDefaults
   private let historyKey = "transcriptHistory"
   private let savingKey = "saveTranscriptHistory"
-  private let limit: Int
 
-  init(defaults: UserDefaults = .standard, limit: Int = 30) {
+  init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
-    self.limit = limit
   }
 
   var savesHistory: Bool {
@@ -42,9 +40,8 @@ final class TranscriptHistoryStore {
     }
 
     let next = [item] + history.filter { $0.id != item.id }
-    let trimmed = Array(next.prefix(limit))
-    save(trimmed)
-    return trimmed
+    save(next)
+    return next
   }
 
   func remove(_ item: TranscriptHistoryItem, from history: [TranscriptHistoryItem])

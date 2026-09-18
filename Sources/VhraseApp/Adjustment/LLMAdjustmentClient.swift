@@ -96,26 +96,36 @@ final class LLMAdjustmentClient: Sendable {
     self.baseURL = baseURL
   }
 
+  /// Returns both sides of a successful cleanup together with the exact instruction context needed to evaluate prompt changes.
   func adjust(
     transcript: String,
     screenshotDataURL: String?,
     settings: DictationSettings,
     app: FrontmostApp?
-  ) async throws -> String {
+  ) async throws -> LLMRefinement {
     try validateConfiguration()
 
+    let instruction = systemInstruction(for: settings)
     let userText = """
       \(appContextText(app))
 
       Transcript:
       \(transcript)
       """
-
-    return try await adjustWithChatCompletions(
-      systemInstruction: systemInstruction(for: settings),
+    let output = try await adjustWithChatCompletions(
+      systemInstruction: instruction,
       userText: userText,
       screenshotDataURL: screenshotDataURL,
       model: settings.adjustmentModel
+    )
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    return LLMRefinement(
+      input: transcript,
+      output: output,
+      model: settings.adjustmentModel,
+      systemInstruction: instruction,
+      includedScreenshot: screenshotDataURL != nil
     )
   }
 
