@@ -13,6 +13,8 @@ struct CustomizationSnapshotCheck {
     settings.adjustmentPrompt = "Keep identifiers intact."
     settings.polishPreferences.moneyStyle = .symbols
     settings.polishPreferences.unitStyle = .spelledOut
+    settings.polishPreferences.removesFillerWords = false
+    settings.polishPreferences.resolvesSpokenCorrections = false
     settings.keepTranscriptOnClipboard = true
     settings.automaticVolumeLeveling = false
     settings.inputGainDB = -3
@@ -36,6 +38,18 @@ struct CustomizationSnapshotCheck {
     let decoded = try JSONDecoder().decode(CustomizationSnapshot.self, from: data)
     precondition(decoded == snapshot)
     try decoded.settings.validateLocalConfiguration()
+
+    var priorExport = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    var priorSettings = priorExport["settings"] as! [String: Any]
+    var priorPreferences = priorSettings["polishPreferences"] as! [String: Any]
+    priorPreferences.removeValue(forKey: "removesFillerWords")
+    priorPreferences.removeValue(forKey: "resolvesSpokenCorrections")
+    priorSettings["polishPreferences"] = priorPreferences
+    priorExport["settings"] = priorSettings
+    let migratedPreferences = try JSONDecoder().decode(
+      CustomizationSnapshot.self, from: JSONSerialization.data(withJSONObject: priorExport))
+    precondition(migratedPreferences.settings.polishPreferences.removesFillerWords)
+    precondition(migratedPreferences.settings.polishPreferences.resolvesSpokenCorrections)
 
     var oldExport = try JSONSerialization.jsonObject(with: data) as! [String: Any]
     var oldSettings = oldExport["settings"] as! [String: Any]
@@ -75,6 +89,8 @@ struct CustomizationSnapshotCheck {
     precondition(store.load().keepTranscriptOnClipboard)
     precondition(store.load().polishPreferences.moneyStyle == .symbols)
     precondition(store.load().polishPreferences.unitStyle == .spelledOut)
+    precondition(!store.load().polishPreferences.removesFillerWords)
+    precondition(!store.load().polishPreferences.resolvesSpokenCorrections)
     precondition(store.load().automaticVolumeLeveling == settings.automaticVolumeLeveling)
     precondition(store.load().inputGainDB == -3 && store.load().noiseReductionDB == 9)
     precondition(store.load().inputDeviceUID == "test-microphone-uid")
