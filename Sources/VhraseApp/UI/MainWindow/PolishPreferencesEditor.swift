@@ -4,34 +4,18 @@ import SwiftUI
 
 struct PolishPreferencesEditor: View {
   @ObservedObject var appState: AppState
+  @State private var lastPreset = PolishPreset.minimal
 
   var body: some View {
     VStack(alignment: .leading, spacing: 24) {
-      HStack(alignment: .center, spacing: 16) {
-        VStack(alignment: .leading, spacing: 4) {
-          Text(
-            appState.settings.polishPreferences == .defaults
-              ? "Minimal · Default" : "Custom writing style"
-          )
-          .font(.callout.weight(.semibold))
-          Text(
-            "Default: necessary corrections, filler removal, preserved flow and structure, and contextual formatting."
-          )
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        }
-        Spacer(minLength: 12)
-        Button("Reset to default") {
-          appState.updateSettings { $0.polishPreferences = .defaults }
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .disabled(appState.settings.polishPreferences == .defaults)
-        .help(
-          "Reset to minimal rewriting with filler removal, explicit spoken corrections, preserved flow and structure, and contextual formatting. Custom instructions and model settings are kept."
-        )
-      }
+      presetEditor
 
+      fineTuningOptions
+    }
+  }
+
+  private var fineTuningOptions: some View {
+    VStack(alignment: .leading, spacing: 24) {
       preferenceGroup("Flow") {
         preferenceRow(
           "Rewrite",
@@ -97,6 +81,44 @@ struct PolishPreferencesEditor: View {
         )
       }
     }
+  }
+
+  private var preferences: PolishPreferences {
+    appState.settings.polishPreferences
+  }
+
+  private var selectedPreset: PolishPreset? {
+    PolishPreset.matching(preferences)
+  }
+
+  private var presetEditor: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Text("Writing style")
+          .font(.callout.weight(.semibold))
+        Spacer()
+        Text(selectedPreset?.title ?? "Custom")
+          .font(.callout.weight(.semibold))
+          .foregroundStyle(VhraseTheme.accent)
+      }
+      PolishPresetSlider(
+        selection: Binding(get: { selectedPreset ?? lastPreset }, set: { applyPreset($0) }),
+        isCustom: selectedPreset == nil
+      )
+
+      Text(
+        selectedPreset?.detail
+          ?? "Your own combination. Choose a preset or adjust the options below."
+      )
+      .font(.caption)
+      .foregroundStyle(.secondary)
+
+    }
+  }
+
+  private func applyPreset(_ preset: PolishPreset) {
+    lastPreset = preset
+    appState.updateSettings { $0.polishPreferences = preset.preferences }
   }
 
   private func preferenceGroup<Content: View>(
@@ -211,6 +233,67 @@ struct PolishPreferencesEditor: View {
   private func compactExample(_ text: String) -> String {
     text.replacingOccurrences(of: "\n\n", with: " ↵ ")
       .replacingOccurrences(of: "\n", with: " ")
+  }
+}
+
+/// Places track, ticks, thumb, labels, and drag snapping on the same five coordinates.
+private struct PolishPresetSlider: View {
+  @Binding var selection: PolishPreset
+  let isCustom: Bool
+  private var lastIndex: Int { PolishPreset.allCases.count - 1 }
+
+  var body: some View {
+    GeometryReader { geometry in
+      let step = geometry.size.width / CGFloat(PolishPreset.allCases.count)
+      let start = step / 2
+      let filled = step * CGFloat(selection.rawValue)
+      ZStack(alignment: .topLeading) {
+        Capsule()
+          .fill(VhraseTheme.hairline)
+          .frame(width: step * CGFloat(lastIndex), height: 4)
+          .position(x: geometry.size.width / 2, y: 12)
+        Capsule()
+          .fill(VhraseTheme.accent)
+          .frame(width: filled, height: 4)
+          .position(x: start + filled / 2, y: 12)
+        ForEach(PolishPreset.allCases) { preset in
+          let x = start + step * CGFloat(preset.rawValue)
+          Capsule()
+            .fill(preset.rawValue <= selection.rawValue ? VhraseTheme.accent : Color.secondary)
+            .frame(width: 2, height: 10)
+            .position(x: x, y: 12)
+          Button(preset.title) { selection = preset }
+            .buttonStyle(.plain)
+            .font(.caption.weight(!isCustom && selection == preset ? .semibold : .regular))
+            .foregroundStyle(
+              !isCustom && selection == preset ? VhraseTheme.accent : Color.secondary
+            )
+            .frame(width: step)
+            .position(x: x, y: 38)
+        }
+        Circle()
+          .fill(Color(white: 0.85))
+          .frame(width: 18, height: 18)
+          .position(x: start + filled, y: 12)
+        Rectangle()
+          .fill(Color.clear)
+          .frame(height: 26)
+          .contentShape(Rectangle())
+          .gesture(
+            DragGesture(minimumDistance: 0).onChanged { value in
+              let index = min(lastIndex, max(0, Int(((value.location.x - start) / step).rounded())))
+              selection = PolishPreset.allCases[index]
+            })
+      }
+    }
+    .frame(height: 50)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Writing style preset")
+    .accessibilityValue(isCustom ? "Custom" : selection.title)
+    .accessibilityAdjustableAction { direction in
+      let delta = direction == .increment ? 1 : -1
+      selection = PolishPreset.allCases[min(lastIndex, max(0, selection.rawValue + delta))]
+    }
   }
 }
 

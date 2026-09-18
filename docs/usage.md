@@ -109,6 +109,7 @@ Vocabulary can be edited alongside provider options in **Transcription → Trans
 Existing replacement-rule targets are migrated into vocabulary on upgrade or customization import.
 Refinement defaults to minimal rewriting, removes non-semantic filler words, resolves explicit spoken self-corrections, and preserves sentence flow and paragraph structure.
 Every refinement style avoids em dashes; the model uses commas, parentheses, colons, semicolons, or separate sentences instead.
+The stepped writing-style slider applies five coordinated levels from Minimal through Polished, with labels beneath each step. Individual options are always visible, and combinations that differ from the presets are shown as Custom.
 
 Use **Check model access** in **Refinement** to send a minimal request through the configured model without running a transcription.
 Import and Export move customization settings between machines without including API keys.
