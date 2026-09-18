@@ -1442,6 +1442,7 @@ final class AppState: ObservableObject {
       transcriptionMode: settings.transcriptionMode.title,
       targetApp: finalized.targetApp,
       cleanup: finalized.cleanup,
+      refinement: finalized.refinement,
       recordingSeconds: recordingSeconds,
       transcriptionSeconds: transcriptionSeconds,
       processingSeconds: processingSeconds
@@ -1460,6 +1461,7 @@ final class AppState: ObservableObject {
     transcriptionMode: String,
     targetApp: FrontmostApp?,
     cleanup: TranscriptCleanup,
+    refinement: LLMRefinement?,
     recordingSeconds: Double?,
     transcriptionSeconds: Double?,
     processingSeconds: Double?
@@ -1477,6 +1479,7 @@ final class AppState: ObservableObject {
       cleanup: cleanup,
       targetAppName: targetApp?.name,
       targetAppBundleIdentifier: targetApp?.bundleIdentifier,
+      refinement: refinement,
       recordingSeconds: recordingSeconds,
       transcriptionSeconds: transcriptionSeconds,
       processingSeconds: processingSeconds

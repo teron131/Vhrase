@@ -35,6 +35,7 @@ struct TranscriptFinalizer {
     try validateTranscript(finalText)
 
     var cleanup: TranscriptCleanup = .raw
+    var refinement: LLMRefinement?
 
     if settings.adjustWithLLM {
       switch adjustment {
@@ -49,13 +50,14 @@ struct TranscriptFinalizer {
           if settings.includeScreenshot, screenshot == nil {
             warnings.append("Screenshot context unavailable.")
           }
-          finalText = try await client.adjust(
+          let appliedRefinement = try await client.adjust(
             transcript: finalText,
             screenshotDataURL: screenshot,
             settings: settings,
             app: targetApp
           )
-          .trimmingCharacters(in: .whitespacesAndNewlines)
+          refinement = appliedRefinement
+          finalText = appliedRefinement.output
           cleanup = .llm
         } catch {
           let fallback = fallbackTranscript(
@@ -83,7 +85,8 @@ struct TranscriptFinalizer {
       text: finalText,
       warning: warnings.joined(separator: " "),
       targetApp: targetApp,
-      cleanup: cleanup
+      cleanup: cleanup,
+      refinement: refinement
     )
   }
 
@@ -143,6 +146,7 @@ struct FinalizedTranscript {
   let warning: String
   let targetApp: FrontmostApp?
   let cleanup: TranscriptCleanup
+  let refinement: LLMRefinement?
 }
 
 enum AdjustmentExecution: Equatable {
