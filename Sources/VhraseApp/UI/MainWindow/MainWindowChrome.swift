@@ -124,12 +124,28 @@ extension MainWindowView {
       .buttonStyle(.plain)
       .accessibilityHint("Opens access and readiness settings")
 
-      HStack {
-        Text("Shortcut")
-          .foregroundStyle(.secondary)
-        Spacer()
-        KeyCap(text: appState.settings.hotkeyDisplay)
+      Button {
+        selectedCapturePipelineStage = .trigger
+        withAnimation(
+          VhraseMotion.respectingReduceMotion(
+            VhraseMotion.stateSpring, reduceMotion: reduceMotion)
+        ) {
+          selectedTab = .capture
+        }
+      } label: {
+        HStack {
+          Text("Shortcut")
+            .foregroundStyle(.secondary)
+          Spacer()
+          KeyCap(text: appState.settings.hotkeyDisplay)
+        }
+        .contentShape(Rectangle())
       }
+      .buttonStyle(.plain)
+      .help("Configure shortcut")
+      .accessibilityLabel("Configure shortcut")
+      .accessibilityValue(appState.settings.hotkeyDisplay)
+      .accessibilityHint("Opens the Trigger stage in Transcription")
 
     }
     .font(.callout)

@@ -85,7 +85,13 @@ final class SettingsStore {
         "polishStructureStyle", fallback.polishPreferences.structureStyle),
       allowsLeadingConjunctions: bool(
         "polishAllowsLeadingConjunctions",
-        fallback.polishPreferences.allowsLeadingConjunctions)
+        fallback.polishPreferences.allowsLeadingConjunctions),
+      removesFillerWords: bool(
+        "polishRemovesFillerWords",
+        fallback.polishPreferences.removesFillerWords),
+      resolvesSpokenCorrections: bool(
+        "polishResolvesSpokenCorrections",
+        fallback.polishPreferences.resolvesSpokenCorrections)
     )
     settings.geminiSmartTranscription = bool(
       "geminiSmartTranscription", fallback.geminiSmartTranscription)
@@ -143,6 +149,12 @@ final class SettingsStore {
     defaults.set(
       settings.polishPreferences.allowsLeadingConjunctions,
       forKey: "polishAllowsLeadingConjunctions")
+    defaults.set(
+      settings.polishPreferences.removesFillerWords,
+      forKey: "polishRemovesFillerWords")
+    defaults.set(
+      settings.polishPreferences.resolvesSpokenCorrections,
+      forKey: "polishResolvesSpokenCorrections")
     defaults.set(settings.includeScreenshot, forKey: "includeScreenshot")
     defaults.set(settings.hotkeyPreset.rawValue, forKey: "hotkeyPreset")
     saveCustomHotkey(settings.customHotkey)

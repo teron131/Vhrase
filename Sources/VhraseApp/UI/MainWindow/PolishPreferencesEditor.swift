@@ -11,11 +11,11 @@ struct PolishPreferencesEditor: View {
         VStack(alignment: .leading, spacing: 4) {
           Text(
             appState.settings.polishPreferences == .defaults
-              ? "Natural · Default" : "Custom writing style"
+              ? "Minimal · Default" : "Custom writing style"
           )
           .font(.callout.weight(.semibold))
           Text(
-            "Default: light rewriting, adaptive formatting, and natural sentence and paragraph breaks."
+            "Default: necessary corrections, filler removal, preserved flow and structure, and contextual formatting."
           )
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -28,7 +28,7 @@ struct PolishPreferencesEditor: View {
         .controlSize(.small)
         .disabled(appState.settings.polishPreferences == .defaults)
         .help(
-          "Reset all writing preferences, including allowing And or But at the start of sentences. Custom instructions and model settings are kept."
+          "Reset to minimal rewriting with filler removal, explicit spoken corrections, preserved flow and structure, and contextual formatting. Custom instructions and model settings are kept."
         )
       }
 
@@ -40,6 +40,8 @@ struct PolishPreferencesEditor: View {
           title: \.title,
           example: \.example
         )
+        fillerWordsRow
+        spokenCorrectionsRow
         preferenceRow(
           "Contractions",
           selection: appState.settingsBinding(\.polishPreferences.contractionStyle),
@@ -162,6 +164,26 @@ struct PolishPreferencesEditor: View {
     )
   }
 
+  private var fillerWordsRow: some View {
+    preferenceRow(
+      "Filler words",
+      selection: appState.settingsBinding(\.polishPreferences.removesFillerWords),
+      options: [false, true],
+      title: \.fillerWordTitle,
+      example: \.fillerWordExample
+    )
+  }
+
+  private var spokenCorrectionsRow: some View {
+    preferenceRow(
+      "Spoken corrections",
+      selection: appState.settingsBinding(\.polishPreferences.resolvesSpokenCorrections),
+      options: [false, true],
+      title: \.spokenCorrectionTitle,
+      example: \.spokenCorrectionExample
+    )
+  }
+
   /// Keeps source and result visually distinct within the row, beside the trailing controls.
   private func examplePreview(_ example: String) -> some View {
     let parts = example.components(separatedBy: " → ")
@@ -198,6 +220,18 @@ extension Bool {
     self
       ? "And it's fast. → And it's fast."
       : "It works. And it's fast. → It works, and it's fast."
+  }
+
+  fileprivate var fillerWordTitle: String { self ? "Remove" : "Keep" }
+  fileprivate var fillerWordExample: String {
+    self ? "Um, we should go. → We should go." : "Um, we should go. → Um, we should go."
+  }
+
+  fileprivate var spokenCorrectionTitle: String { self ? "Resolve" : "Keep" }
+  fileprivate var spokenCorrectionExample: String {
+    self
+      ? "the first, no, second → the second"
+      : "the first, no, second → the first, no, second"
   }
 }
 
