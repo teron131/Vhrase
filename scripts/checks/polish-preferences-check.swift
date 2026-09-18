@@ -51,6 +51,16 @@ struct PolishPreferencesCheck {
     precondition(PolishMoneyStyle.adaptive.example.contains("$100; five-dollar fee"))
     precondition(PolishUnitStyle.adaptive.example.contains("5 seconds; 10 km race"))
     precondition(PolishContractionStyle.adaptive.example.contains("don't worry; do not enter"))
+    precondition(PolishPreset.minimal.preferences == .defaults)
+    let presetPreferences = PolishPreset.allCases.map(\.preferences)
+    for (index, preset) in PolishPreset.allCases.enumerated() {
+      precondition(!presetPreferences[..<index].contains(preset.preferences))
+      precondition(PolishPreset.matching(preset.preferences) == preset)
+    }
+
+    var customPreferences = PolishPreset.natural.preferences
+    customPreferences.moneyStyle = .words
+    precondition(PolishPreset.matching(customPreferences) == nil)
 
     preferences.removesFillerWords = false
     preferences.resolvesSpokenCorrections = false

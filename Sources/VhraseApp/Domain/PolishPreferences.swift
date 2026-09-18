@@ -409,3 +409,101 @@ struct PolishPreferences: Codable, Equatable, Sendable {
       : "Spoken corrections: Preserve explicit self-corrections and false starts as spoken."
   }
 }
+
+enum PolishPreset: Int, CaseIterable, Identifiable, Sendable {
+  case minimal
+  case light
+  case natural
+  case structured
+  case polished
+
+  var id: Int { rawValue }
+
+  var title: String {
+    switch self {
+    case .minimal: "Minimal"
+    case .light: "Light"
+    case .natural: "Natural"
+    case .structured: "Structured"
+    case .polished: "Polished"
+    }
+  }
+
+  var detail: String {
+    switch self {
+    case .minimal: "Correct clear errors while keeping the original wording and structure."
+    case .light: "Clean sentence boundaries and paragraph breaks without rephrasing."
+    case .natural: "Smooth spoken phrasing into natural everyday writing."
+    case .structured: "Tighten sentences and organize distinct ideas into clear sections or lists."
+    case .polished: "Rewrite freely for concise, presentation-ready prose."
+    }
+  }
+
+  var preferences: PolishPreferences {
+    switch self {
+    case .minimal:
+      .defaults
+    case .light:
+      PolishPreferences(
+        rewriteLevel: .minimal,
+        numberStyle: .adaptive,
+        ordinalStyle: .adaptive,
+        moneyStyle: .adaptive,
+        unitStyle: .adaptive,
+        contractionStyle: .adaptive,
+        sentenceStyle: .natural,
+        structureStyle: .natural,
+        allowsLeadingConjunctions: true,
+        removesFillerWords: true,
+        resolvesSpokenCorrections: true
+      )
+    case .natural:
+      PolishPreferences(
+        rewriteLevel: .natural,
+        numberStyle: .adaptive,
+        ordinalStyle: .adaptive,
+        moneyStyle: .adaptive,
+        unitStyle: .adaptive,
+        contractionStyle: .adaptive,
+        sentenceStyle: .natural,
+        structureStyle: .natural,
+        allowsLeadingConjunctions: true,
+        removesFillerWords: true,
+        resolvesSpokenCorrections: true
+      )
+    case .structured:
+      PolishPreferences(
+        rewriteLevel: .natural,
+        numberStyle: .adaptive,
+        ordinalStyle: .adaptive,
+        moneyStyle: .adaptive,
+        unitStyle: .adaptive,
+        contractionStyle: .adaptive,
+        sentenceStyle: .shorter,
+        structureStyle: .organize,
+        allowsLeadingConjunctions: false,
+        removesFillerWords: true,
+        resolvesSpokenCorrections: true
+      )
+    case .polished:
+      PolishPreferences(
+        rewriteLevel: .polished,
+        numberStyle: .adaptive,
+        ordinalStyle: .adaptive,
+        moneyStyle: .adaptive,
+        unitStyle: .adaptive,
+        contractionStyle: .prefer,
+        sentenceStyle: .shorter,
+        structureStyle: .organize,
+        allowsLeadingConjunctions: false,
+        removesFillerWords: true,
+        resolvesSpokenCorrections: true
+      )
+    }
+  }
+
+  static func matching(_ preferences: PolishPreferences) -> PolishPreset? {
+    allCases.first { $0.preferences == preferences }
+  }
+
+}
