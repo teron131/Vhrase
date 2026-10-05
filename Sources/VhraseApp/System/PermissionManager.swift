@@ -53,7 +53,7 @@ enum PermissionState: Equatable, Sendable {
     case .denied:
       "Needs access"
     case .notDetermined:
-      "Ask"
+      "Not allowed yet"
     case .unknown:
       "Unknown"
     }
@@ -84,19 +84,17 @@ struct PermissionSnapshot: Identifiable, Sendable {
     self.requestedBefore = requestedBefore
   }
 
-  var displayTitle: String {
-    if state == .notDetermined {
-      if requestedBefore {
-        return "Open Settings"
-      }
-      switch permission {
-      case .microphone, .inputMonitoring:
-        return state.title
-      case .screenRecording, .accessibility:
-        return "Open Settings"
-      }
+  /// Names the next step: only an unrequested microphone or input-monitoring permission can still show a native prompt.
+  var actionTitle: String {
+    guard state == .notDetermined, !requestedBefore else {
+      return "Open Settings"
     }
-    return state.title
+    switch permission {
+    case .microphone, .inputMonitoring:
+      return "Request Access"
+    case .screenRecording, .accessibility:
+      return "Open Settings"
+    }
   }
 }
 

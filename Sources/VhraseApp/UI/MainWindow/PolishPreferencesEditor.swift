@@ -7,7 +7,7 @@ struct PolishPreferencesEditor: View {
   @State private var lastPreset = PolishPreset.minimal
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 24) {
+    VStack(alignment: .leading, spacing: 28) {
       presetEditor
 
       fineTuningOptions
@@ -15,7 +15,7 @@ struct PolishPreferencesEditor: View {
   }
 
   private var fineTuningOptions: some View {
-    VStack(alignment: .leading, spacing: 24) {
+    VStack(alignment: .leading, spacing: 28) {
       preferenceGroup("Flow") {
         preferenceRow(
           "Rewrite",
@@ -92,27 +92,29 @@ struct PolishPreferencesEditor: View {
   }
 
   private var presetEditor: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack {
-        Text("Writing style")
-          .font(.callout.weight(.semibold))
-        Spacer()
-        Text(selectedPreset?.title ?? "Custom")
-          .font(.callout.weight(.semibold))
-          .foregroundStyle(VhraseTheme.accent)
+    settingsGroup("Writing style") {
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .firstTextBaseline) {
+          Text(selectedPreset?.title ?? "Custom")
+            .font(VhraseFont.title)
+            .foregroundStyle(VhraseTheme.accent)
+            .contentTransition(.interpolate)
+          Text(
+            selectedPreset?.detail
+              ?? "Your own combination. Choose a preset or adjust the options below."
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        }
+        PolishPresetSlider(
+          selection: Binding(get: { selectedPreset ?? lastPreset }, set: { applyPreset($0) }),
+          isCustom: selectedPreset == nil
+        )
+        .padding(.top, 4)
       }
-      PolishPresetSlider(
-        selection: Binding(get: { selectedPreset ?? lastPreset }, set: { applyPreset($0) }),
-        isCustom: selectedPreset == nil
-      )
-
-      Text(
-        selectedPreset?.detail
-          ?? "Your own combination. Choose a preset or adjust the options below."
-      )
-      .font(.caption)
-      .foregroundStyle(.secondary)
-
+      .padding(.vertical, 4)
+      .settingsRowStyle()
     }
   }
 
@@ -125,10 +127,7 @@ struct PolishPreferencesEditor: View {
     _ title: String,
     @ViewBuilder content: () -> Content
   ) -> some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Text(title)
-        .font(.title2.weight(.semibold))
-        .padding(.bottom, 12)
+    settingsGroup(title) {
       content()
     }
   }
@@ -142,37 +141,17 @@ struct PolishPreferencesEditor: View {
   ) -> some View {
     HStack(alignment: .center, spacing: 16) {
       Text(label)
-        .font(.callout.weight(.medium))
-        .frame(width: 120, alignment: .leading)
+        .frame(width: 128, alignment: .leading)
       examplePreview(selection.wrappedValue[keyPath: example])
-      HStack(spacing: 3) {
-        ForEach(options, id: \.self) { option in
-          Button {
-            selection.wrappedValue = option
-          } label: {
-            Text(option[keyPath: title])
-              .font(.caption.weight(selection.wrappedValue == option ? .semibold : .regular))
-              .frame(maxWidth: .infinity, minHeight: 22)
-              .foregroundStyle(
-                selection.wrappedValue == option ? VhraseTheme.accent : Color.secondary
-              )
-              .background(
-                selection.wrappedValue == option ? VhraseTheme.accentSubtle : Color.clear,
-                in: RoundedRectangle(cornerRadius: 6)
-              )
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(PolishChoiceButtonStyle())
-          .accessibilityLabel("\(label): \(option[keyPath: title])")
-          .accessibilityValue(selection.wrappedValue == option ? "Selected" : "")
-        }
-      }
-      .padding(2)
-      .background(VhraseTheme.field, in: RoundedRectangle(cornerRadius: 8))
-      .frame(width: 240, alignment: .leading)
+      PillPicker(
+        title: label, selection: selection, options: options,
+        label: { $0[keyPath: title] }, fillsWidth: true
+      )
+      .frame(width: 260)
 
     }
-    .frame(height: 56)
+    .frame(minHeight: 34)
+    .settingsRowStyle()
     .accessibilityElement(children: .contain)
   }
 
@@ -206,7 +185,7 @@ struct PolishPreferencesEditor: View {
     )
   }
 
-  /// Keeps source and result visually distinct within the row, beside the trailing controls.
+  /// Keeps spoken source and written result visually distinct within the row, both set as the user's own words.
   private func examplePreview(_ example: String) -> some View {
     let parts = example.components(separatedBy: " → ")
     return HStack(spacing: 10) {
@@ -218,11 +197,10 @@ struct PolishPreferencesEditor: View {
         .foregroundStyle(.tertiary)
         .accessibilityHidden(true)
       Text(compactExample(parts.dropFirst().joined(separator: " → ")))
-        .fontWeight(.medium)
         .foregroundStyle(.primary)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .font(.callout)
+    .font(VhraseFont.transcriptBody)
     .lineLimit(2)
     .help(example)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -240,6 +218,7 @@ struct PolishPreferencesEditor: View {
 private struct PolishPresetSlider: View {
   @Binding var selection: PolishPreset
   let isCustom: Bool
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private var lastIndex: Int { PolishPreset.allCases.count - 1 }
 
   var body: some View {
@@ -249,35 +228,50 @@ private struct PolishPresetSlider: View {
       let filled = step * CGFloat(selection.rawValue)
       ZStack(alignment: .topLeading) {
         Capsule()
-          .fill(VhraseTheme.hairline)
-          .frame(width: step * CGFloat(lastIndex), height: 4)
-          .position(x: geometry.size.width / 2, y: 12)
+          .fill(VhraseTheme.field)
+          .frame(width: step * CGFloat(lastIndex) + 10, height: 10)
+          .position(x: geometry.size.width / 2, y: 14)
         Capsule()
           .fill(VhraseTheme.accent)
-          .frame(width: filled, height: 4)
-          .position(x: start + filled / 2, y: 12)
+          .frame(width: filled + 10, height: 10)
+          .position(x: start + filled / 2, y: 14)
         ForEach(PolishPreset.allCases) { preset in
           let x = start + step * CGFloat(preset.rawValue)
-          Capsule()
-            .fill(preset.rawValue <= selection.rawValue ? VhraseTheme.accent : Color.secondary)
-            .frame(width: 2, height: 10)
-            .position(x: x, y: 12)
-          Button(preset.title) { selection = preset }
-            .buttonStyle(.plain)
-            .font(.caption.weight(!isCustom && selection == preset ? .semibold : .regular))
-            .foregroundStyle(
-              !isCustom && selection == preset ? VhraseTheme.accent : Color.secondary
+          let isChosen = !isCustom && selection == preset
+          Circle()
+            .fill(
+              preset.rawValue <= selection.rawValue ? Color.white.opacity(0.85) : Color.secondary
             )
-            .frame(width: step)
-            .position(x: x, y: 38)
+            .frame(width: 4, height: 4)
+            .position(x: x, y: 14)
+          Button {
+            selection = preset
+          } label: {
+            Text(preset.title)
+              .font(VhraseFont.pill)
+              .foregroundStyle(isChosen ? Color.white : Color.secondary)
+              .padding(.horizontal, 10)
+              .padding(.vertical, 3)
+              .background {
+                if isChosen {
+                  Capsule().fill(VhraseTheme.accent)
+                }
+              }
+              .contentShape(Capsule())
+          }
+          .buttonStyle(PressableButtonStyle(pressedScale: 0.94))
+          .frame(width: step)
+          .position(x: x, y: 46)
         }
         Circle()
-          .fill(Color(white: 0.85))
-          .frame(width: 18, height: 18)
-          .position(x: start + filled, y: 12)
+          .fill(.white)
+          .overlay { Circle().strokeBorder(VhraseTheme.accent, lineWidth: 3) }
+          .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+          .frame(width: 26, height: 26)
+          .position(x: start + filled, y: 14)
         Rectangle()
           .fill(Color.clear)
-          .frame(height: 26)
+          .frame(height: 30)
           .contentShape(Rectangle())
           .gesture(
             DragGesture(minimumDistance: 0).onChanged { value in
@@ -285,8 +279,12 @@ private struct PolishPresetSlider: View {
               selection = PolishPreset.allCases[index]
             })
       }
+      .animation(
+        VhraseMotion.respectingReduceMotion(VhraseMotion.bounce, reduceMotion: reduceMotion),
+        value: selection
+      )
     }
-    .frame(height: 50)
+    .frame(height: 62)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("Writing style preset")
     .accessibilityValue(isCustom ? "Custom" : selection.title)
@@ -315,17 +313,5 @@ extension Bool {
     self
       ? "the first, no, second → the second"
       : "the first, no, second → the first, no, second"
-  }
-}
-
-/// Gives the full style segment immediate feedback while the preference is being saved.
-private struct PolishChoiceButtonStyle: ButtonStyle {
-  func makeBody(configuration: Configuration) -> some View {
-    configuration.label
-      .background(
-        configuration.isPressed ? VhraseTheme.accentSubtle : Color.clear,
-        in: RoundedRectangle(cornerRadius: 6)
-      )
-      .opacity(configuration.isPressed ? 0.7 : 1)
   }
 }

@@ -1,4 +1,4 @@
-// Renders Vhrase's shared full-size and compact recording affordance.
+// Renders the record control that sits inside a mic bar: a white disc carrying the bar's state color, still until the workflow changes.
 
 import SwiftUI
 
@@ -8,8 +8,8 @@ enum RecordHeroButtonStyle {
 
   var diameter: CGFloat {
     switch self {
-    case .hero: 72
-    case .compact: 40
+    case .hero: 50
+    case .compact: 36
     }
   }
 }
@@ -24,60 +24,52 @@ struct RecordHeroButton: View {
   @State private var isPulsing = false
   @State private var isHovered = false
   @State private var ringRotation = 0.0
-  @State private var ambientRingIsExpanded = false
 
   var body: some View {
     Button(action: action) {
       ZStack {
-        if style == .hero {
-          signalRings
-        }
-
         if presentation.status.isProcessing {
           Circle()
             .stroke(
-              VhraseTheme.statusProcessing.opacity(0.72),
-              style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 7])
+              Color.white.opacity(0.85),
+              style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 6])
             )
-            .frame(width: style.diameter + 18, height: style.diameter + 18)
+            .frame(width: style.diameter + 12, height: style.diameter + 12)
             .rotationEffect(.degrees(ringRotation))
         }
 
         if isRecording {
           Circle()
-            .stroke(VhraseTheme.statusRecording.opacity(0.5), lineWidth: 2 + 4 * normalizedLevel)
-            .frame(width: style.diameter + 10, height: style.diameter + 10)
+            .stroke(Color.white.opacity(0.5), lineWidth: 2 + 4 * normalizedLevel)
+            .frame(width: style.diameter + 8, height: style.diameter + 8)
         }
 
         Circle()
-          .fill(buttonFill)
+          .fill(discFill)
           .frame(width: style.diameter, height: style.diameter)
-          .shadow(color: glowColor, radius: style == .hero ? 24 : 10, y: style == .hero ? 8 : 3)
 
         if isPreparing {
           ProgressView()
-            .controlSize(style == .hero ? .large : .small)
-            .tint(.white)
+            .controlSize(.small)
+            .tint(VhraseTheme.statusRecording)
         } else {
           Image(systemName: presentation.recordButtonSystemImage)
-            .font(.system(size: style == .hero ? 25 : 15, weight: .bold))
-            .foregroundStyle(iconColor)
+            .font(.system(size: style == .hero ? 21 : 15, weight: .bold))
+            .foregroundStyle(presentation.micBarTint ?? VhraseTheme.inkSecondary)
         }
       }
-      .frame(
-        width: style == .hero ? style.diameter + 76 : style.diameter + 12,
-        height: style == .hero ? style.diameter + 76 : style.diameter + 12
-      )
+      .frame(width: style.diameter + 16, height: style.diameter + 16)
       .scaleEffect(buttonScale)
       .contentShape(Circle())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(PressableButtonStyle(pressedScale: 0.88))
     .disabled(presentation.recordAction == .disabled)
     .accessibilityLabel(presentation.recordButtonTitle)
     .accessibilityHint(presentation.recordButtonSubtitle(style: style == .hero ? .full : .compact))
+    .help(presentation.recordButtonTitle)
     .onHover { isHovered = $0 }
     .animation(
-      VhraseMotion.respectingReduceMotion(VhraseMotion.snappy, reduceMotion: reduceMotion),
+      VhraseMotion.respectingReduceMotion(VhraseMotion.bounce, reduceMotion: reduceMotion),
       value: isHovered
     )
     .animation(
@@ -85,34 +77,13 @@ struct RecordHeroButton: View {
       value: recordingLevel
     )
     .animation(
-      VhraseMotion.respectingReduceMotion(VhraseMotion.settle, reduceMotion: reduceMotion),
+      VhraseMotion.respectingReduceMotion(VhraseMotion.bounce, reduceMotion: reduceMotion),
       value: presentation.status
     )
     .onAppear(perform: updateMotion)
     .onChange(of: presentation.status) { _, _ in
       updateMotion()
     }
-  }
-
-  private var signalRings: some View {
-    ZStack {
-      ForEach(0..<3, id: \.self) { index in
-        Circle()
-          .stroke(
-            signalColor.opacity(0.16 - Double(index) * 0.035),
-            lineWidth: 1
-          )
-          .frame(
-            width: style.diameter + CGFloat(30 + index * 20),
-            height: style.diameter + CGFloat(30 + index * 20)
-          )
-          .scaleEffect(
-            (ambientRingIsExpanded ? 1.055 : 1)
-              * (isRecording ? 1 + normalizedLevel * CGFloat(index + 1) * 0.035 : 1)
-          )
-      }
-    }
-    .accessibilityHidden(true)
   }
 
   private var isPreparing: Bool {
@@ -127,56 +98,23 @@ struct RecordHeroButton: View {
     min(max(CGFloat(recordingLevel), 0), 1)
   }
 
-  private var signalColor: Color {
-    switch presentation.status {
-    case .recording:
-      VhraseTheme.statusRecording
-    case .preparing, .transcribing, .adjusting:
-      VhraseTheme.statusProcessing
-    default:
-      VhraseTheme.accent
-    }
-  }
-
   private var buttonScale: CGFloat {
-    let pulseScale: CGFloat = isRecording && isPulsing ? 1.045 : 1
-    let hoverScale: CGFloat = isHovered && !reduceMotion ? 1.035 : 1
+    let pulseScale: CGFloat = isRecording && isPulsing ? 1.05 : 1
+    let hoverScale: CGFloat = isHovered && !reduceMotion ? 1.06 : 1
     return pulseScale * hoverScale
   }
 
-  private var buttonFill: Color {
-    if isRecording || isPreparing {
-      return VhraseTheme.statusRecording
-    }
-    return presentation.coreRecordingReady && presentation.status.canStartRecording
-      ? VhraseTheme.accent
-      : VhraseTheme.field
-  }
-
-  private var iconColor: Color {
-    presentation.coreRecordingReady || isRecording || isPreparing
-      ? .white : VhraseTheme.inkSecondary
-  }
-
-  private var glowColor: Color {
-    guard style == .hero, presentation.coreRecordingReady else {
-      return .clear
-    }
-    return (isRecording ? VhraseTheme.statusRecording : VhraseTheme.accent).opacity(0.35)
+  /// White reads on every colored bar; the neutral setup bar gets a quiet disc instead.
+  private var discFill: Color {
+    presentation.micBarTint == nil ? VhraseTheme.field : .white
   }
 
   /// Restarts only the motion relevant to the newly entered workflow state.
   private func updateMotion() {
     isPulsing = false
     ringRotation = 0
-    ambientRingIsExpanded = false
     guard !reduceMotion else {
       return
-    }
-    if style == .hero {
-      withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
-        ambientRingIsExpanded = true
-      }
     }
     if isRecording {
       withAnimation(VhraseMotion.pulse) {

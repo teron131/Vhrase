@@ -54,9 +54,9 @@ struct NoticeCard: View {
       }
     }
     .padding(10)
-    .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+    .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     .overlay {
-      RoundedRectangle(cornerRadius: 9, style: .continuous)
+      RoundedRectangle(cornerRadius: 12, style: .continuous)
         .strokeBorder(color.opacity(0.18), lineWidth: 1)
     }
     .accessibilityElement(children: action == nil ? .combine : .contain)

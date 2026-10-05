@@ -35,6 +35,7 @@ struct MainWindowView: View {
         .id(selectedTab)
         .transition(tabTransition)
         .navigationTitle(selectedTab.title)
+        .hidingToolbarTitle()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VhraseTheme.canvas)
         .overlay(alignment: .top) {
@@ -47,6 +48,7 @@ struct MainWindowView: View {
     }
     .frame(minWidth: 1020, minHeight: 680)
     .tint(VhraseTheme.accent)
+    .buttonBorderShape(.capsule)
     .animation(
       VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
       value: selectedTab
@@ -99,6 +101,18 @@ struct MainWindowView: View {
       OutputView(appState: appState)
     case .system:
       SystemView(appState: appState, selectedTab: selection)
+    }
+  }
+}
+
+extension View {
+  /// Keeps the window title for the Window menu while each page's own header names the destination.
+  @ViewBuilder
+  fileprivate func hidingToolbarTitle() -> some View {
+    if #available(macOS 15.0, *) {
+      toolbar(removing: .title)
+    } else {
+      self
     }
   }
 }

@@ -25,61 +25,30 @@ struct HistoryView: View {
   }
 
   private func historyTab(_ page: HistorySearch.Page) -> some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 20) {
-        HStack(alignment: .firstTextBaseline) {
-          sectionHeader("Activity", description: "A local summary of your saved dictations.")
-          Spacer()
-          Toggle(
-            "Save future transcripts",
+    mainWindowPage(spacing: 22) {
+      pageHeader(
+        "History",
+        description: "Saved transcripts stay on this Mac. Search, copy, or remove them here."
+      ) {
+        HStack(spacing: 10) {
+          Text("Save future transcripts")
+            .font(VhraseFont.pill)
+          VhraseSwitch(
+            title: "Save future transcripts",
             isOn: Binding(
               get: { appState.savesTranscriptHistory },
               set: { appState.updateTranscriptHistorySaving($0) }
             )
           )
-          .toggleStyle(.switch)
-          .help(
-            "Keep future transcripts on this Mac. Turning this off does not delete anything already saved."
-          )
         }
+        .help(
+          "Keep future transcripts on this Mac. Turning this off does not delete anything already saved."
+        )
+      }
 
-        historyStatsCard
-        historyActivityCard
+      historyStatsCard
 
-        HStack(alignment: .firstTextBaseline) {
-          sectionHeader("Recent transcripts", description: historyCountTitle(page))
-          Spacer()
-          if page.count > 1 {
-            Button {
-              browsing.pageIndex = max(0, page.index - 1)
-            } label: {
-              Label("Newer", systemImage: "chevron.left")
-            }
-            .buttonStyle(AccentLinkButtonStyle())
-            .disabled(page.index == 0)
-
-            Text("\(page.index + 1) of \(page.count)")
-              .font(VhraseFont.micro.monospacedDigit())
-              .foregroundStyle(VhraseTheme.inkSecondary)
-
-            Button {
-              browsing.pageIndex = min(page.count - 1, page.index + 1)
-            } label: {
-              Label("Older", systemImage: "chevron.right")
-                .labelStyle(.titleAndIcon)
-            }
-            .buttonStyle(AccentLinkButtonStyle())
-            .disabled(page.index == page.count - 1)
-          }
-          Button(role: .destructive) {
-            isClearHistoryConfirmationPresented = true
-          } label: {
-            Label("Clear", systemImage: "trash")
-          }
-          .buttonStyle(AccentLinkButtonStyle())
-          .disabled(appState.history.isEmpty)
-        }
-
+      VStack(alignment: .leading, spacing: 12) {
         if !appState.history.isEmpty {
           historySearchControls
           if browsing.dateFilter == .custom {
@@ -110,44 +79,27 @@ struct HistoryView: View {
           .frame(maxWidth: .infinity, minHeight: 220)
         } else {
           VStack(spacing: 0) {
-            HStack(spacing: 16) {
-              Text("Transcript").frame(maxWidth: .infinity, alignment: .leading)
-              Text("Date").frame(width: 100, alignment: .leading)
-              Text("Source / App").frame(width: 112, alignment: .leading)
-              Color.clear.frame(width: 48, height: 1)
+            ForEach(page.items) { item in
+              HistoryTranscriptRow(
+                item: item,
+                metadata: DictationPresentation.historyMetadata(item),
+                onCopy: { appState.copyHistoryItem(item) },
+                onDelete: { appState.deleteHistoryItem(item) }
+              )
             }
-            .font(VhraseFont.micro)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            Divider()
-            ScrollView {
-              LazyVStack(spacing: 0) {
-                ForEach(page.items) { item in
-                  HistoryTranscriptRow(
-                    item: item,
-                    metadata: DictationPresentation.historyMetadata(item),
-                    onCopy: { appState.copyHistoryItem(item) },
-                    onDelete: { appState.deleteHistoryItem(item) }
-                  )
-                  Divider().padding(.horizontal, 16)
-                }
-              }
-            }
-            .frame(height: 460)
           }
-          .background(VhraseTheme.card)
-          .clipShape(RoundedRectangle(cornerRadius: VhraseTheme.sectionCornerRadius))
-          .overlay {
-            RoundedRectangle(cornerRadius: VhraseTheme.sectionCornerRadius)
-              .strokeBorder(VhraseTheme.hairline)
+          .mask {
+            RoundedRectangle(cornerRadius: VhraseTheme.groupCornerRadius, style: .continuous)
+              .padding(.top, 1)
           }
+          .surface()
           .id(historyListIdentity(pageIndex: page.index))
         }
+
+        if !appState.history.isEmpty {
+          historyFooter(page)
+        }
       }
-      .frame(maxWidth: 1040, alignment: .topLeading)
-      .padding(32)
-      .frame(maxWidth: .infinity, alignment: .top)
     }
     .confirmationDialog(
       "Clear transcript history?",
@@ -175,6 +127,54 @@ struct HistoryView: View {
     }
   }
 
+  /// Keeps the irreversible clear action at the opposite edge from page navigation.
+  private func historyFooter(_ page: HistorySearch.Page) -> some View {
+    HStack(spacing: 12) {
+      Button(role: .destructive) {
+        isClearHistoryConfirmationPresented = true
+      } label: {
+        Label("Clear history…", systemImage: "trash")
+      }
+      .buttonStyle(AccentLinkButtonStyle())
+
+      Spacer()
+
+      Text(historyCountTitle(page))
+        .font(VhraseFont.micro.monospacedDigit())
+        .foregroundStyle(VhraseTheme.inkSecondary)
+
+      if page.count > 1 {
+        HStack(spacing: 4) {
+          Button {
+            browsing.pageIndex = max(0, page.index - 1)
+          } label: {
+            Label("Newer", systemImage: "chevron.left")
+              .labelStyle(.iconOnly)
+          }
+          .help("Newer transcripts")
+          .disabled(page.index == 0)
+
+          Text("\(page.index + 1) of \(page.count)")
+            .font(VhraseFont.micro.monospacedDigit())
+            .foregroundStyle(VhraseTheme.inkSecondary)
+            .frame(minWidth: 44)
+
+          Button {
+            browsing.pageIndex = min(page.count - 1, page.index + 1)
+          } label: {
+            Label("Older", systemImage: "chevron.right")
+              .labelStyle(.iconOnly)
+          }
+          .help("Older transcripts")
+          .disabled(page.index == page.count - 1)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+      }
+    }
+    .font(.callout)
+  }
+
   private var historySearchControls: some View {
     HStack(spacing: 10) {
       Image(systemName: "magnifyingglass")
@@ -197,7 +197,7 @@ struct HistoryView: View {
         .accessibilityLabel("Clear history search")
       }
 
-      Divider().frame(height: 20)
+      Divider().frame(height: 18)
 
       Picker("Date", selection: $browsing.dateFilter) {
         ForEach(HistoryDateFilter.allCases) { filter in
@@ -214,46 +214,19 @@ struct HistoryView: View {
         .accessibilityLabel("History provider filter")
     }
     .padding(.horizontal, 12)
-    .padding(.vertical, 9)
-    .insetField()
+    .padding(.vertical, 7)
+    .surface(cornerRadius: VhraseTheme.fieldCornerRadius + 2)
   }
 
   private var historyStatsCard: some View {
-    HStack(spacing: 18) {
-      HistoryMetric(
-        value: "\(historyTodayCount)",
-        label: "Today",
-        detail: "saved dictations"
-      )
-      Divider().frame(height: 50)
-      HistoryMetric(
-        value: "\(historyWeekCount)",
-        label: "Last 7 days",
-        detail: "saved dictations"
-      )
-      Divider().frame(height: 50)
-      HistoryMetric(
-        value: appState.historyIndex.wordCount.formatted(),
-        label: "Words",
-        detail: "across saved text"
-      )
-      Divider().frame(height: 50)
-      HistoryMetric(
-        value: historyTopDestination,
-        label: "Top destination",
-        detail: "among saved items"
-      )
+    HStack(spacing: 10) {
+      StatTile(value: "\(historyTodayCount)", title: "Today", detail: "saved dictations")
+      StatTile(value: "\(historyWeekCount)", title: "Last 7 days", detail: "saved dictations")
+      StatTile(
+        value: appState.historyIndex.wordCount.formatted(), title: "Words",
+        detail: "across saved text")
+      StatTile(value: historyTopDestination, title: "Top destination", detail: "among saved items")
     }
-    .contentSection()
-  }
-
-  private var historyActivityCard: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      sectionHeader("Last 7 days", description: "Saved dictations by day.")
-      HistoryActivityChart(days: historyDays)
-        .frame(height: 128)
-    }
-    .contentSection()
   }
 
   @ViewBuilder
@@ -308,20 +281,6 @@ struct HistoryView: View {
     return destinations.first { counts[$0] == highestCount } ?? "—"
   }
 
-  private var historyDays: [HistoryDay] {
-    let calendar = Calendar.current
-    let today = calendar.startOfDay(for: Date())
-    return (0..<7).compactMap { index in
-      guard let date = calendar.date(byAdding: .day, value: index - 6, to: today),
-        let nextDate = calendar.date(byAdding: .day, value: 1, to: date)
-      else {
-        return nil
-      }
-      let count = appState.history.filter { $0.createdAt >= date && $0.createdAt < nextDate }.count
-      return HistoryDay(date: date, count: count)
-    }
-  }
-
   private func historyCountTitle(_ page: HistorySearch.Page) -> String {
     if appState.history.isEmpty {
       return "Nothing saved"
@@ -352,72 +311,7 @@ struct HistoryView: View {
   }
 }
 
-private struct HistoryDay: Identifiable {
-  let date: Date
-  let count: Int
-
-  var id: Date { date }
-}
-
-private struct HistoryMetric: View {
-  let value: String
-  let label: String
-  let detail: String
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 3) {
-      Text(value)
-        .font(VhraseFont.statValue)
-        .lineLimit(1)
-        .minimumScaleFactor(0.72)
-        .contentTransition(.numericText())
-      Text(label)
-        .font(.callout.weight(.medium))
-      Text(detail)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-  }
-}
-
-private struct HistoryActivityChart: View {
-  let days: [HistoryDay]
-
-  var body: some View {
-    GeometryReader { proxy in
-      let plotHeight = max(proxy.size.height - 34, 1)
-      let maximum = max(days.map(\.count).max() ?? 0, 1)
-
-      HStack(alignment: .bottom, spacing: 12) {
-        ForEach(days) { day in
-          VStack(spacing: 6) {
-            Spacer(minLength: 0)
-            Text(day.count.formatted())
-              .font(.caption2.monospacedDigit())
-              .foregroundStyle(.secondary)
-              .opacity(day.count == 0 ? 0 : 1)
-
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-              .fill(day.count == 0 ? VhraseTheme.field : VhraseTheme.accent)
-              .frame(height: max(5, plotHeight * CGFloat(day.count) / CGFloat(maximum)))
-
-            Text(day.date.formatted(.dateTime.weekday(.abbreviated)))
-              .font(.caption2.weight(.medium))
-              .foregroundStyle(.secondary)
-          }
-          .frame(maxWidth: .infinity)
-          .accessibilityElement(children: .ignore)
-          .accessibilityLabel(day.date.formatted(.dateTime.weekday(.wide)))
-          .accessibilityValue("\(day.count) saved dictations")
-        }
-      }
-    }
-  }
-}
-
-/// Expands complete selectable text below an aligned summary without inheriting table-cell truncation.
+/// Shows each saved transcript as the user's words first, with when, how, and where beneath, expanding in place to the full text.
 private struct HistoryTranscriptRow: View {
   let item: TranscriptHistoryItem
   let metadata: String
@@ -427,56 +321,31 @@ private struct HistoryTranscriptRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      HStack(spacing: 16) {
+      HStack(alignment: .top, spacing: 12) {
         Button {
           isExpanded.toggle()
         } label: {
-          HStack(spacing: 10) {
-            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+          HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "chevron.right")
               .font(.caption2.weight(.semibold))
               .foregroundStyle(.secondary)
-              .frame(width: 10)
-            Text(item.text.replacingOccurrences(of: "\n", with: " "))
-              .lineLimit(1)
-              .frame(maxWidth: .infinity, alignment: .leading)
+              .rotationEffect(.degrees(isExpanded ? 90 : 0))
+              .frame(width: 10, height: 18)
+            VStack(alignment: .leading, spacing: 5) {
+              if !isExpanded {
+                Text(item.text.replacingOccurrences(of: "\n", with: " "))
+                  .font(VhraseFont.transcriptBody)
+                  .lineLimit(2)
+                  .frame(maxWidth: .infinity, alignment: .leading)
+              }
+              summaryLine
+            }
           }
           .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(isExpanded ? "Collapse transcript" : "Read full transcript")
-        VStack(alignment: .leading, spacing: 3) {
-          Text(
-            item.createdAt,
-            format: Date.VerbatimFormatStyle(
-              format: "\(year: .defaultDigits)-\(month: .twoDigits)-\(day: .twoDigits)",
-              timeZone: .current, calendar: Calendar(identifier: .gregorian)))
-          Text(
-            item.createdAt,
-            format: Date.VerbatimFormatStyle(
-              format:
-                "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits):\(second: .twoDigits)",
-              timeZone: .current, calendar: Calendar(identifier: .gregorian))
-          )
-          .foregroundStyle(.tertiary)
-        }
-        .font(.caption)
-        .frame(width: 100, alignment: .leading)
-        VStack(alignment: .leading, spacing: 3) {
-          HStack(spacing: 6) {
-            if let icon = ProviderPicker.icon(forHistoryLabel: item.provider) {
-              Image(nsImage: icon)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 14, height: 14)
-                .accessibilityHidden(true)
-            }
-            Text(item.provider)
-          }
-          Text(item.targetAppName ?? "—").foregroundStyle(.tertiary)
-        }
-        .font(.caption)
-        .lineLimit(1)
-        .frame(width: 112, alignment: .leading)
+
         HStack(spacing: 12) {
           Button(action: onCopy) { Image(systemName: "doc.on.doc") }
             .help("Copy transcript")
@@ -487,11 +356,20 @@ private struct HistoryTranscriptRow: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
-        .frame(width: 48)
+        .padding(.top, 2)
       }
-      .padding(16)
+      .padding(.horizontal, 14)
+      .padding(.vertical, 12)
+
       if isExpanded {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
+          Text(item.text)
+            .font(VhraseFont.transcriptBody)
+            .lineSpacing(3)
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+            .frame(maxWidth: 680, alignment: .leading)
           Text(metadata)
             .font(VhraseFont.micro)
             .foregroundStyle(.secondary)
@@ -511,18 +389,50 @@ private struct HistoryTranscriptRow: View {
               .font(.caption)
               .foregroundStyle(.secondary)
           }
-          Text(item.text)
-            .font(.body)
-            .lineLimit(nil)
-            .fixedSize(horizontal: false, vertical: true)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 36)
-        .padding(.bottom, 20)
+        .padding(.leading, 34)
+        .padding(.trailing, 14)
+        .padding(.bottom, 16)
       }
     }
     .background(isExpanded ? VhraseTheme.field : Color.clear)
+    .overlay(alignment: .top) {
+      Rectangle()
+        .fill(VhraseTheme.hairline)
+        .frame(height: 1)
+        .padding(.leading, 14)
+    }
+  }
+
+  private var summaryLine: some View {
+    HStack(spacing: 6) {
+      Text(
+        item.createdAt,
+        format: Date.VerbatimFormatStyle(
+          format:
+            "\(year: .defaultDigits)-\(month: .twoDigits)-\(day: .twoDigits) \(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits)",
+          timeZone: .current, calendar: Calendar(identifier: .gregorian))
+      )
+      .monospacedDigit()
+      Text("·")
+      if let icon = ProviderPicker.icon(forHistoryLabel: item.provider) {
+        Image(nsImage: icon)
+          .resizable()
+          .scaledToFit()
+          .frame(width: 12, height: 12)
+          .accessibilityHidden(true)
+      }
+      Text(item.provider)
+      if let target = item.targetAppName {
+        Image(systemName: "arrow.right")
+          .font(.caption2)
+          .accessibilityLabel("to")
+        Text(target)
+      }
+    }
+    .font(.caption)
+    .foregroundStyle(.secondary)
+    .lineLimit(1)
   }
 
   private func metric(_ label: String, value: String) -> some View {

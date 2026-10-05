@@ -1,11 +1,10 @@
-// Defines Vhrase's adaptive color, shape, spacing, and surface tokens.
+// Defines Vhrase's adaptive color, shape, and surface tokens; color encodes identity or workflow state, never decoration.
 
 import AppKit
 import SwiftUI
 
 enum VhraseTheme {
   static let accent = adaptiveColor(light: 0xE8431F, dark: 0xFF6242)
-  static let accentSubtle = adaptiveColor(light: 0xE8431F, dark: 0xFF6242).opacity(0.14)
   static let canvas = adaptiveColor(light: 0xF7F4EF, dark: 0x161412)
   static let card = adaptiveColor(light: 0xFFFFFF, dark: 0x211E1B)
   static let field = Color.primary.opacity(0.055)
@@ -16,13 +15,13 @@ enum VhraseTheme {
   static let statusWarning = adaptiveColor(light: 0xC77700, dark: 0xFFB224)
   static let statusFailure = adaptiveColor(light: 0xC62828, dark: 0xFF5147)
   static let statusProcessing = adaptiveColor(light: 0x7A5CFF, dark: 0x9D86FF)
-  static let workflowAccent = adaptiveColor(light: 0x76567F, dark: 0xB88BC4)
   static let recorderBackground = Color.black
   static let recorderBorder = Color.white.opacity(0.18)
 
-  static let heroCornerRadius: CGFloat = 16
-  static let sectionCornerRadius: CGFloat = 12
-  static let fieldCornerRadius: CGFloat = 9
+  /// Generous, soft corners carry the playful shape language; the mic bar is roundest and fields step down from groups.
+  static let sheetCornerRadius: CGFloat = 24
+  static let groupCornerRadius: CGFloat = 16
+  static let fieldCornerRadius: CGFloat = 10
 
   /// Maps a setup diagnostic's severity to its semantic status color across all surfaces.
   static func diagnosticColor(_ severity: SetupDiagnosticSeverity) -> Color {
@@ -70,31 +69,16 @@ struct AccentLinkButtonStyle: ButtonStyle {
   }
 }
 
-private struct ContentSectionModifier: ViewModifier {
-  func body(content: Content) -> some View {
-    content
-      .padding(20)
-      .background(
-        VhraseTheme.card,
-        in: RoundedRectangle(cornerRadius: VhraseTheme.sectionCornerRadius, style: .continuous)
-      )
-      .overlay {
-        RoundedRectangle(cornerRadius: VhraseTheme.sectionCornerRadius, style: .continuous)
-          .strokeBorder(VhraseTheme.hairline, lineWidth: 1)
-      }
-  }
-}
+private struct SurfaceModifier: ViewModifier {
+  let cornerRadius: CGFloat
 
-private struct OperationalSurfaceModifier: ViewModifier {
   func body(content: Content) -> some View {
     content
-      .padding(24)
       .background(
-        VhraseTheme.card,
-        in: RoundedRectangle(cornerRadius: VhraseTheme.heroCornerRadius, style: .continuous)
+        VhraseTheme.card, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
       )
       .overlay {
-        RoundedRectangle(cornerRadius: VhraseTheme.heroCornerRadius, style: .continuous)
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
           .strokeBorder(VhraseTheme.hairline, lineWidth: 1)
       }
   }
@@ -116,12 +100,9 @@ private struct InsetFieldModifier: ViewModifier {
 }
 
 extension View {
-  func contentSection() -> some View {
-    modifier(ContentSectionModifier())
-  }
-
-  func operationalSurface() -> some View {
-    modifier(OperationalSurfaceModifier())
+  /// Places content on a raised card with a hairline edge and no shadow; callers own the inner padding.
+  func surface(cornerRadius: CGFloat = VhraseTheme.groupCornerRadius) -> some View {
+    modifier(SurfaceModifier(cornerRadius: cornerRadius))
   }
 
   func insetField(cornerRadius: CGFloat = VhraseTheme.fieldCornerRadius) -> some View {

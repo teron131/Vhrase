@@ -62,7 +62,7 @@ Use the bundle for normal operation so macOS associates privacy permissions with
 4. Grant Accessibility so Vhrase can return finalized text to the originating app; it also enables the global Fn/Globe shortcut.
 5. Grant Input Monitoring only if Fn/Globe does not respond reliably, and Screen Recording only when screenshot context is enabled.
 
-The System screen reports saved or environment-backed credentials separately and routes unavailable permissions to the matching macOS privacy pane.
+The System screen shows whether each credential is saved, loaded from the environment, or missing beside its field, and each permission row offers the next step: a native request while macOS still allows one, otherwise the matching privacy pane.
 Normal launches prefer saved Keychain values, then use launch-environment values or direct literal exports from `~/.zshrc`, while the development runner skips Keychain and can additionally resolve `.env` values in memory without printing them.
 Credential fields remain editable; editing one saves that value to Keychain without opening a password dialog.
 If macOS blocks access, Vhrase leaves the saved item protected, uses your edit only for the current session, and shows an unsaved-changes notice with a retry action.
@@ -85,11 +85,11 @@ If Accessibility or the target app is unavailable, the transcript stays on the c
 
 - **Floating recorder:** a small black pill at the bottom of the active screen, with six white audio bars while listening and a progress indicator while processing. Hover or click the waveform to reveal cancel and finish controls without taking focus from the target app. Completion briefly confirms delivery; right-click it to copy again. Errors expand to show the explanation and retry action. Transcript previews remain in Dictate and the menu bar rather than expanding the pill.
 - **Menu bar:** start capture, review compact activity stats, open the main window, and switch provider or mode when no workflow is active.
-- **Dictate:** current readiness, latest transcript, local activity, and the fastest route to capture or system controls.
+- **Dictate:** a mic bar holds the record button, a signal that rests as quiet dots and shows the live microphone level while recording, and a provider and mode menu; its fill turns orange when ready, red while listening, and violet while Vhrase works. The latest transcript and its pre-cleanup original appear in a speech bubble from the parrot, and activity totals below double as tiles that choose which total the chart plots.
 - **Transcription:** one stage editor for the global shortcut, listening language, provider tuning, transport mode, and provider keyterms.
 - **Refinement:** one page for the LLM model, shared vocabulary, writing preferences, and clipboard delivery.
 - **System:** Keychain credentials, macOS permissions, and actionable diagnostics.
-- **History:** saved-activity statistics plus searchable, copyable, and removable transcripts.
+- **History:** saved-activity statistics plus searchable, copyable, and removable transcripts, each shown with its time, provider, and destination app.
 
 Workflow-shaping controls are locked while a recording or transcription is active, and each run keeps its own settings and credential snapshot.
 

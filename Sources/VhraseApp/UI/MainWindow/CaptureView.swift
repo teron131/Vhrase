@@ -43,35 +43,34 @@ struct CaptureView: View {
   }
 
   private var captureTab: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 22) {
-        pageHeader(
-          MainWindowTab.capture.title,
-          description: "Choose how Vhrase listens and which shortcut follows you across apps.",
-          systemImage: MainWindowTab.capture.systemImage
-        )
+    mainWindowPage(spacing: 22) {
+      pageHeader(
+        MainWindowTab.capture.title,
+        description: "Choose how Vhrase listens and which shortcut follows you across apps."
+      )
 
-        workflowEditor(
-          "Transcription workflow",
-          description: "Select a stage to configure it. Each setting lives in one place.",
-          nodes: capturePipelineNodes,
-          selection: Binding(
-            get: { selectedCapturePipelineStage },
-            set: { stage in
-              if stage == .listen {
-                restartListeningPreview()
-              }
-              selectedCapturePipelineStage = stage
+      PipelineFlowView(
+        nodes: capturePipelineNodes,
+        selection: Binding(
+          get: { selectedCapturePipelineStage },
+          set: { stage in
+            if stage == .listen {
+              restartListeningPreview()
             }
-          )
-        ) {
-          captureWorkflowStageEditor
-        }
-      }
-      .frame(maxWidth: 1040, alignment: .topLeading)
-      .padding(32)
-      .frame(maxWidth: .infinity, alignment: .top)
+            selectedCapturePipelineStage = stage
+          }
+        )
+      )
+
+      captureWorkflowStageEditor
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .id(selectedCapturePipelineStage)
+        .transition(.opacity)
     }
+    .animation(
+      VhraseMotion.respectingReduceMotion(VhraseMotion.settle, reduceMotion: reduceMotion),
+      value: selectedCapturePipelineStage
+    )
     .disabled(presentation.workflowControlsAreDisabled)
   }
 
@@ -82,25 +81,30 @@ struct CaptureView: View {
     appState.audioInputPreview.restart(settings: appState.settings)
   }
 
-  private var transcriptionStageSettings: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      workflowStageHeader(
-        "Transcribe",
-        description: "Choose the speech service and tune how it recognizes your words.",
-        systemImage: "waveform"
-      )
+  private func stageIntro(_ text: String) -> some View {
+    Text(text)
+      .font(VhraseFont.caption)
+      .foregroundStyle(VhraseTheme.inkSecondary)
+      .fixedSize(horizontal: false, vertical: true)
+  }
 
-      Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
-        GridRow {
-          Text("Provider")
-            .gridColumnAlignment(.trailing)
+  private var transcriptionStageSettings: some View {
+    VStack(alignment: .leading, spacing: 24) {
+      stageIntro("Choose the speech service and tune how it recognizes your words.")
+
+      settingsGroup(
+        "Service",
+        footer: appState.settings.provider == .gemini
+          ? "Audio is sent directly to Google after you stop. Interaction storage is disabled. Live Gemini transcription is not enabled in this version."
+          : nil
+      ) {
+        settingsRow("Provider", detail: appState.settings.provider.detail) {
           ProviderPicker(selection: appState.settingsBinding(\.provider), style: .segmented)
             .fixedSize()
-            .gridColumnAlignment(.leading)
         }
-
-        GridRow {
-          Text("Mode")
+        settingsRow(
+          "Mode", detail: "Upload transcribes after you stop. Realtime transcribes while you speak."
+        ) {
           TranscriptionModePicker(
             selection: appState.settingsBinding(\.transcriptionMode),
             enabledModes: appState.settings.provider.availableModes
@@ -109,36 +113,18 @@ struct CaptureView: View {
         }
       }
 
-      Text(appState.settings.provider.detail)
-        .font(.callout)
-        .foregroundStyle(.secondary)
-      if appState.settings.provider == .gemini {
-        Text(
-          "Audio is sent directly to Google after you stop. Interaction storage is disabled. Live Gemini transcription is not enabled in this version."
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      }
-
-      VStack(alignment: .leading, spacing: 12) {
-        Label(
-          "\(appState.settings.provider.title) options",
-          systemImage: "slider.horizontal.3"
-        )
-        .font(.subheadline.weight(.medium))
-
+      settingsGroup("\(appState.settings.provider.title) options") {
         providerSpecificControls
       }
 
-      Divider()
-
-      VocabularyEditor(appState: appState)
+      settingsGroup("Shared vocabulary") {
+        VocabularyEditor(appState: appState)
+          .settingsRowStyle()
+      }
     }
-    .toggleStyle(.switch)
   }
 
   @ViewBuilder
-
   private var providerSpecificControls: some View {
     switch appState.settings.provider {
     case .gemini:
@@ -148,15 +134,21 @@ struct CaptureView: View {
           "Remove fillers, resolve spoken corrections, and format paragraphs and lists. Turn off when you need closer preservation of the spoken words.",
         isOn: appState.settingsBinding(\.geminiSmartTranscription))
       if appState.settings.geminiSmartTranscription, appState.settings.adjustWithLLM {
-        HStack(alignment: .top, spacing: 12) {
-          Text("LLM enhancement is also on. It will rewrite the Smart transcript a second time.")
-            .font(.caption)
-            .foregroundStyle(VhraseTheme.statusWarning)
+        HStack(alignment: .center, spacing: 12) {
+          Label(
+            "LLM enhancement is also on. It will rewrite the Smart transcript a second time.",
+            systemImage: "exclamationmark.triangle"
+          )
+          .font(.caption)
+          .foregroundStyle(VhraseTheme.statusWarning)
+          .frame(maxWidth: .infinity, alignment: .leading)
           Button("Use Smart only") {
             appState.updateSettings { $0.adjustWithLLM = false }
           }
           .buttonStyle(.bordered)
+          .controlSize(.small)
         }
+        .settingsRowStyle()
       }
     case .xai:
       settingsToggle(
@@ -169,24 +161,23 @@ struct CaptureView: View {
         isOn: appState.settingsBinding(\.xaiFormatText))
 
       if appState.settings.transcriptionMode == .realtime {
-        LabeledContent("Speech detection threshold") {
-          HStack {
-            Slider(value: appState.settingsBinding(\.xaiVADThreshold), in: 0...1, step: 0.01)
-            Text(appState.settings.xaiVADThreshold, format: .number.precision(.fractionLength(2)))
-              .font(.callout.monospacedDigit())
-          }.frame(maxWidth: 280)
-        }
-        Text(
-          "Lower values can help with quiet speech but may transcribe background noise. Zero disables the gate; default is 0.08."
+        settingsSlider(
+          "Speech detection threshold",
+          detail:
+            "Lower values can help with quiet speech but may transcribe background noise. Zero disables the gate; default is 0.08.",
+          value: appState.settingsBinding(\.xaiVADThreshold),
+          in: 0...1,
+          step: 0.01,
+          valueLabel: appState.settings.xaiVADThreshold.formatted(
+            .number.precision(.fractionLength(2)))
         )
-        .font(.caption).foregroundStyle(.secondary)
-        Stepper(
-          "Endpointing: \(appState.settings.xaiRealtimeEndpointing) ms",
+        settingsStepper(
+          "Endpointing",
           value: appState.settingsBinding(\.xaiRealtimeEndpointing),
           in: 0...5000,
-          step: 100
+          step: 100,
+          valueLabel: "\(appState.settings.xaiRealtimeEndpointing) ms"
         )
-
         settingsToggle(
           "Smart Turn",
           detail:
@@ -194,32 +185,25 @@ struct CaptureView: View {
           isOn: appState.settingsBinding(\.xaiSmartTurnEnabled))
 
         if appState.settings.xaiSmartTurnEnabled {
-          LabeledContent("Smart Turn threshold") {
-            HStack(spacing: 10) {
-              Slider(
-                value: appState.settingsBinding(\.xaiSmartTurnThreshold),
-                in: 0...1,
-                step: 0.05
-              )
-              Text(
-                appState.settings.xaiSmartTurnThreshold,
-                format: .number.precision(.fractionLength(2))
-              )
-              .font(.callout.monospacedDigit())
-              .frame(width: 36, alignment: .trailing)
-            }
-            .frame(maxWidth: 280)
-          }
-          Stepper(
-            "Smart Turn timeout: \(appState.settings.xaiSmartTurnTimeout) ms",
+          settingsSlider(
+            "Smart Turn threshold",
+            value: appState.settingsBinding(\.xaiSmartTurnThreshold),
+            in: 0...1,
+            step: 0.05,
+            valueLabel: appState.settings.xaiSmartTurnThreshold.formatted(
+              .number.precision(.fractionLength(2)))
+          )
+          settingsStepper(
+            "Smart Turn timeout",
             value: appState.settingsBinding(\.xaiSmartTurnTimeout),
             in: 1...5000,
-            step: 100
+            step: 100,
+            valueLabel: "\(appState.settings.xaiSmartTurnTimeout) ms"
           )
         }
       }
     case .elevenLabs:
-      LabeledContent("Model") {
+      settingsRow("Model") {
         Text(
           appState.settings.transcriptionMode == .realtime
             ? ElevenLabsTranscriptionContract.realtimeModelID
@@ -227,6 +211,7 @@ struct CaptureView: View {
         )
         .font(.callout.monospaced())
         .foregroundStyle(.secondary)
+        .textSelection(.enabled)
       }
 
       settingsToggle(
@@ -235,7 +220,7 @@ struct CaptureView: View {
         isOn: appState.settingsBinding(\.elevenLabsNoVerbatim))
 
       if appState.settings.transcriptionMode == .realtime {
-        labeledPicker("Commit strategy") {
+        settingsRow("Commit strategy") {
           Picker("Commit strategy", selection: appState.settingsBinding(\.elevenLabsCommitStrategy))
           {
             ForEach(ElevenLabsCommitStrategy.allCases) { strategy in
@@ -243,42 +228,38 @@ struct CaptureView: View {
             }
           }
           .labelsHidden()
+          .fixedSize()
         }
 
         if appState.settings.elevenLabsCommitStrategy == .vad {
-          Stepper(
-            "VAD silence: \(appState.settings.elevenLabsVADSilenceThreshold, specifier: "%.1f") s",
+          settingsStepper(
+            "VAD silence",
             value: appState.settingsBinding(\.elevenLabsVADSilenceThreshold),
             in: 0.3...3,
-            step: 0.1
+            step: 0.1,
+            valueLabel: String(format: "%.1f s", appState.settings.elevenLabsVADSilenceThreshold)
           )
-          LabeledContent("VAD threshold") {
-            HStack(spacing: 10) {
-              Slider(
-                value: appState.settingsBinding(\.elevenLabsVADThreshold),
-                in: 0.1...0.9,
-                step: 0.05
-              )
-              Text(
-                appState.settings.elevenLabsVADThreshold,
-                format: .number.precision(.fractionLength(2))
-              )
-              .font(.callout.monospacedDigit())
-              .frame(width: 36, alignment: .trailing)
-            }
-            .frame(maxWidth: 280)
-          }
-          Stepper(
-            "Minimum speech: \(appState.settings.elevenLabsMinSpeechDuration) ms",
+          settingsSlider(
+            "VAD threshold",
+            value: appState.settingsBinding(\.elevenLabsVADThreshold),
+            in: 0.1...0.9,
+            step: 0.05,
+            valueLabel: appState.settings.elevenLabsVADThreshold.formatted(
+              .number.precision(.fractionLength(2)))
+          )
+          settingsStepper(
+            "Minimum speech",
             value: appState.settingsBinding(\.elevenLabsMinSpeechDuration),
             in: 50...2000,
-            step: 50
+            step: 50,
+            valueLabel: "\(appState.settings.elevenLabsMinSpeechDuration) ms"
           )
-          Stepper(
-            "Minimum silence: \(appState.settings.elevenLabsMinSilenceDuration) ms",
+          settingsStepper(
+            "Minimum silence",
             value: appState.settingsBinding(\.elevenLabsMinSilenceDuration),
             in: 50...2000,
-            step: 50
+            step: 50,
+            valueLabel: "\(appState.settings.elevenLabsMinSilenceDuration) ms"
           )
         }
       }
@@ -286,201 +267,188 @@ struct CaptureView: View {
   }
 
   private var triggerStageSettings: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      workflowStageHeader(
-        "Trigger",
-        description: "Set the global shortcut for dictation and focused-text polishing.",
-        systemImage: "keyboard"
-      )
+    VStack(alignment: .leading, spacing: 24) {
+      stageIntro("Set the global shortcut for dictation and focused-text polishing.")
 
-      VStack(spacing: 14) {
-        KeyCap(text: appState.settings.hotkeyDisplay, prominence: .hero)
-          .scaleEffect(isCapturingHotkey ? 1.06 : 1)
+      settingsGroup {
+        VStack(spacing: 14) {
+          KeyCap(text: appState.settings.hotkeyDisplay, prominence: .hero)
+            .scaleEffect(isCapturingHotkey ? 1.06 : 1)
 
-        Text(
-          isCapturingHotkey
-            ? "Press Fn/Globe or another shortcut. Press Escape to cancel."
-            : ShortcutGestureInterpreter.summary
+          Text(
+            isCapturingHotkey
+              ? "Press Fn/Globe or another shortcut. Press Escape to cancel."
+              : ShortcutGestureInterpreter.summary
+          )
+          .font(.callout)
+          .foregroundStyle(isCapturingHotkey ? VhraseTheme.accent : Color.secondary)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: 460)
+          .contentTransition(.interpolate)
+
+          HStack(spacing: 10) {
+            Button {
+              appState.beginShortcutCapture()
+              isCapturingHotkey = true
+            } label: {
+              Label(
+                isCapturingHotkey ? "Listening" : "Change shortcut", systemImage: "record.circle")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isCapturingHotkey)
+
+            Button {
+              appState.disableShortcut()
+            } label: {
+              Label("Disable", systemImage: "slash.circle")
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .settingsRowStyle()
+        .animation(
+          VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
+          value: isCapturingHotkey
         )
-        .font(.callout)
-        .foregroundStyle(isCapturingHotkey ? VhraseTheme.accent : Color.secondary)
-        .multilineTextAlignment(.center)
-        .contentTransition(.interpolate)
 
-        HStack(spacing: 10) {
-          Button {
-            appState.beginShortcutCapture()
-            isCapturingHotkey = true
-          } label: {
-            Label(isCapturingHotkey ? "Listening" : "Change shortcut", systemImage: "record.circle")
+        settingsRow("Shortcut", detail: "Choose a preset, or record any shortcut above.") {
+          Picker("Shortcut", selection: appState.settingsBinding(\.hotkeyPreset)) {
+            ForEach(appState.settings.availableHotkeyPresets) { preset in
+              Text(preset.display).tag(preset)
+            }
           }
-          .buttonStyle(.borderedProminent)
-          .tint(VhraseTheme.accent)
-          .disabled(isCapturingHotkey)
-
-          Button {
-            appState.disableShortcut()
-          } label: {
-            Label("Disable", systemImage: "slash.circle")
-          }
-          .buttonStyle(.bordered)
+          .labelsHidden()
+          .fixedSize()
         }
       }
-      .frame(maxWidth: .infinity, minHeight: 154)
-      .padding(.vertical, 20)
-      .overlay(alignment: .bottom) {
-        Divider()
-      }
-      .animation(
-        VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
-        value: isCapturingHotkey
-      )
-
-      if isCapturingHotkey {
-        HotkeyCaptureView(isCapturing: $isCapturingHotkey) { hotkey in
-          appState.setCustomShortcut(hotkey)
-        } onFnCapture: {
-          appState.setFnShortcut()
-        } onCancel: {
-          appState.cancelShortcutCapture()
-        } onUnsupported: { message in
-          appState.rejectShortcutCapture(message)
-        }
-        .frame(width: 1, height: 1)
-        .accessibilityHidden(true)
-      }
-
-      labeledPicker("Shortcut") {
-        Picker("Shortcut", selection: appState.settingsBinding(\.hotkeyPreset)) {
-          ForEach(appState.settings.availableHotkeyPresets) { preset in
-            Text(preset.display).tag(preset)
+      .background {
+        if isCapturingHotkey {
+          HotkeyCaptureView(isCapturing: $isCapturingHotkey) { hotkey in
+            appState.setCustomShortcut(hotkey)
+          } onFnCapture: {
+            appState.setFnShortcut()
+          } onCancel: {
+            appState.cancelShortcutCapture()
+          } onUnsupported: { message in
+            appState.rejectShortcutCapture(message)
           }
+          .frame(width: 1, height: 1)
+          .accessibilityHidden(true)
         }
-        .labelsHidden()
       }
-
     }
   }
 
   private var listeningStageSettings: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      workflowStageHeader(
-        "Listen",
-        description:
-          "Choose your microphone, check its sound, and tell recognition which language to expect.",
-        systemImage: "mic.fill"
-      )
+    VStack(alignment: .leading, spacing: 24) {
+      stageIntro(
+        "Choose your microphone, check its sound, and tell recognition which language to expect.")
 
-      labeledPicker("Input device") {
-        Picker("Input device", selection: appState.settingsBinding(\.inputDeviceUID)) {
-          Text("System default").tag("")
-          ForEach(inputDevices) { device in
-            Text(device.name).tag(device.id)
+      settingsGroup("Microphone", footer: inputDeviceError.isEmpty ? nil : inputDeviceError) {
+        settingsRow("Input device", detail: "Applies to the preview below and to dictation.") {
+          Picker("Input device", selection: appState.settingsBinding(\.inputDeviceUID)) {
+            Text("System default").tag("")
+            ForEach(inputDevices) { device in
+              Text(device.name).tag(device.id)
+            }
+            if !appState.settings.inputDeviceUID.isEmpty,
+              !inputDevices.contains(where: { $0.id == appState.settings.inputDeviceUID })
+            {
+              Text("Selected microphone (disconnected)").tag(appState.settings.inputDeviceUID)
+            }
           }
-          if !appState.settings.inputDeviceUID.isEmpty,
-            !inputDevices.contains(where: { $0.id == appState.settings.inputDeviceUID })
-          {
-            Text("Selected microphone (disconnected)").tag(appState.settings.inputDeviceUID)
+          .labelsHidden()
+          .pickerStyle(.menu)
+          .frame(maxWidth: 260)
+        }
+        .onAppear { refreshInputDevices() }
+        .onReceive(
+          NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)
+        ) { _ in
+          refreshInputDevices()
+        }
+        .onReceive(
+          NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)
+        ) { _ in
+          refreshInputDevices()
+        }
+
+        if appState.settings.provider == .gemini {
+          settingsRow(
+            "Language hints",
+            detail:
+              "Optional BCP-47 codes separated by commas, such as en-US, yue-Hant-HK. Leave blank for automatic detection and code-switching."
+          ) {
+            TextField("Language hints", text: appState.settingsBinding(\.geminiLanguageHints))
+              .textFieldStyle(.roundedBorder)
+              .labelsHidden()
+              .frame(width: 220)
+          }
+        } else {
+          settingsRow(
+            "Language",
+            detail: appState.settings.provider == .xai
+              ? "Grok detects spoken language automatically. This code enables number and currency formatting when that option is on, such as en."
+              : "Use a language code such as en, yue, or zh. Leave blank for automatic detection."
+          ) {
+            TextField("Language", text: appState.settingsBinding(\.language))
+              .textFieldStyle(.roundedBorder)
+              .labelsHidden()
+              .frame(width: 220)
           }
         }
-        .labelsHidden()
-        .pickerStyle(.menu)
-      }
-      .onAppear { refreshInputDevices() }
-      .onReceive(
-        NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)
-      ) { _ in
-        refreshInputDevices()
-      }
-      .onReceive(
-        NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)
-      ) { _ in
-        refreshInputDevices()
-      }
-      if !inputDeviceError.isEmpty {
-        Text(inputDeviceError).font(.caption).foregroundStyle(.secondary)
       }
 
-      if appState.settings.provider == .gemini {
-        compactField("Language hints", text: appState.settingsBinding(\.geminiLanguageHints))
-        Text(
-          "Optional BCP-47 codes separated by commas, such as en-US, yue-Hant-HK. Leave blank for automatic detection and code-switching."
+      settingsGroup("Microphone preview") {
+        MicrophonePreviewView(
+          preview: appState.audioInputPreview,
+          settings: appState.settings,
+          canPreview: appState.status.canStartRecording
         )
-        .font(.caption).foregroundStyle(.secondary)
-      } else {
-        compactField("Language", text: appState.settingsBinding(\.language))
-        Text(
-          appState.settings.provider == .xai
-            ? "Grok detects spoken language automatically. This code enables number and currency formatting when that option is on, such as en."
-            : "Use a language code such as en, yue, or zh. Leave blank for automatic detection."
+        .settingsRowStyle()
+      }
+
+      settingsGroup(
+        "Processing",
+        footer:
+          "Applied locally to both upload and realtime audio. These controls never change speaker or headphone volume."
+      ) {
+        settingsToggle(
+          "Automatic volume leveling",
+          detail: "Gently evens out microphone loudness.",
+          isOn: appState.settingsBinding(\.automaticVolumeLeveling))
+        settingsSlider(
+          "Volume adjustment",
+          value: appState.settingsBinding(\.inputGainDB),
+          in: -6...6,
+          step: 1,
+          valueLabel: "\(Int(appState.settings.inputGainDB)) dB"
         )
-        .font(.caption).foregroundStyle(.secondary)
-      }
-
-      Divider()
-
-      MicrophonePreviewView(
-        preview: appState.audioInputPreview,
-        settings: appState.settings,
-        canPreview: appState.status.canStartRecording
-      )
-
-      Toggle("Automatic volume leveling", isOn: appState.settingsBinding(\.automaticVolumeLeveling))
-      Text(
-        "Gently levels microphone audio locally. These controls never change speaker or headphone volume."
-      )
-      .font(.caption).foregroundStyle(.secondary)
-
-      LabeledContent("Volume adjustment") {
-        Slider(value: appState.settingsBinding(\.inputGainDB), in: -6...6, step: 1)
-          .accessibilityLabel("Volume adjustment in decibels")
-        Text("\(Int(appState.settings.inputGainDB)) dB")
-          .monospacedDigit().frame(width: 48, alignment: .trailing)
-      }
-      LabeledContent("Noise reduction") {
-        Slider(
+        settingsSlider(
+          "Noise reduction",
+          detail:
+            "Reduces steady background noise. Values closer to zero preserve more of the original sound.",
           value: Binding(
             get: { -appState.settings.noiseReductionDB },
             set: { value in appState.updateSettings { $0.noiseReductionDB = -value } }
-          ), in: -12...0, step: 1
-        ) {
-          Text("Noise reduction")
-        } minimumValueLabel: {
-          Text("−12 dB")
-        } maximumValueLabel: {
-          Text("0")
-        }
-        .labelsHidden()
-        .accessibilityValue("\(-Int(appState.settings.noiseReductionDB)) decibels")
-        Text(
-          appState.settings.noiseReductionDB == 0
+          ),
+          in: -12...0,
+          step: 1,
+          valueLabel: appState.settings.noiseReductionDB == 0
             ? "0 dB" : "−\(Int(appState.settings.noiseReductionDB)) dB"
         )
-        .monospacedDigit().frame(width: 48, alignment: .trailing)
       }
-      Text(
-        "A light reduction of steady background noise, applied locally to both upload and realtime audio. Values closer to zero preserve more of the original sound."
-      )
-      .font(.caption).foregroundStyle(.secondary)
 
-      Divider()
-
-      HStack(spacing: 12) {
-        Label(
-          "Your microphone choice applies to preview and dictation.",
-          systemImage: "mic.and.signal.meter"
-        )
-        .font(.callout)
-        .foregroundStyle(.secondary)
-        Spacer()
-        Button {
-          selectedTab = .system
-          appState.refreshPermissions()
-        } label: {
-          Label("Review microphone access", systemImage: "arrow.up.right")
-        }
-        .buttonStyle(.bordered)
+      Button {
+        selectedTab = .system
+        appState.refreshPermissions()
+      } label: {
+        Label("Review microphone access", systemImage: "arrow.up.right")
       }
+      .buttonStyle(AccentLinkButtonStyle())
+      .font(.callout)
     }
   }
 
@@ -494,48 +462,6 @@ struct CaptureView: View {
     }
   }
 
-  /// Keeps workflow navigation and its sole editor in one open, divider-led composition.
-  private func workflowEditor<Editor: View>(
-    _ title: String,
-    description: String,
-    nodes: [PipelineFlowNode],
-    selection: Binding<PipelineStage>,
-    @ViewBuilder editor: () -> Editor
-  ) -> some View {
-    VStack(alignment: .leading, spacing: 14) {
-      HStack(alignment: .firstTextBaseline, spacing: 10) {
-        Text(title)
-          .font(.subheadline.weight(.semibold))
-        Text(description)
-          .font(.caption)
-          .foregroundStyle(VhraseTheme.inkSecondary)
-      }
-
-      HStack(alignment: .top, spacing: 0) {
-        PipelineFlowView(nodes: nodes, selection: selection)
-          .frame(width: 242)
-          .padding(.trailing, 24)
-          .padding(.vertical, 18)
-
-        Divider()
-
-        editor()
-          .frame(maxWidth: .infinity, alignment: .topLeading)
-          .padding(.leading, 32)
-          .padding(.vertical, 18)
-          .id(selection.wrappedValue)
-          .transition(.opacity.combined(with: .move(edge: .trailing)))
-      }
-      .overlay(alignment: .top) {
-        Divider()
-      }
-      .animation(
-        VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
-        value: selection.wrappedValue
-      )
-    }
-  }
-
   /// Maps each Capture setting to its one owning stage.
   private var capturePipelineNodes: [PipelineFlowNode] {
     let language = appState.settings.recognitionLanguage
@@ -543,19 +469,16 @@ struct CaptureView: View {
     return [
       PipelineFlowNode(
         id: .trigger,
-        systemImage: "keyboard",
         title: "Trigger",
         detail: appState.settings.hotkeyDisplay
       ),
       PipelineFlowNode(
         id: .listen,
-        systemImage: "mic.fill",
         title: "Listen",
         detail: language.isEmpty ? "Auto language" : language
       ),
       PipelineFlowNode(
         id: .transcribe,
-        systemImage: "waveform",
         title: "Transcribe",
         detail:
           "\(appState.settings.provider.title) · \(appState.settings.transcriptionMode.title)",

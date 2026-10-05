@@ -186,6 +186,7 @@ Closing or hiding the main window keeps the menu-bar app running, while normal a
 `MainWindowView` retains sidebar selection, Transcription stage selection, activity range, and History browsing state across destination changes.
 `DictationView`, `CaptureView`, `OutputView`, `HistoryView`, and `SystemView` own their destination controls and display policy.
 The Transcription destination releases shortcut editing and microphone preview when leaving the destination or deactivating its window; System ends credential editing and flushes pending saves at those boundaries.
-`MainWindowEvents` scopes Escape and activation callbacks to the actual host window, and `MainWindowControls` contains only shared visual building blocks.
+`MainWindowEvents` scopes Escape and activation callbacks to the actual host window, and `MainWindowControls` contains only shared visual building blocks, including the settings groups and rows every destination uses.
+`VhraseTheme` and `VhraseFont` carry the visual rules: the orange accent identifies Vhrase's controls, status colors mark recording, processing, readiness, and failure, and the New York serif sets only the user's own words.
 The recorder's panel lifecycle belongs to `RecorderHUDPanelController`, separately from the SwiftUI pill content.
 `AudioRecorder` owns capture startup, health monitoring, and WAV delivery; `PCM16AudioConverter` owns resampling, enhancement, transport framing, and final audio draining.

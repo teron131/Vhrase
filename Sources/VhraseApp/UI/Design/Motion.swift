@@ -1,10 +1,13 @@
-// Centralizes Vhrase's named animations and Reduce Motion behavior.
+// Centralizes Vhrase's named animations and Reduce Motion behavior; motion only answers workflow or pointer changes.
 
 import SwiftUI
 
 enum VhraseMotion {
   static let stateSpring = Animation.spring(response: 0.38, dampingFraction: 0.72)
   static let snappy = Animation.spring(response: 0.25, dampingFraction: 0.8)
+  /// A livelier spring for state changes the user should notice, such as the mic bar changing color.
+  static let bounce = Animation.spring(response: 0.34, dampingFraction: 0.58)
+  static let press = Animation.spring(response: 0.2, dampingFraction: 0.55)
   static let levelEase = Animation.easeOut(duration: 0.1)
   static let pulse = Animation.easeInOut(duration: 1.4).repeatForever(autoreverses: true)
   static let settle = Animation.easeInOut(duration: 0.2)
@@ -14,29 +17,18 @@ enum VhraseMotion {
   }
 }
 
-private struct HoverLiftModifier: ViewModifier {
+/// Squishes a control while it is pressed so clicks feel physical; Reduce Motion keeps it still.
+struct PressableButtonStyle: ButtonStyle {
+  var pressedScale: CGFloat = 0.93
+
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var isHovered = false
 
-  func body(content: Content) -> some View {
-    content
-      .offset(y: isHovered && !reduceMotion ? -3 : 0)
-      .scaleEffect(isHovered && !reduceMotion ? 1.006 : 1)
-      .shadow(
-        color: VhraseTheme.accent.opacity(isHovered ? 0.09 : 0),
-        radius: 18,
-        y: 8
-      )
-      .onHover { isHovered = $0 }
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .scaleEffect(configuration.isPressed && !reduceMotion ? pressedScale : 1)
       .animation(
-        VhraseMotion.respectingReduceMotion(VhraseMotion.snappy, reduceMotion: reduceMotion),
-        value: isHovered)
-  }
-}
-
-extension View {
-  /// Gives pointer-driven surfaces a restrained physical lift without changing layout.
-  func hoverLift() -> some View {
-    modifier(HoverLiftModifier())
+        VhraseMotion.respectingReduceMotion(VhraseMotion.press, reduceMotion: reduceMotion),
+        value: configuration.isPressed
+      )
   }
 }
