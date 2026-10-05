@@ -42,8 +42,7 @@ struct RecordButtonStateCheck {
     return DictationPresentation(
       status: status,
       settings: settings,
-      xaiAPIKey: keyReady ? "xai-key" : "",
-      elevenLabsAPIKey: "",
+      selectedProviderHasKey: keyReady,
       permissions: [
         PermissionSnapshot(
           permission: .microphone,

@@ -35,8 +35,7 @@ final class XAITranscriptionClient: SpeechToTextClient {
 
     let data = try await perform(request, providerName: "xAI")
     let response = try JSONDecoder().decode(XAITranscriptionResponse.self, from: data)
-    return TranscriptionResult(
-      text: response.text, providerName: "xAI", duration: response.duration)
+    return TranscriptionResult(text: response.text, providerName: "xAI")
   }
 }
 
@@ -69,7 +68,7 @@ final class ElevenLabsTranscriptionClient: SpeechToTextClient {
 
     let data = try await perform(request, providerName: "ElevenLabs")
     let response = try JSONDecoder().decode(ElevenLabsTranscriptionResponse.self, from: data)
-    return TranscriptionResult(text: response.text, providerName: "ElevenLabs", duration: nil)
+    return TranscriptionResult(text: response.text, providerName: "ElevenLabs")
   }
 }
 
@@ -100,14 +99,12 @@ final class GeminiTranscriptionClient: SpeechToTextClient {
     }
     return TranscriptionResult(
       text: text,
-      providerName: settings.geminiSmartTranscription ? "Gemini · Smart" : "Gemini",
-      duration: nil)
+      providerName: settings.geminiSmartTranscription ? "Gemini · Smart" : "Gemini")
   }
 }
 
 private struct XAITranscriptionResponse: Decodable {
   let text: String
-  let duration: Double?
 }
 
 private struct GeminiTranscriptionResponse: Decodable {

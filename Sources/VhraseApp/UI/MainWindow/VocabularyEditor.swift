@@ -6,6 +6,7 @@ struct VocabularyEditor: View {
   @ObservedObject var appState: AppState
 
   var body: some View {
+    let issue = TranscriptionContract.configurationIssue(in: appState.settings)
     VStack(alignment: .leading, spacing: 12) {
       editorTile(
         "Shared vocabulary",
@@ -38,17 +39,13 @@ struct VocabularyEditor: View {
         .help("Adds common developer terms without replacing your vocabulary")
       }
 
-      Text(keytermGuidance)
+      Text(issue ?? keytermGuidance)
         .font(.caption)
-        .foregroundStyle(
-          appState.transcriptionConfigurationIssue == nil ? Color.secondary : Color.red)
+        .foregroundStyle(issue == nil ? Color.secondary : Color.red)
     }
   }
 
   private var keytermGuidance: String {
-    if let issue = appState.transcriptionConfigurationIssue {
-      return issue
-    }
     switch (appState.settings.provider, appState.settings.transcriptionMode) {
     case (.xai, _):
       return "xAI accepts up to 100 keyterms, with at most 50 characters in each term."

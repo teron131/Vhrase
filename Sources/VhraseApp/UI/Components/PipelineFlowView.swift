@@ -16,8 +16,6 @@ struct PipelineFlowNode: Equatable {
   let title: String
   let detail: String
   var badge: String?
-  var isActive = true
-  var isOptional = false
 }
 
 /// Acts as navigation for one stage-owned settings editor.
@@ -34,7 +32,7 @@ struct PipelineFlowView: View {
       ForEach(Array(nodes.enumerated()), id: \.element.id) { index, node in
         nodeButton(node)
         if index < nodes.count - 1 {
-          connector(after: node)
+          connector
         }
       }
     }
@@ -71,31 +69,22 @@ struct PipelineFlowView: View {
       selection = node.id
     } label: {
       HStack(spacing: 12) {
-        stageIcon(node, isSelected: isSelected)
+        Image(systemName: node.systemImage)
+          .font(.system(size: 16, weight: .semibold))
+          .foregroundStyle(VhraseTheme.workflowAccent)
+          .frame(width: 32, height: 32)
 
         VStack(alignment: .leading, spacing: 3) {
-          HStack(spacing: 6) {
-            Text(node.title)
-              .font(.callout.weight(.semibold))
-              .foregroundStyle(node.isActive ? .primary : .secondary)
-
-            if node.isOptional {
-              Text(node.isActive ? "On" : "Bypassed")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(
-                  node.isActive
-                    ? VhraseTheme.workflowAccent
-                    : VhraseTheme.inkSecondary
-                )
-            }
-          }
+          Text(node.title)
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(.primary)
 
           Text(node.detail)
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(1)
 
-          if let badge = node.badge, node.isActive {
+          if let badge = node.badge {
             Text(badge)
               .font(.caption2.weight(.medium))
               .foregroundStyle(VhraseTheme.workflowAccent)
@@ -133,31 +122,11 @@ struct PipelineFlowView: View {
       hoveredStage = isHovering ? node.id : nil
     }
     .accessibilityLabel(node.title)
-    .accessibilityValue(accessibilityValue(for: node, isSelected: isSelected))
+    .accessibilityValue(isSelected ? "\(node.detail), Selected" : node.detail)
     .accessibilityHint("Shows settings for this stage")
   }
 
-  private func stageIcon(_ node: PipelineFlowNode, isSelected: Bool) -> some View {
-    ZStack {
-      Image(systemName: node.systemImage)
-        .font(.system(size: 16, weight: .semibold))
-        .foregroundStyle(
-          node.isActive || isSelected
-            ? VhraseTheme.workflowAccent
-            : VhraseTheme.inkSecondary
-        )
-
-      if node.isOptional, !node.isActive {
-        Rectangle()
-          .fill(VhraseTheme.inkSecondary.opacity(0.55))
-          .frame(width: 22, height: 1.5)
-          .rotationEffect(.degrees(-35))
-      }
-    }
-    .frame(width: 32, height: 32)
-  }
-
-  private func connector(after node: PipelineFlowNode) -> some View {
+  private var connector: some View {
     HStack(spacing: 0) {
       ZStack(alignment: .top) {
         Capsule()
@@ -165,14 +134,10 @@ struct PipelineFlowView: View {
           .frame(width: 2)
 
         Capsule()
-          .fill(
-            node.isActive
-              ? VhraseTheme.workflowAccent.opacity(0.45)
-              : VhraseTheme.inkSecondary.opacity(0.2)
-          )
+          .fill(VhraseTheme.workflowAccent.opacity(0.45))
           .frame(width: 2)
 
-        if !reduceMotion, node.isActive {
+        if !reduceMotion {
           Circle()
             .fill(VhraseTheme.workflowAccent)
             .frame(width: 5, height: 5)
@@ -186,16 +151,5 @@ struct PipelineFlowView: View {
       Spacer()
     }
     .accessibilityHidden(true)
-  }
-
-  private func accessibilityValue(for node: PipelineFlowNode, isSelected: Bool) -> String {
-    var parts = [node.detail]
-    if node.isOptional && !node.isActive {
-      parts.append("Bypassed")
-    }
-    if isSelected {
-      parts.append("Selected")
-    }
-    return parts.joined(separator: ", ")
   }
 }

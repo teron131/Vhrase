@@ -8,7 +8,6 @@ actor RealtimeTranscriptAccumulator {
   private var xaiLockedUtterance = ""
   private var latestPartial = ""
   private var doneText: String?
-  private var duration: Double?
   private var error: Error?
   private var resolvedResult: TranscriptionResult?
   private var isElevenLabsFinishCommitPending = false
@@ -33,11 +32,11 @@ actor RealtimeTranscriptAccumulator {
       if let text = event.text, !text.isEmpty {
         // Chunk-final text stays replaceable within the current utterance.
         // xAI's speech-final text is the complete stitched utterance and is committed once.
-        if event.speech_final == true {
+        if event.speechFinal == true {
           appendFinal(text)
           xaiLockedUtterance = ""
           latestPartial = ""
-        } else if event.is_final == true {
+        } else if event.isFinal == true {
           xaiLockedUtterance = mergeIncrementalText(xaiLockedUtterance, text)
           latestPartial = ""
         } else {
@@ -51,7 +50,6 @@ actor RealtimeTranscriptAccumulator {
       {
         doneText = text
       }
-      duration = event.duration
       resolve()
       return .completed
     case "error":
@@ -66,11 +64,11 @@ actor RealtimeTranscriptAccumulator {
   func handleElevenLabs(_ event: ElevenLabsRealtimeEvent) -> RealtimeEventOutcome {
     if event.isError {
       let detail = event.error ?? event.text ?? "Realtime transcription failed."
-      failMessage("ElevenLabs realtime \(event.message_type): \(detail)")
+      failMessage("ElevenLabs realtime \(event.messageType): \(detail)")
       return .failed
     }
 
-    switch event.message_type {
+    switch event.messageType {
     case "partial_transcript":
       if isElevenLabsFinishCommitPending {
         elevenLabsFinishResolutionTask?.cancel()
@@ -165,8 +163,7 @@ actor RealtimeTranscriptAccumulator {
   private func result() -> TranscriptionResult {
     TranscriptionResult(
       text: doneText ?? joinedText(),
-      providerName: providerName,
-      duration: duration
+      providerName: providerName
     )
   }
 

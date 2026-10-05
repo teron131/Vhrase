@@ -6,7 +6,6 @@ struct HistoryView: View {
   @ObservedObject var appState: AppState
   @Binding var browsing: HistoryBrowsingState
   @State private var isClearHistoryConfirmationPresented = false
-  private var presentation: DictationPresentation { appState.presentation }
 
   var body: some View {
     let page = HistorySearch.Page(matches: historyMatches, requestedIndex: browsing.pageIndex)
@@ -16,7 +15,7 @@ struct HistoryView: View {
 
   private var historyMatches: [TranscriptHistoryItem] {
     HistorySearch.matches(
-      appState.history,
+      appState.historyIndex,
       query: browsing.query,
       dateFilter: browsing.dateFilter,
       provider: browsing.provider,
@@ -127,7 +126,7 @@ struct HistoryView: View {
                 ForEach(page.items) { item in
                   HistoryTranscriptRow(
                     item: item,
-                    metadata: presentation.historyMetadata(item),
+                    metadata: DictationPresentation.historyMetadata(item),
                     onCopy: { appState.copyHistoryItem(item) },
                     onDelete: { appState.deleteHistoryItem(item) }
                   )
@@ -222,7 +221,7 @@ struct HistoryView: View {
   private var historyStatsCard: some View {
     HStack(spacing: 18) {
       HistoryMetric(
-        value: "\(appState.transcriptsTodayCount)",
+        value: "\(historyTodayCount)",
         label: "Today",
         detail: "saved dictations"
       )
@@ -234,7 +233,7 @@ struct HistoryView: View {
       )
       Divider().frame(height: 50)
       HistoryMetric(
-        value: historyWordCount.formatted(),
+        value: appState.historyIndex.wordCount.formatted(),
         label: "Words",
         detail: "across saved text"
       )
@@ -281,6 +280,13 @@ struct HistoryView: View {
     }
   }
 
+  private var historyTodayCount: Int {
+    guard let today = Calendar.current.dateInterval(of: .day, for: Date()) else {
+      return 0
+    }
+    return appState.history.filter { $0.createdAt >= today.start && $0.createdAt < today.end }.count
+  }
+
   private var historyWeekCount: Int {
     guard
       let weekStart = Calendar.current.date(
@@ -289,12 +295,6 @@ struct HistoryView: View {
       return 0
     }
     return appState.history.filter { $0.createdAt >= weekStart }.count
-  }
-
-  private var historyWordCount: Int {
-    appState.history.reduce(into: 0) { count, item in
-      count += item.wordCount
-    }
   }
 
   private var historyTopDestination: String {

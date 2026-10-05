@@ -185,7 +185,7 @@ struct DictationView: View {
           systemImage: "exclamationmark.triangle",
           color: VhraseTheme.statusWarning,
           actionTitle: presentation.insertionPermissionActionTitle,
-          action: handleInsertionPermissionAction
+          action: { appState.handlePermissionAction(.accessibility) }
         )
       }
     }
@@ -427,13 +427,5 @@ struct DictationView: View {
     case .disabled:
       break
     }
-  }
-
-  /// Requests or opens the macOS permission required to insert finalized transcripts into other apps.
-  private func handleInsertionPermissionAction() {
-    guard let snapshot = presentation.permissionSnapshot(.accessibility) else {
-      return
-    }
-    appState.handlePermissionAction(snapshot)
   }
 }

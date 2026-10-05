@@ -152,27 +152,24 @@ struct XAISTTOptionsCheck {
       XAIRealtimeEvent(
         type: "transcript.partial",
         text: "draft",
-        is_final: false,
-        speech_final: false,
-        duration: nil,
+        isFinal: false,
+        speechFinal: false,
         message: nil
       ))
     _ = await accumulator.handleXAI(
       XAIRealtimeEvent(
         type: "transcript.partial",
         text: "First locked",
-        is_final: true,
-        speech_final: false,
-        duration: nil,
+        isFinal: true,
+        speechFinal: false,
         message: nil
       ))
     _ = await accumulator.handleXAI(
       XAIRealtimeEvent(
         type: "transcript.partial",
         text: "and drafting",
-        is_final: false,
-        speech_final: false,
-        duration: nil,
+        isFinal: false,
+        speechFinal: false,
         message: nil
       ))
     precondition(capture.latest == "First locked and drafting")
@@ -187,9 +184,8 @@ struct XAISTTOptionsCheck {
           XAIRealtimeEvent(
             type: "transcript.partial",
             text: text,
-            is_final: isFinal,
-            speech_final: false,
-            duration: nil,
+            isFinal: isFinal,
+            speechFinal: false,
             message: nil
           ))
         precondition(capture.latest == expected)
@@ -199,27 +195,24 @@ struct XAISTTOptionsCheck {
       XAIRealtimeEvent(
         type: "transcript.partial",
         text: "First locked and extended",
-        is_final: true,
-        speech_final: false,
-        duration: nil,
+        isFinal: true,
+        speechFinal: false,
         message: nil
       ))
     _ = await accumulator.handleXAI(
       XAIRealtimeEvent(
         type: "transcript.partial",
         text: "First locked and extended",
-        is_final: true,
-        speech_final: true,
-        duration: nil,
+        isFinal: true,
+        speechFinal: true,
         message: nil
       ))
     _ = await accumulator.handleXAI(
       XAIRealtimeEvent(
         type: "transcript.partial",
         text: "Second final",
-        is_final: true,
-        speech_final: true,
-        duration: nil,
+        isFinal: true,
+        speechFinal: true,
         message: nil
       ))
     precondition(capture.latest == "First locked and extended Second final")
@@ -227,15 +220,13 @@ struct XAISTTOptionsCheck {
       XAIRealtimeEvent(
         type: "transcript.done",
         text: "Authoritative full transcript",
-        is_final: nil,
-        speech_final: nil,
-        duration: 1.2,
+        isFinal: nil,
+        speechFinal: nil,
         message: nil
       ))
     do {
       let result = try await accumulator.waitForDone()
       precondition(result.text == "Authoritative full transcript")
-      precondition(result.duration == 1.2)
     } catch {
       preconditionFailure("xAI accumulator failed: \(error.localizedDescription)")
     }
@@ -251,18 +242,16 @@ struct XAISTTOptionsCheck {
       XAIRealtimeEvent(
         type: "transcript.partial",
         text: "Realtime text must survive finalization.",
-        is_final: true,
-        speech_final: true,
-        duration: 1.0,
+        isFinal: true,
+        speechFinal: true,
         message: nil
       ))
     _ = await accumulator.handleXAI(
       XAIRealtimeEvent(
         type: "transcript.done",
         text: "",
-        is_final: nil,
-        speech_final: nil,
-        duration: 1.0,
+        isFinal: nil,
+        speechFinal: nil,
         message: nil
       ))
     do {

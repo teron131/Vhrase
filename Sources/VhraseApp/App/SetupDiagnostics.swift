@@ -4,29 +4,27 @@ import Foundation
 
 struct SetupDiagnostics {
   let settings: DictationSettings
-  let xaiAPIKey: String
-  let elevenLabsAPIKey: String
-  let llmAPIKey: String
+  let selectedProviderHasKey: Bool
+  let hasLLMKey: Bool
   let permissions: [PermissionSnapshot]
   let chineseConversionIsAvailable: Bool
-  var geminiAPIKey: String = ""
 
   func build() -> [SetupDiagnostic] {
     var diagnostics: [SetupDiagnostic] = []
 
-    if let issue = transcriptionConfigurationIssue {
+    if let issue = TranscriptionContract.configurationIssue(in: settings) {
       diagnostics.append(
-        diagnostic(
-          id: "transcription-configuration",
+        SetupDiagnostic(
+          id: .transcriptionConfiguration,
           title: "Transcription settings",
           detail: issue,
           systemImage: "slider.horizontal.3"
         ))
     }
-    if selectedProviderKeyIsMissing {
+    if !selectedProviderHasKey {
       diagnostics.append(
-        diagnostic(
-          id: "selected-provider-key",
+        SetupDiagnostic(
+          id: .providerKey,
           title: "\(settings.provider.title) key",
           detail: "Add the selected STT provider key in Settings.",
           systemImage: "key.fill"
@@ -34,8 +32,8 @@ struct SetupDiagnostics {
     }
     if permissionState(for: .microphone)?.isReady != true {
       diagnostics.append(
-        diagnostic(
-          id: "microphone-permission",
+        SetupDiagnostic(
+          id: .microphonePermission,
           title: "Microphone",
           detail: "Grant mic access before real recording.",
           systemImage: "mic.fill"
@@ -44,8 +42,8 @@ struct SetupDiagnostics {
     let accessibilityIsReady = permissionState(for: .accessibility)?.isReady == true
     if !accessibilityIsReady {
       diagnostics.append(
-        diagnostic(
-          id: "accessibility-permission",
+        SetupDiagnostic(
+          id: .accessibilityPermission,
           title: settings.hotkeyPreset == .fn ? "Shortcut and text insertion" : "Text insertion",
           detail: settings.hotkeyPreset == .fn
             ? "Grant Accessibility once so Fn/Globe works globally and transcripts return to the original app."
@@ -53,10 +51,10 @@ struct SetupDiagnostics {
           systemImage: "cursorarrow.motionlines"
         ))
     }
-    if settings.adjustWithLLM, llmAPIKey.isEmpty {
+    if settings.adjustWithLLM, !hasLLMKey {
       diagnostics.append(
-        diagnostic(
-          id: "adjustment-key",
+        SetupDiagnostic(
+          id: .adjustmentKey,
           title: "LLM adjustment",
           detail: "LLM API key is required for transcript cleanup.",
           systemImage: "wand.and.stars"
@@ -67,8 +65,8 @@ struct SetupDiagnostics {
       permissionState(for: .screenRecording)?.isReady != true
     {
       diagnostics.append(
-        diagnostic(
-          id: "screen-permission",
+        SetupDiagnostic(
+          id: .screenPermission,
           title: "Screenshot context",
           detail: "Grant Screen Recording or turn screenshot off.",
           systemImage: "rectangle.on.rectangle"
@@ -76,8 +74,8 @@ struct SetupDiagnostics {
     }
     if !chineseConversionIsAvailable {
       diagnostics.append(
-        diagnostic(
-          id: "opencc-s2hk",
+        SetupDiagnostic(
+          id: .openCC,
           title: "OpenCC s2hk",
           detail: "Install OpenCC so every final transcript runs through s2hk.",
           systemImage: "character.book.closed.fill"
@@ -86,49 +84,44 @@ struct SetupDiagnostics {
     if diagnostics.isEmpty {
       diagnostics.append(
         SetupDiagnostic(
-          id: "ready",
+          id: .ready,
           title: "Ready",
           detail: "Keys and required permissions look ready.",
-          systemImage: "checkmark.circle.fill",
-          severity: .ready
+          systemImage: "checkmark.circle.fill"
         ))
     }
     return diagnostics
   }
 
-  private var transcriptionConfigurationIssue: String? {
-    do {
-      try TranscriptionContract.validate(settings: settings)
-      return nil
-    } catch {
-      return error.localizedDescription
-    }
-  }
-
-  private var selectedProviderKeyIsMissing: Bool {
-    switch settings.provider {
-    case .xai: xaiAPIKey.isEmpty
-    case .elevenLabs: elevenLabsAPIKey.isEmpty
-    case .gemini: geminiAPIKey.isEmpty
-    }
-  }
-
   private func permissionState(for permission: AppPermission) -> PermissionState? {
     permissions.first(where: { $0.permission == permission })?.state
   }
+}
 
-  private func diagnostic(
-    id: String,
-    title: String,
-    detail: String,
-    systemImage: String
-  ) -> SetupDiagnostic {
-    SetupDiagnostic(
-      id: id,
-      title: title,
-      detail: detail,
-      systemImage: systemImage,
-      severity: .attention
-    )
+/// Identifies each setup issue consistently across readiness summaries and their corrective actions.
+struct SetupDiagnostic: Identifiable, Sendable {
+  enum ID: Hashable, Sendable {
+    case transcriptionConfiguration
+    case providerKey
+    case microphonePermission
+    case accessibilityPermission
+    case adjustmentKey
+    case screenPermission
+    case openCC
+    case ready
   }
+
+  let id: ID
+  let title: String
+  let detail: String
+  let systemImage: String
+
+  var severity: SetupDiagnosticSeverity {
+    id == .ready ? .ready : .attention
+  }
+}
+
+enum SetupDiagnosticSeverity: Equatable, Sendable {
+  case ready
+  case attention
 }

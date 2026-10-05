@@ -16,7 +16,7 @@ struct HistoryMetadataCheck {
       targetAppBundleIdentifier: "com.microsoft.VSCode"
     )
     precondition(
-      presentation.historyMetadata(adjusted, relativeTo: nil)
+      DictationPresentation.historyMetadata(adjusted, relativeTo: nil)
         == "xAI Realtime · Realtime · LLM cleanup · → Code"
     )
 
@@ -31,20 +31,10 @@ struct HistoryMetadataCheck {
       targetAppBundleIdentifier: nil
     )
     precondition(
-      presentation.historyMetadata(fallback, relativeTo: nil)
+      DictationPresentation.historyMetadata(fallback, relativeTo: nil)
         == "ElevenLabs · Upload · Local fallback"
     )
 
     print("history metadata ok")
   }
-
-  private static let presentation = DictationPresentation(
-    status: .idle,
-    settings: .defaults,
-    xaiAPIKey: "",
-    elevenLabsAPIKey: "",
-    permissions: [],
-    liveTranscript: "",
-    recordingElapsedSeconds: 0
-  )
 }

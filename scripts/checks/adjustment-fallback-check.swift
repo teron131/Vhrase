@@ -113,7 +113,7 @@ struct AdjustmentFallbackCheck {
 
   /// Protects the access check from falling back to a catalog listing that says nothing about the configured model.
   private static func validateTargetedModelAccessRequest() throws {
-    let request: URLRequest = try LLMModelAccessClient.modelCheckRequest(
+    let request: URLRequest = try LLMAdjustmentClient.modelCheckRequest(
       apiKey: "test-key",
       baseURL: "http://localhost:8317/v1",
       model: "gpt-5.6-luna"
@@ -251,8 +251,7 @@ struct AdjustmentFallbackCheck {
     .finalize(
       TranscriptionResult(
         text: rawTranscript,
-        providerName: "Test",
-        duration: nil
+        providerName: "Test"
       ),
       adjustment: adjustment,
       targetApp: nil

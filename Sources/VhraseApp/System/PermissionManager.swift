@@ -138,13 +138,6 @@ final class PermissionManager {
     }
   }
 
-  /// Requests only the core microphone permission; optional permissions are requested when their features are enabled.
-  func setupPermissions() async {
-    if state(for: .microphone) == .notDetermined {
-      _ = await AVCaptureDevice.requestAccess(for: .audio)
-    }
-  }
-
   func request(_ permission: AppPermission) async {
     switch permission {
     case .microphone:

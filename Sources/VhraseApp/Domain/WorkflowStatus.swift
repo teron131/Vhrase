@@ -1,19 +1,6 @@
-// Defines setup diagnostics and the state machine exposed by the dictation workflow.
+// Defines the workflow phases and the recording, processing, and feedback actions each phase permits.
 
 import Foundation
-
-enum SetupDiagnosticSeverity: Equatable, Sendable {
-  case ready
-  case attention
-}
-
-struct SetupDiagnostic: Identifiable, Sendable {
-  let id: String
-  let title: String
-  let detail: String
-  let systemImage: String
-  let severity: SetupDiagnosticSeverity
-}
 
 enum AppStatus: Equatable, Sendable {
   case idle

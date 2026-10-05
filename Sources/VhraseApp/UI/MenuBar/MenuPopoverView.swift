@@ -31,8 +31,8 @@ struct MenuPopoverView: View {
 
         captureConfiguration
 
-        if primarySetupDiagnostic.severity != .ready {
-          setupSummary
+        if let diagnostic = appState.setupDiagnostics.first, diagnostic.severity != .ready {
+          setupSummary(diagnostic)
         }
       }
       .padding(14)
@@ -100,7 +100,7 @@ struct MenuPopoverView: View {
         systemImage: appState.lastCompletion.completionSystemImage,
         color: presentation.statusTint,
         actionTitle: completedInsertionPermissionActionTitle,
-        action: handleInsertionPermissionAction
+        action: { appState.handlePermissionAction(.accessibility) }
       )
     } else if let message = presentation.statusMessage {
       NoticeCard(
@@ -266,9 +266,8 @@ struct MenuPopoverView: View {
     .disabled(presentation.workflowControlsAreDisabled)
   }
 
-  private var setupSummary: some View {
-    let diagnostic = primarySetupDiagnostic
-    return Button {
+  private func setupSummary(_ diagnostic: SetupDiagnostic) -> some View {
+    Button {
       openMainWindow(.system)
     } label: {
       HStack(alignment: .top, spacing: 9) {
@@ -372,32 +371,11 @@ struct MenuPopoverView: View {
       ? appState.lastCompletion.completionSystemImage : presentation.statusSystemImage
   }
 
-  private var primarySetupDiagnostic: SetupDiagnostic {
-    appState.setupDiagnostics.first
-      ?? SetupDiagnostic(
-        id: "ready",
-        title: "Ready",
-        detail: "Vhrase is ready to record.",
-        systemImage: "checkmark.circle.fill",
-        severity: .ready
-      )
-  }
-
   private var completedInsertionPermissionActionTitle: String? {
-    guard appState.status == .completed,
-      appState.lastCompletion.isTranscript,
-      appState.lastDelivery == .copied
-    else {
+    guard appState.status == .completed, appState.lastCompletion == .transcript(.copied) else {
       return nil
     }
     return presentation.insertionPermissionActionTitle
-  }
-
-  private func handleInsertionPermissionAction() {
-    guard let snapshot = presentation.permissionSnapshot(.accessibility) else {
-      return
-    }
-    appState.handlePermissionAction(snapshot)
   }
 
   private var statusMessageColor: Color {

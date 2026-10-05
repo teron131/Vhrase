@@ -111,7 +111,7 @@ struct ElevenLabsOptionsCheck {
     )
     let firstCommitOutcome = await accumulator.handleElevenLabs(
       ElevenLabsRealtimeEvent(
-        message_type: "committed_transcript",
+        messageType: "committed_transcript",
         text: "First segment"
       )
     )
@@ -127,7 +127,7 @@ struct ElevenLabsOptionsCheck {
 
     let secondCommitOutcome = await accumulator.handleElevenLabs(
       ElevenLabsRealtimeEvent(
-        message_type: "committed_transcript_with_timestamps",
+        messageType: "committed_transcript_with_timestamps",
         text: "Second segment"
       )
     )
@@ -137,7 +137,7 @@ struct ElevenLabsOptionsCheck {
 
     _ = await accumulator.handleElevenLabs(
       ElevenLabsRealtimeEvent(
-        message_type: "partial_transcript",
+        messageType: "partial_transcript",
         text: "Third draft"
       )
     )
@@ -146,7 +146,7 @@ struct ElevenLabsOptionsCheck {
     await accumulator.beginElevenLabsFinishCommit()
     let delayedAutomaticCommitOutcome = await accumulator.handleElevenLabs(
       ElevenLabsRealtimeEvent(
-        message_type: "committed_transcript",
+        messageType: "committed_transcript",
         text: "Third segment"
       )
     )
@@ -163,13 +163,13 @@ struct ElevenLabsOptionsCheck {
 
     _ = await accumulator.handleElevenLabs(
       ElevenLabsRealtimeEvent(
-        message_type: "partial_transcript",
+        messageType: "partial_transcript",
         text: "Fourth draft"
       )
     )
     let finalCommitOutcome = await accumulator.handleElevenLabs(
       ElevenLabsRealtimeEvent(
-        message_type: "committed_transcript",
+        messageType: "committed_transcript",
         text: "Fourth segment"
       )
     )
@@ -208,7 +208,7 @@ struct ElevenLabsOptionsCheck {
       )
       let outcome = await accumulator.handleElevenLabs(
         ElevenLabsRealtimeEvent(
-          message_type: messageType,
+          messageType: messageType,
           error: "provider detail"
         )
       )
