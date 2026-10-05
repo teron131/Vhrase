@@ -7,6 +7,7 @@ struct DictationView: View {
   @ObservedObject var appState: AppState
   @Binding var selectedTab: MainWindowTab
   @Binding var activityRange: ActivityRange
+  @State private var activityMetric = ActivityMetric.words
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private var presentation: DictationPresentation { appState.presentation }
 
@@ -15,47 +16,34 @@ struct DictationView: View {
   }
 
   private var dictationTab: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 24) {
-        pageHeader(
-          "Dictate",
-          description:
-            "Speak naturally, review the result, and keep writing without changing apps.",
-          systemImage: MainWindowTab.dictate.systemImage
-        )
-
-        HStack(alignment: .top, spacing: 24) {
-          recordPanel
-            .frame(width: 310)
-            .hoverLift()
-
-          transcriptCard
-            .frame(maxWidth: .infinity)
-            .hoverLift()
+    mainWindowPage(spacing: 24) {
+      pageHeader(
+        "Dictate",
+        description: "Speak naturally, review the result, and keep writing without changing apps."
+      ) {
+        Button {
+          appState.runDemoDictation()
+        } label: {
+          Label("Run demo", systemImage: "play.circle")
         }
-        // Size the row to its taller card, then let both surfaces fill that shared height.
-        .fixedSize(horizontal: false, vertical: true)
-        quickActionsCard
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(!appState.status.canStartRecording)
+        .help(
+          "Runs cleanup, history, and clipboard delivery on sample text without calling a provider or pasting."
+        )
       }
-      .frame(maxWidth: 1040, alignment: .topLeading)
-      .padding(32)
-      .frame(maxWidth: .infinity, alignment: .top)
-    }
-    .background(alignment: .topLeading) {
-      Circle()
-        .fill(VhraseTheme.accent.opacity(0.065))
-        .frame(width: 420, height: 420)
-        .blur(radius: 80)
-        .offset(x: -150, y: -210)
-        .accessibilityHidden(true)
+
+      micBar
+      speechBubble
+      activitySection
     }
   }
 
-  private var recordPanel: some View {
-    VStack(spacing: 16) {
-      ProviderPicker(selection: appState.settingsBinding(\.provider))
-        .disabled(presentation.workflowControlsAreDisabled)
-
+  /// Puts the record control, live signal, and provider on one bar whose fill announces the workflow state.
+  private var micBar: some View {
+    let tint = presentation.micBarTint
+    return HStack(alignment: .center, spacing: 14) {
       RecordHeroButton(
         presentation: presentation,
         recordingLevel: appState.recordingLevel,
@@ -63,64 +51,130 @@ struct DictationView: View {
         action: handleRecordButton
       )
 
-      Text(presentation.displayStatusTitle)
-        .font(VhraseFont.pageTitle)
-        .tracking(-0.5)
-        .multilineTextAlignment(.center)
-        .contentTransition(.interpolate)
-
-      if appState.isRecording {
-        Text(presentation.elapsedTime)
-          .font(VhraseFont.timer)
-          .contentTransition(.numericText())
+      VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+          Text(presentation.displayStatusTitle)
+            .font(VhraseFont.statusTitle)
+            .contentTransition(.interpolate)
+          if appState.isRecording {
+            Text(presentation.elapsedTime)
+              .font(VhraseFont.timer)
+              .opacity(0.85)
+              .contentTransition(.numericText())
+          }
+        }
+        Text(statusDetail)
+          .font(VhraseFont.caption)
+          .opacity(0.85)
+          .lineLimit(2)
+          .fixedSize(horizontal: false, vertical: true)
       }
+      .layoutPriority(1)
 
-      Text(statusDetail)
-        .font(VhraseFont.caption)
-        .foregroundStyle(VhraseTheme.inkSecondary)
-        .multilineTextAlignment(.center)
-        .fixedSize(horizontal: false, vertical: true)
+      // Rests as quiet dots and becomes the live microphone level while recording.
+      WaveformView(
+        history: appState.isRecording ? appState.recordingWaveformHistory : [],
+        barCount: 32,
+        tint: tint == nil ? VhraseTheme.inkSecondary : .white,
+        height: 30
+      )
+      .frame(minWidth: 80, maxWidth: 250)
+      .frame(maxWidth: .infinity)
 
-      if appState.isRecording {
-        WaveformView(history: appState.recordingWaveformHistory)
-          .transition(.opacity.combined(with: .scale(scale: 0.96)))
-      }
-
-      HStack(spacing: 12) {
-        Text(presentation.fullWorkflowSummary)
-        KeyCap(text: appState.settings.hotkeyDisplay)
-      }
-      .font(VhraseFont.micro)
-      .foregroundStyle(VhraseTheme.inkSecondary)
+      providerChip(onTint: tint != nil)
     }
-    .frame(maxHeight: .infinity, alignment: .top)
-    .operationalSurface()
-    .shadow(
-      color: presentation.statusTint.opacity(presentation.coreRecordingReady ? 0.16 : 0),
-      radius: 24, y: 8
+    .foregroundStyle(tint == nil ? Color.primary : Color.white)
+    .padding(.leading, 10)
+    .padding(.trailing, 14)
+    .padding(.vertical, 10)
+    .background(
+      tint ?? VhraseTheme.card,
+      in: RoundedRectangle(cornerRadius: VhraseTheme.sheetCornerRadius, style: .continuous)
     )
+    .overlay {
+      if tint == nil {
+        RoundedRectangle(cornerRadius: VhraseTheme.sheetCornerRadius, style: .continuous)
+          .strokeBorder(VhraseTheme.hairline, lineWidth: 1)
+      }
+    }
     .animation(
-      VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
+      VhraseMotion.respectingReduceMotion(VhraseMotion.bounce, reduceMotion: reduceMotion),
       value: appState.status
     )
   }
 
-  private var transcriptCard: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack {
-        VStack(alignment: .leading, spacing: 2) {
-          Text(transcriptWorkspaceTitle)
-            .font(VhraseFont.title)
-          Text(transcriptWorkspaceSubtitle)
-            .font(.caption)
-            .foregroundStyle(.secondary)
+  /// Names the provider and mode on the bar and switches either without leaving Dictate.
+  private func providerChip(onTint: Bool) -> some View {
+    Menu {
+      Picker("Provider", selection: appState.settingsBinding(\.provider)) {
+        ForEach(STTProvider.allCases, id: \.self) { provider in
+          Text(provider.title).tag(provider)
         }
-        Spacer()
+      }
+      .pickerStyle(.inline)
+
+      Picker("Mode", selection: appState.settingsBinding(\.transcriptionMode)) {
+        ForEach(TranscriptionMode.allCases, id: \.self) { mode in
+          Text(mode.title).tag(mode)
+            .disabled(!appState.settings.provider.availableModes.contains(mode))
+        }
+      }
+      .pickerStyle(.inline)
+    } label: {
+      Text("\(appState.settings.provider.title) · \(appState.settings.transcriptionMode.title)")
+        .font(VhraseFont.pill)
+    }
+    .menuStyle(.borderlessButton)
+    .tint(onTint ? .white : VhraseTheme.accent)
+    .fixedSize()
+    .padding(.horizontal, 12)
+    .padding(.vertical, 6)
+    .background(Capsule().fill(onTint ? Color.white.opacity(0.22) : VhraseTheme.field))
+    .disabled(presentation.workflowControlsAreDisabled)
+    .accessibilityLabel("Transcription provider and mode")
+  }
+
+  /// The parrot repeats what you said: the transcript sits in a speech bubble pointing back at the mark.
+  private var speechBubble: some View {
+    let bubble = UnevenRoundedRectangle(
+      topLeadingRadius: 22, bottomLeadingRadius: 6, bottomTrailingRadius: 22,
+      topTrailingRadius: 22, style: .continuous)
+    return HStack(alignment: .bottom, spacing: 10) {
+      ParrotMark()
+        .frame(width: 40, height: 40)
+        .accessibilityHidden(true)
+
+      transcriptWorkspace
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 20)
+        .background(VhraseTheme.card, in: bubble)
+        .overlay { bubble.strokeBorder(VhraseTheme.hairline, lineWidth: 1) }
+    }
+  }
+
+  private var transcriptWorkspace: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .firstTextBaseline, spacing: 10) {
+        Text(transcriptWorkspaceTitle)
+          .font(VhraseFont.headline)
+        Text(transcriptWorkspaceSubtitle)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+        Spacer(minLength: 8)
         if showsLiveCapture, !appState.targetAppLabel.isEmpty {
           Label(appState.targetAppLabel, systemImage: "arrow.right.circle")
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(1)
+        }
+        if !showsLiveCapture, !appState.history.isEmpty {
+          Button("View history") {
+            selectedTab = .history
+          }
+          .buttonStyle(AccentLinkButtonStyle())
+          .font(.callout)
         }
         if transcriptWorkspaceShowsCopyAction {
           Button {
@@ -130,28 +184,27 @@ struct DictationView: View {
             Label(transcriptWorkspaceCopyTitle, systemImage: "doc.on.doc")
           }
           .buttonStyle(.bordered)
+          .controlSize(.small)
           .disabled(transcriptWorkspaceCopyText.isEmpty)
           .accessibilityHint("Copies the displayed transcript to the clipboard")
         }
       }
 
-      VStack(alignment: .leading, spacing: 12) {
-        Text(transcriptWorkspaceText)
-          .font(VhraseFont.transcript)
-          .foregroundStyle(transcriptWorkspaceIsPlaceholder ? .secondary : .primary)
-          .frame(maxWidth: .infinity, minHeight: 142, maxHeight: .infinity, alignment: .topLeading)
-          .textSelection(.enabled)
-          .contentTransition(.interpolate)
-          .animation(
-            VhraseMotion.respectingReduceMotion(VhraseMotion.settle, reduceMotion: reduceMotion),
-            value: transcriptWorkspaceText
-          )
-      }
-      .padding(16)
-      .insetField()
+      Text(transcriptWorkspaceText)
+        .font(VhraseFont.transcript)
+        .lineSpacing(5)
+        .foregroundStyle(transcriptWorkspaceIsPlaceholder ? .secondary : .primary)
+        .frame(maxWidth: 680, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
+        .textSelection(.enabled)
+        .contentTransition(.interpolate)
+        .animation(
+          VhraseMotion.respectingReduceMotion(VhraseMotion.settle, reduceMotion: reduceMotion),
+          value: transcriptWorkspaceText
+        )
 
       if !showsLiveCapture, !appState.lastRecognizedTranscript.isEmpty {
-        HStack {
+        VStack(alignment: .leading, spacing: 6) {
           if let seconds = appState.lastTranscriptionSeconds {
             Label(String(format: "Transcription wait: %.2f s", seconds), systemImage: "stopwatch")
               .font(.caption.monospacedDigit())
@@ -160,23 +213,29 @@ struct DictationView: View {
                 "Time from stopping capture to the completed provider transcript, excluding later LLM cleanup."
               )
           }
-          Spacer()
-        }
-        DisclosureGroup("Before Vhrase cleanup") {
-          VStack(alignment: .leading, spacing: 8) {
-            Text(appState.lastRecognizedTranscript)
-              .font(VhraseFont.transcript)
-              .textSelection(.enabled)
-              .frame(maxWidth: .infinity, alignment: .leading)
-            Button("Copy original transcription") {
-              NSPasteboard.general.clearContents()
-              NSPasteboard.general.setString(appState.lastRecognizedTranscript, forType: .string)
+          DisclosureGroup("Before Vhrase cleanup") {
+            VStack(alignment: .leading, spacing: 8) {
+              Text(appState.lastRecognizedTranscript)
+                .font(VhraseFont.transcriptBody)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .frame(maxWidth: 680, alignment: .leading)
+              Button("Copy original transcription") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(appState.lastRecognizedTranscript, forType: .string)
+              }
+              .buttonStyle(AccentLinkButtonStyle())
             }
-            .buttonStyle(AccentLinkButtonStyle())
+            .padding(.top, 8)
           }
-          .padding(.top, 8)
+          .font(.callout)
         }
-        .font(.callout)
+        .padding(.top, 12)
+        .overlay(alignment: .top) {
+          Rectangle()
+            .fill(VhraseTheme.hairline)
+            .frame(height: 1)
+        }
       }
 
       if !appState.lastAdjustmentWarning.isEmpty {
@@ -189,103 +248,25 @@ struct DictationView: View {
         )
       }
     }
-    .frame(maxHeight: .infinity, alignment: .top)
-    .contentSection()
   }
 
-  private var quickActionsCard: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      HStack {
+  private var activitySection: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .bottom, spacing: 16) {
         sectionHeader(
           "Activity", description: "Local totals since tracking began. Works with history off.")
         Spacer()
-        Button("View history") {
-          selectedTab = .history
-        }
-        .buttonStyle(AccentLinkButtonStyle())
-        .disabled(appState.history.isEmpty)
+        PillPicker(
+          title: "Activity period", selection: $activityRange, options: ActivityRange.allCases,
+          label: \.rawValue)
       }
-
-      Picker("Activity period", selection: $activityRange) {
-        ForEach(ActivityRange.allCases, id: \.self) { range in
-          Text(range.rawValue).tag(range)
-        }
-      }
-      .pickerStyle(.segmented)
-      .labelsHidden()
-      .frame(width: 360)
 
       TimelineView(.periodic(from: .now, by: 60)) { context in
-        let totals = activityRange.totals(days: appState.activityDays, now: context.date)
-        HStack(spacing: 18) {
-          activityMetric("Dictations", value: totals.dictations.formatted(), detail: "completed")
-          Divider().frame(height: 48)
-          activityMetric("Words", value: totals.words.formatted(), detail: "dictated")
-          Divider().frame(height: 48)
-          activityMetric(
-            "Est. time saved", value: activityTimeSaved(totals.savedSeconds),
-            detail: "vs. typing at 55 WPM"
-          )
-          .help(
-            "Compared with typing at 55 words per minute, subtracting recording and all processing time. Language-aware word counts and time saved are estimates."
-          )
-          Divider().frame(height: 48)
-          activityMetric(
-            "Est. cost", value: activityCost(totals.estimatedCostUSD),
-            detail: "USD · transcription only"
-          )
-          .help(
-            "List-price estimate for completed dictations since tracking began. Excludes cleanup, failed requests, subscriptions, and free-tier credits. Gemini uses an approximate per-minute rate."
-          )
-        }
+        DictationActivityChart(
+          days: appState.activityDays, now: context.date, range: activityRange,
+          metric: $activityMetric)
       }
-
-      Divider()
-
-      TimelineView(.periodic(from: .now, by: 60)) { context in
-        DictationActivityChart(days: appState.activityDays, now: context.date, range: activityRange)
-      }
-
-      Divider()
-
-      HStack(spacing: 16) {
-        Button {
-          appState.runDemoDictation()
-        } label: {
-          Label("Run demo", systemImage: "play.circle")
-        }
-        .disabled(!appState.status.canStartRecording)
-
-        Spacer()
-
-        Button {
-          selectedTab = .capture
-        } label: {
-          Label("Transcription settings", systemImage: "mic.and.signal.meter")
-        }
-
-        Button {
-          selectedTab = .system
-          appState.refreshPermissions()
-        } label: {
-          Label("Check readiness", systemImage: "checkmark.circle")
-        }
-      }
-      .buttonStyle(AccentLinkButtonStyle())
     }
-    .contentSection()
-  }
-
-  private func activityTimeSaved(_ seconds: Double) -> String {
-    let wholeSeconds = Int(seconds)
-    if wholeSeconds < 60 { return "\(wholeSeconds)s" }
-    if wholeSeconds < 3_600 { return "\(wholeSeconds / 60)m \(wholeSeconds % 60)s" }
-    return "\(wholeSeconds / 3_600)h \(wholeSeconds % 3_600 / 60)m"
-  }
-
-  private func activityCost(_ dollars: Double) -> String {
-    if dollars > 0 && dollars < 0.01 { return "<$0.01" }
-    return dollars.formatted(.currency(code: "USD"))
   }
 
   private var transcriptWorkspaceTitle: String {
@@ -387,7 +368,9 @@ struct DictationView: View {
       if let transcriptionConfigurationIssue = presentation.transcriptionConfigurationIssue {
         return transcriptionConfigurationIssue
       }
-      return "Ready for \(presentation.fullWorkflowSummary)."
+      return appState.settings.hotkeyPreset == .disabled
+        ? "Click the button to start talking."
+        : "Hold \(appState.settings.hotkeyDisplay) and talk, or tap it to start and stop."
     case .preparing:
       return "Starting the microphone and preparing \(appState.settings.provider.title)."
     case .recording:

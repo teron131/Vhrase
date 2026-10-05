@@ -40,68 +40,34 @@ struct SystemView: View {
 
   private var systemTab: some View {
     let diagnostics = appState.setupDiagnostics
-    return ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
-        pageHeader(
-          "System",
-          description: "Manage provider credentials, macOS access, and optional capabilities.",
-          systemImage: MainWindowTab.system.systemImage
-        )
+    return mainWindowPage(spacing: 26) {
+      pageHeader(
+        "System",
+        description: "Manage provider credentials, macOS access, and optional capabilities."
+      )
 
-        if let primary = diagnostics.first {
-          setupOverviewCard(primary)
-            .hoverLift()
-        }
-
-        ViewThatFits(in: .horizontal) {
-          HStack(alignment: .top, spacing: 20) {
-            keysCard
-              .frame(minWidth: 430, maxWidth: 460)
-              .hoverLift()
-
-            VStack(spacing: 16) {
-              permissionsCard
-                .frame(minWidth: 470)
-                .hoverLift()
-              diagnosticsFullCard(diagnostics)
-                .hoverLift()
-            }
-            .frame(maxWidth: .infinity)
-          }
-
-          VStack(spacing: 16) {
-            keysCard
-              .hoverLift()
-            permissionsCard
-              .hoverLift()
-            diagnosticsFullCard(diagnostics)
-              .hoverLift()
-          }
-          .frame(maxWidth: .infinity)
-        }
+      if let primary = diagnostics.first {
+        setupOverviewCard(primary)
       }
-      .frame(maxWidth: 1040, alignment: .topLeading)
-      .padding(32)
-      .frame(maxWidth: .infinity, alignment: .top)
+
+      keysCard
+      permissionsCard
+      diagnosticsFullCard(diagnostics)
     }
   }
 
   private func setupOverviewCard(_ diagnostic: SetupDiagnostic) -> some View {
     HStack(alignment: .center, spacing: 14) {
       Image(systemName: diagnostic.systemImage)
-        .font(.system(size: 25, weight: .semibold))
-        .foregroundStyle(VhraseTheme.diagnosticColor(diagnostic.severity))
-        .frame(width: 48, height: 48)
-        .background(
-          VhraseTheme.diagnosticColor(diagnostic.severity).opacity(0.12),
-          in: Circle()
-        )
+        .font(.system(size: 22, weight: .bold))
+        .foregroundStyle(.white)
+        .frame(width: 50, height: 50)
+        .background(VhraseTheme.diagnosticColor(diagnostic.severity), in: Circle())
         .accessibilityHidden(true)
 
-      VStack(alignment: .leading, spacing: 4) {
+      VStack(alignment: .leading, spacing: 3) {
         Text(setupOverviewTitle(diagnostic))
-          .font(.title3.weight(.semibold))
-          .tracking(-0.2)
+          .font(VhraseFont.statusTitle)
         Text(setupOverviewDetail(diagnostic))
           .font(.callout)
           .foregroundStyle(.secondary)
@@ -115,53 +81,42 @@ struct SystemView: View {
           handleSetupDiagnostic(diagnostic)
         }
         .buttonStyle(.borderedProminent)
-        .tint(VhraseTheme.accent)
         .disabled(
           diagnostic.id == .openCC
             && appState.openCCInstallationState == .installing
         )
       }
     }
-    .operationalSurface()
+    .padding(18)
+    .surface()
   }
 
   private var keysCard: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      sectionHeader(
-        "Provider credentials",
-        description:
-          "Secrets stay in your login Keychain. An uppercase _KEY name is saved as an environment reference. LLM_BASE_URL overrides the saved endpoint when present."
+    settingsGroup(
+      "Provider credentials",
+      footer:
+        "Secrets stay in your login Keychain and save automatically without password dialogs. An uppercase _KEY name is saved as an environment reference that survives rebuilds without Keychain access. LLM_BASE_URL overrides the saved endpoint when present. Unsaved secrets remain in memory for this session."
+    ) {
+      keyField(.xaiAPIKey)
+      keyField(.elevenLabsAPIKey)
+      keyField(.geminiAPIKey)
+      keyField(.llmAPIKey)
+      configurationField(
+        "LLM base URL",
+        text: Binding(
+          get: { appState.effectiveLLMBaseURL },
+          set: { value in
+            guard !appState.usesEnvironmentLLMBaseURL else { return }
+            appState.updateSettings { $0.adjustmentBaseURL = value }
+          }
+        ),
+        environmentName: appState.usesEnvironmentLLMBaseURL ? "LLM_BASE_URL" : nil
       )
 
-      Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 14) {
-        keyField(.xaiAPIKey)
-        keyField(.elevenLabsAPIKey)
-        keyField(.geminiAPIKey)
-        keyField(.llmAPIKey)
-        configurationField(
-          "LLM base URL",
-          text: Binding(
-            get: { appState.effectiveLLMBaseURL },
-            set: { value in
-              guard !appState.usesEnvironmentLLMBaseURL else { return }
-              appState.updateSettings { $0.adjustmentBaseURL = value }
-            }
-          ),
-          environmentName: appState.usesEnvironmentLLMBaseURL ? "LLM_BASE_URL" : nil
-        )
-      }
-      .frame(maxWidth: .infinity)
-
-      LazyVGrid(
-        columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 10
+      settingsRow(
+        "Model access",
+        detail: "Sends only a tiny “Reply with OK” request using the configured model."
       ) {
-        keyStatus("xAI", key: .xaiAPIKey)
-        keyStatus("ElevenLabs", key: .elevenLabsAPIKey)
-        keyStatus("LLM", key: .llmAPIKey)
-        keyStatus("Gemini", key: .geminiAPIKey)
-      }
-
-      HStack(spacing: 10) {
         Button {
           appState.checkLLMModelAccess()
         } label: {
@@ -170,24 +125,14 @@ struct SystemView: View {
               ProgressView()
                 .controlSize(.small)
             } else {
-              Image(systemName: "bolt.horizontal.circle")
+              Image(systemName: "checkmark.seal")
             }
-            Text(appState.isCheckingLLMModelAccess ? "Testing LLM…" : "Test LLM")
+            Text(appState.isCheckingLLMModelAccess ? "Checking model…" : "Check model access")
           }
         }
         .buttonStyle(.bordered)
         .disabled(appState.isCheckingLLMModelAccess || appState.effectiveAPIKey(.llmAPIKey).isEmpty)
-
-        Text("Sends only a tiny “Reply with OK” request using the configured model.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
       }
-
-      Text(
-        "Credentials save automatically without password dialogs. Environment references survive rebuilds without Keychain access; unsaved secrets remain in memory for this session."
-      )
-      .font(.caption)
-      .foregroundStyle(.secondary)
 
       if !appState.unsavedAPIKeys.isEmpty {
         HStack {
@@ -195,8 +140,10 @@ struct SystemView: View {
             .foregroundStyle(VhraseTheme.statusWarning)
           Spacer()
           Button("Retry saving") { appState.retrySavingAPIKeys() }
+            .controlSize(.small)
         }
-        .font(.caption)
+        .font(.callout)
+        .settingsRowStyle()
       }
 
       if !appState.keychainReadNotice.isEmpty {
@@ -206,11 +153,13 @@ struct SystemView: View {
           Text(appState.keychainReadNotice)
             .font(.caption)
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
           Button("Retry reading saved keys") { appState.retryLoadingAPIKeys() }
+            .controlSize(.small)
         }
+        .settingsRowStyle()
       }
     }
-    .contentSection()
   }
 
   private func keyField(_ key: SecretKey) -> some View {
@@ -218,27 +167,27 @@ struct SystemView: View {
       get: { appState.apiKeyField(key) },
       set: { appState.updateAPIKey(key, value: $0) }
     )
-    return GridRow {
-      Text(key.title)
-        .font(.callout.weight(.medium))
-        .gridColumnAlignment(.trailing)
-
-      Group {
-        if showsCredentialReference(text.wrappedValue) {
-          TextField(key.title, text: text)
-        } else {
-          SecureField(key.title, text: text)
+    return settingsRow(key.title) {
+      HStack(spacing: 12) {
+        Group {
+          if showsCredentialReference(text.wrappedValue) {
+            TextField(key.title, text: text)
+          } else {
+            SecureField(key.title, text: text)
+          }
         }
-      }
-      .textFieldStyle(.roundedBorder)
-      .frame(minWidth: 280, maxWidth: .infinity)
-      .gridColumnAlignment(.leading)
-      .transaction { transaction in
-        transaction.animation = nil
-      }
-      .focused($focusedSecretField, equals: key)
-      .onSubmit {
-        finishAPIKeyEditing()
+        .textFieldStyle(.roundedBorder)
+        .labelsHidden()
+        .frame(width: 320)
+        .transaction { transaction in
+          transaction.animation = nil
+        }
+        .focused($focusedSecretField, equals: key)
+        .onSubmit {
+          finishAPIKeyEditing()
+        }
+
+        keyStatus(key)
       }
     }
   }
@@ -255,89 +204,57 @@ struct SystemView: View {
     text: Binding<String>,
     environmentName: String?
   ) -> some View {
-    GridRow {
-      Text(title)
-        .font(.callout.weight(.medium))
-        .gridColumnAlignment(.trailing)
-
-      VStack(alignment: .leading, spacing: 5) {
+    settingsRow(title, detail: environmentName.map { "Loaded from \($0)" }) {
+      HStack(spacing: 12) {
         TextField(title, text: text)
           .textFieldStyle(.roundedBorder)
+          .labelsHidden()
+          .frame(width: 320)
           .disabled(environmentName != nil)
-        if let environmentName {
-          Label("Loaded from \(environmentName)", systemImage: "checkmark.circle.fill")
-            .font(.caption)
-            .foregroundStyle(VhraseTheme.statusSuccess)
+        if environmentName != nil {
+          credentialState(
+            "Environment", systemImage: "checkmark.circle.fill", color: VhraseTheme.statusSuccess)
+        } else {
+          Color.clear.frame(width: 96, height: 1)
         }
       }
-      .frame(minWidth: 280, maxWidth: .infinity)
-      .gridColumnAlignment(.leading)
     }
   }
 
   private var permissionsCard: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      HStack {
-        sectionHeader(
-          "Permissions",
-          description: "Grant only the macOS access required by the features you use.")
-        Spacer()
-        Button {
-          appState.refreshPermissions()
-        } label: {
-          Label("Refresh", systemImage: "arrow.clockwise")
-        }
-        if let microphone = presentation.permissionSnapshot(.microphone),
-          !microphone.state.isReady
-        {
-          Button {
-            appState.handlePermissionAction(.microphone)
-          } label: {
-            Label(
-              microphone.state == .notDetermined
-                ? "Request Microphone" : "Open Microphone Settings",
-              systemImage: "mic.badge.plus"
-            )
-          }
-        }
-      }
-
-      LazyVGrid(
-        columns: [GridItem(.flexible()), GridItem(.flexible())],
-        alignment: .leading,
-        spacing: 10
-      ) {
-        ForEach(relevantPermissionSnapshots) { snapshot in
-          permissionTile(snapshot)
-        }
-      }
-
-      Text(
+    settingsGroup(
+      "Permissions",
+      footer:
         "Microphone is required. Shortcut, paste, and screen access appear only when the features you chose need them."
-      )
-      .font(.caption)
-      .foregroundStyle(.secondary)
+    ) {
+      ForEach(relevantPermissionSnapshots) { snapshot in
+        permissionTile(snapshot)
+      }
+    } accessory: {
+      Button {
+        appState.refreshPermissions()
+      } label: {
+        Label("Refresh", systemImage: "arrow.clockwise")
+      }
+      .buttonStyle(AccentLinkButtonStyle())
+      .font(.callout)
     }
-    .contentSection()
   }
 
   private func diagnosticsFullCard(_ diagnostics: [SetupDiagnostic]) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      sectionHeader(
-        "Readiness details",
-        description: "Review the selected provider, permissions, and optional capabilities.")
-
+    settingsGroup("Readiness details") {
       ForEach(diagnostics) { diagnostic in
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 12) {
           Image(systemName: diagnostic.systemImage)
             .foregroundStyle(VhraseTheme.diagnosticColor(diagnostic.severity))
-            .frame(width: 22)
+            .frame(width: 20)
+            .padding(.top, 1)
           VStack(alignment: .leading, spacing: 2) {
             Text(diagnostic.title)
-              .font(.headline)
             Text(diagnostic.detail)
-              .font(.callout)
+              .font(.caption)
               .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
             if diagnostic.id == .openCC,
               let failureMessage = appState.openCCInstallationState.failureMessage
             {
@@ -360,17 +277,17 @@ struct SystemView: View {
               handleSetupDiagnostic(diagnostic)
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
             .disabled(
               diagnostic.id == .openCC
                 && appState.openCCInstallationState == .installing
             )
           }
         }
-        .padding(.vertical, 3)
+        .settingsRowStyle()
         .accessibilityElement(children: .contain)
       }
     }
-    .contentSection()
   }
 
   private func setupOverviewTitle(_ diagnostic: SetupDiagnostic) -> String {
@@ -475,48 +392,51 @@ struct SystemView: View {
     }
   }
 
-  private func keyStatus(_ title: String, key: SecretKey) -> some View {
+  /// Reports where the effective credential comes from beside the field that edits it.
+  private func keyStatus(_ key: SecretKey) -> some View {
     let isReady = !appState.effectiveAPIKey(key).isEmpty
-    return StatusPill(
-      title: appState.usesEnvironmentFallback(for: key)
-        ? "\(title) from environment"
-        : (isReady ? "\(title) ready" : "\(title) missing"),
+    return credentialState(
+      appState.usesEnvironmentFallback(for: key)
+        ? "Environment" : (isReady ? "Saved" : "Missing"),
       systemImage: isReady ? "checkmark.circle.fill" : "exclamationmark.circle.fill",
       color: isReady ? VhraseTheme.statusSuccess : VhraseTheme.statusWarning
     )
   }
 
+  private func credentialState(_ title: String, systemImage: String, color: Color) -> some View {
+    Label(title, systemImage: systemImage)
+      .font(.caption.weight(.medium))
+      .foregroundStyle(color)
+      .frame(width: 96, alignment: .leading)
+  }
+
   private func permissionTile(_ snapshot: PermissionSnapshot) -> some View {
-    Button {
-      appState.handlePermissionAction(snapshot.permission)
-    } label: {
-      HStack(spacing: 10) {
-        Image(systemName: snapshot.permission.systemImage)
-          .font(.body)
-          .frame(width: 22)
-          .foregroundStyle(
-            snapshot.state.isReady ? VhraseTheme.statusSuccess : VhraseTheme.statusWarning)
-        VStack(alignment: .leading, spacing: 2) {
-          Text(snapshot.permission.title)
-            .font(.subheadline.weight(.medium))
-          Text(snapshot.displayTitle)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        Spacer()
-        Image(systemName: "chevron.right")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.tertiary)
+    HStack(spacing: 12) {
+      Image(systemName: snapshot.permission.systemImage)
+        .frame(width: 20)
+        .foregroundStyle(
+          snapshot.state.isReady ? VhraseTheme.statusSuccess : VhraseTheme.statusWarning
+        )
+        .accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(snapshot.permission.title)
+        Text(snapshot.state.title)
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
-      .padding(12)
-      .contentShape(Rectangle())
+      Spacer()
+      Button(snapshot.actionTitle) {
+        appState.handlePermissionAction(snapshot.permission)
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+      .accessibilityLabel("\(snapshot.actionTitle) for \(snapshot.permission.title)")
+      .accessibilityHint(
+        snapshot.state.isReady
+          ? "Opens macOS permission settings"
+          : "Requests access or opens macOS permission settings")
     }
-    .buttonStyle(.plain)
-    .frame(maxWidth: .infinity)
-    .insetField(cornerRadius: 10)
-    .accessibilityHint(
-      snapshot.state.isReady
-        ? "Opens macOS permission settings" : "Requests access or opens macOS permission settings")
+    .settingsRowStyle()
   }
 
   /// Ends credential editing and commits any pending Keychain update.

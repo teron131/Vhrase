@@ -7,10 +7,9 @@ struct VocabularyEditor: View {
 
   var body: some View {
     let issue = TranscriptionContract.configurationIssue(in: appState.settings)
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .leading, spacing: 10) {
       editorTile(
         "Shared vocabulary",
-        systemImage: "tag",
         text: appState.settingsBinding(\.keyterms),
         height: 96,
         instruction:
@@ -18,10 +17,14 @@ struct VocabularyEditor: View {
         placeholder: "Vercel\nbackpropagation\nMonte Carlo"
       )
 
-      HStack {
+      HStack(alignment: .firstTextBaseline) {
         Text("\(appState.settings.keytermList.count) unique terms")
           .font(.caption.monospacedDigit())
           .foregroundStyle(.secondary)
+        Text(issue ?? keytermGuidance)
+          .font(.caption)
+          .foregroundStyle(issue == nil ? Color.secondary : VhraseTheme.statusFailure)
+          .fixedSize(horizontal: false, vertical: true)
         Spacer()
         Button("Add developer vocabulary") {
           appState.updateSettings { settings in
@@ -36,12 +39,10 @@ struct VocabularyEditor: View {
           }
         }
         .buttonStyle(AccentLinkButtonStyle())
+        .font(.callout)
+        .fixedSize()
         .help("Adds common developer terms without replacing your vocabulary")
       }
-
-      Text(issue ?? keytermGuidance)
-        .font(.caption)
-        .foregroundStyle(issue == nil ? Color.secondary : Color.red)
     }
   }
 

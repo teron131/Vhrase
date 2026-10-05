@@ -11,14 +11,9 @@ struct MicrophonePreviewView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Label("Microphone preview", systemImage: "waveform")
-          .font(.callout.weight(.semibold))
-        Spacer()
-        Text(statusText)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
+      Text(statusText)
+        .font(.caption)
+        .foregroundStyle(.secondary)
 
       HStack(spacing: 20) {
         levelMeter(

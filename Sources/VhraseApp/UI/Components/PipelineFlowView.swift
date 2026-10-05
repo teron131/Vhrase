@@ -1,4 +1,4 @@
-// Presents a compact vertical workflow whose selected stage owns the adjacent settings editor.
+// Presents the transcription sequence as numbered stage pills whose selected stage owns the editor below them.
 
 import SwiftUI
 
@@ -9,147 +9,100 @@ enum PipelineStage: String, Hashable {
   case transcribe
 }
 
-/// Describes one stage and the live state summarized in the workflow rail.
+/// Describes one stage and the live state summarized in the workflow strip.
 struct PipelineFlowNode: Equatable {
   let id: PipelineStage
-  let systemImage: String
   let title: String
   let detail: String
   var badge: String?
 }
 
-/// Acts as navigation for one stage-owned settings editor.
+/// Acts as navigation for one stage-owned settings editor; stage numbers encode the order audio travels.
 struct PipelineFlowView: View {
   let nodes: [PipelineFlowNode]
   @Binding var selection: PipelineStage
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var hoveredStage: PipelineStage?
-  @State private var flowProgress: CGFloat = 0
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
+    HStack(alignment: .center, spacing: 0) {
       ForEach(Array(nodes.enumerated()), id: \.element.id) { index, node in
-        nodeButton(node)
+        nodeButton(node, number: index + 1)
         if index < nodes.count - 1 {
-          connector
+          Line()
+            .stroke(
+              VhraseTheme.hairline,
+              style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [2, 6])
+            )
+            .frame(minWidth: 16, maxWidth: .infinity)
+            .frame(height: 2)
+            .padding(.horizontal, 8)
+            .accessibilityHidden(true)
         }
       }
     }
-    .padding(.vertical, 4)
     .animation(
-      VhraseMotion.respectingReduceMotion(VhraseMotion.snappy, reduceMotion: reduceMotion),
+      VhraseMotion.respectingReduceMotion(VhraseMotion.bounce, reduceMotion: reduceMotion),
       value: selection
     )
-    .animation(
-      VhraseMotion.respectingReduceMotion(VhraseMotion.snappy, reduceMotion: reduceMotion),
-      value: hoveredStage
-    )
-    .onAppear {
-      guard !reduceMotion else {
-        return
-      }
-      withAnimation(.linear(duration: 1.6).repeatForever(autoreverses: false)) {
-        flowProgress = 1
-      }
-    }
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Workflow stages")
   }
 
-  private func nodeButton(_ node: PipelineFlowNode) -> some View {
+  private func nodeButton(_ node: PipelineFlowNode, number: Int) -> some View {
     let isSelected = selection == node.id
     let isHovered = hoveredStage == node.id
-    let background =
-      isSelected
-      ? VhraseTheme.workflowAccent.opacity(0.085)
-      : (isHovered ? Color.primary.opacity(0.025) : .clear)
+    let summary = [node.detail, node.badge].compactMap { $0 }.joined(separator: " · ")
 
     return Button {
       selection = node.id
     } label: {
-      HStack(spacing: 12) {
-        Image(systemName: node.systemImage)
-          .font(.system(size: 16, weight: .semibold))
-          .foregroundStyle(VhraseTheme.workflowAccent)
-          .frame(width: 32, height: 32)
+      HStack(spacing: 10) {
+        Text("\(number)")
+          .font(.system(.callout, design: .rounded, weight: .heavy).monospacedDigit())
+          .foregroundStyle(isSelected ? VhraseTheme.accent : Color.secondary)
+          .frame(width: 28, height: 28)
+          .background(Circle().fill(isSelected ? Color.white : VhraseTheme.field))
 
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 1) {
           Text(node.title)
-            .font(.callout.weight(.semibold))
-            .foregroundStyle(.primary)
-
-          Text(node.detail)
+            .font(.system(.body, design: .rounded, weight: .bold))
+          Text(summary)
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .opacity(0.8)
             .lineLimit(1)
-
-          if let badge = node.badge {
-            Text(badge)
-              .font(.caption2.weight(.medium))
-              .foregroundStyle(VhraseTheme.workflowAccent)
-              .lineLimit(1)
-          }
-        }
-
-        Spacer(minLength: 4)
-
-        Image(systemName: "chevron.right")
-          .font(.system(size: 10, weight: .bold))
-          .foregroundStyle(
-            isSelected
-              ? VhraseTheme.workflowAccent
-              : VhraseTheme.inkSecondary.opacity(0.5)
-          )
-          .accessibilityHidden(true)
-      }
-      .padding(.horizontal, 14)
-      .padding(.vertical, 13)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(background)
-      .overlay(alignment: .leading) {
-        if isSelected {
-          Capsule()
-            .fill(VhraseTheme.workflowAccent)
-            .frame(width: 3)
-            .padding(.vertical, 10)
         }
       }
-      .contentShape(Rectangle())
+      .foregroundStyle(isSelected ? Color.white : Color.primary)
+      .fixedSize()
+      .padding(.leading, 6)
+      .padding(.trailing, 18)
+      .padding(.vertical, 6)
+      .background {
+        Capsule()
+          .fill(
+            isSelected ? VhraseTheme.accent : (isHovered ? VhraseTheme.field : VhraseTheme.card))
+      }
+      .contentShape(Capsule())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(PressableButtonStyle(pressedScale: 0.95))
     .onHover { isHovering in
       hoveredStage = isHovering ? node.id : nil
     }
-    .accessibilityLabel(node.title)
-    .accessibilityValue(isSelected ? "\(node.detail), Selected" : node.detail)
+    .accessibilityLabel("Stage \(number), \(node.title)")
+    .accessibilityValue(isSelected ? "\(summary), Selected" : summary)
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
     .accessibilityHint("Shows settings for this stage")
   }
+}
 
-  private var connector: some View {
-    HStack(spacing: 0) {
-      ZStack(alignment: .top) {
-        Capsule()
-          .fill(VhraseTheme.hairline)
-          .frame(width: 2)
-
-        Capsule()
-          .fill(VhraseTheme.workflowAccent.opacity(0.45))
-          .frame(width: 2)
-
-        if !reduceMotion {
-          Circle()
-            .fill(VhraseTheme.workflowAccent)
-            .frame(width: 5, height: 5)
-            .shadow(color: VhraseTheme.workflowAccent.opacity(0.4), radius: 4)
-            .offset(y: 19 * flowProgress)
-        }
-      }
-      .frame(width: 32, height: 24)
-      .padding(.leading, 14)
-
-      Spacer()
-    }
-    .accessibilityHidden(true)
+/// A horizontal center line for dashed connectors between stage pills.
+private struct Line: Shape {
+  func path(in rect: CGRect) -> Path {
+    var path = Path()
+    path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+    path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+    return path
   }
 }

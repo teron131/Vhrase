@@ -45,6 +45,7 @@ struct MenuPopoverView: View {
     }
     .frame(width: 368)
     .background(VhraseTheme.canvas)
+    .buttonBorderShape(.capsule)
     .animation(
       VhraseMotion.respectingReduceMotion(VhraseMotion.stateSpring, reduceMotion: reduceMotion),
       value: showsLiveWorkflow
@@ -54,42 +55,44 @@ struct MenuPopoverView: View {
     }
   }
 
+  /// Mirrors Dictate's mic bar: its fill announces the workflow state and the white disc starts or stops capture.
   private var compactHero: some View {
-    HStack(spacing: 10) {
-      ParrotMark()
-        .frame(width: 28, height: 28)
-        .accessibilityHidden(true)
-
-      VStack(alignment: .leading, spacing: 1) {
-        Text("Vhrase")
-          .font(VhraseFont.micro)
-          .foregroundStyle(VhraseTheme.accent)
-        Text(presentation.displayStatusTitle)
-          .font(VhraseFont.title)
-        Text(presentation.compactWorkflowSummary)
-          .font(VhraseFont.micro)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-      }
-
-      Spacer()
-
-      KeyCap(text: appState.settings.hotkeyDisplay)
-
+    let tint = presentation.micBarTint
+    return HStack(spacing: 8) {
       RecordHeroButton(
         presentation: presentation,
         recordingLevel: appState.recordingLevel,
         style: .compact,
         action: handleRecordButton
       )
+
+      VStack(alignment: .leading, spacing: 1) {
+        Text(presentation.displayStatusTitle)
+          .font(VhraseFont.title)
+        Text(presentation.compactWorkflowSummary)
+          .font(VhraseFont.micro)
+          .opacity(0.85)
+          .lineLimit(1)
+      }
+
+      Spacer()
     }
-    .padding(12)
-    .background(VhraseTheme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    .foregroundStyle(tint == nil ? Color.primary : Color.white)
+    .padding(4)
+    .background(
+      tint ?? VhraseTheme.card,
+      in: RoundedRectangle(cornerRadius: VhraseTheme.sheetCornerRadius, style: .continuous)
+    )
     .overlay {
-      RoundedRectangle(cornerRadius: 14, style: .continuous)
-        .strokeBorder(VhraseTheme.hairline, lineWidth: 1)
+      if tint == nil {
+        RoundedRectangle(cornerRadius: VhraseTheme.sheetCornerRadius, style: .continuous)
+          .strokeBorder(VhraseTheme.hairline, lineWidth: 1)
+      }
     }
-    .shadow(color: presentation.statusTint.opacity(0.12), radius: 16, y: 6)
+    .animation(
+      VhraseMotion.respectingReduceMotion(VhraseMotion.bounce, reduceMotion: reduceMotion),
+      value: appState.status
+    )
   }
 
   @ViewBuilder
@@ -144,14 +147,14 @@ struct MenuPopoverView: View {
       }
 
       Text(liveTranscriptText)
-        .font(.callout)
+        .font(VhraseFont.transcriptBody)
         .foregroundStyle(appState.liveTranscript.isEmpty ? .secondary : .primary)
         .lineLimit(3)
         .frame(maxWidth: .infinity, minHeight: 38, alignment: .topLeading)
         .textSelection(.enabled)
     }
     .padding(10)
-    .insetField(cornerRadius: 10)
+    .surface()
   }
 
   private var activitySummary: some View {
@@ -187,7 +190,7 @@ struct MenuPopoverView: View {
 
         VStack(alignment: .leading, spacing: 1) {
           Text(appState.savesTranscriptHistory ? "On" : "Off")
-            .font(.callout.weight(.semibold))
+            .font(VhraseFont.title)
           Text("Saving")
             .font(.caption2)
             .foregroundStyle(.secondary)
@@ -195,15 +198,14 @@ struct MenuPopoverView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
       .padding(10)
-      .insetField(cornerRadius: 9)
+      .surface()
     }
   }
 
   private var lastTranscriptRow: some View {
     HStack(alignment: .top, spacing: 8) {
       Text(appState.lastTranscript)
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .font(VhraseFont.transcriptBody)
         .lineLimit(2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .textSelection(.enabled)
@@ -222,13 +224,13 @@ struct MenuPopoverView: View {
       .accessibilityLabel("Copy last transcript")
     }
     .padding(10)
-    .insetField(cornerRadius: 9)
+    .surface()
   }
 
   private func menuMetric(_ title: String, value: String) -> some View {
     VStack(alignment: .leading, spacing: 1) {
       Text(value)
-        .font(.callout.weight(.semibold))
+        .font(VhraseFont.title)
         .contentTransition(.numericText())
       Text(title)
         .font(.caption2)
@@ -262,7 +264,7 @@ struct MenuPopoverView: View {
       .accessibilityLabel("Transcription mode")
     }
     .padding(10)
-    .insetField(cornerRadius: 9)
+    .surface()
     .disabled(presentation.workflowControlsAreDisabled)
   }
 

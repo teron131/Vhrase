@@ -21,6 +21,8 @@ enum OpenCCInstallationState: Equatable {
 @MainActor
 final class AppState: ObservableObject {
   private static let developmentEnvironmentFileArgument = "--development-environment-file"
+  /// Enough level samples for Dictate's full-width signal line; smaller surfaces read their own suffix.
+  private static let recordingWaveformHistoryLimit = 96
   private static let workflowOutcomeDisplayDuration = Duration.seconds(4)
 
   @Published private(set) var status: AppStatus = .idle {
@@ -795,9 +797,10 @@ final class AppState: ObservableObject {
           if self.recordingWaveformTick >= 3 {
             self.recordingWaveformTick = 0
             self.recordingWaveformHistory.append(chunk.level)
-            if self.recordingWaveformHistory.count > 24 {
+            let limit = Self.recordingWaveformHistoryLimit
+            if self.recordingWaveformHistory.count > limit {
               self.recordingWaveformHistory.removeFirst(
-                self.recordingWaveformHistory.count - 24
+                self.recordingWaveformHistory.count - limit
               )
             }
           }

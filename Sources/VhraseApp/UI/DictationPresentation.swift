@@ -69,10 +69,6 @@ struct DictationPresentation {
     "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) · \(settings.hotkeyDisplay)"
   }
 
-  var fullWorkflowSummary: String {
-    "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) · \(settings.transcriptionStyle)\(settings.adjustWithLLM ? " + LLM" : "")"
-  }
-
   var displayStatusTitle: String {
     switch status {
     case .idle:
@@ -114,6 +110,22 @@ struct DictationPresentation {
       coreRecordingReady && selectedShortcutReady
         ? VhraseTheme.inkSecondary
         : VhraseTheme.statusWarning
+    }
+  }
+
+  /// Fills the mic bar: orange when ready, red while the microphone is live, violet while Vhrase works, and neutral until setup is complete.
+  var micBarTint: Color? {
+    switch status {
+    case .preparing, .recording:
+      VhraseTheme.statusRecording
+    case .transcribing, .adjusting:
+      VhraseTheme.statusProcessing
+    case .failed:
+      VhraseTheme.statusFailure
+    case .completed:
+      VhraseTheme.accent
+    case .idle:
+      coreRecordingReady && transcriptionConfigurationIssue == nil ? VhraseTheme.accent : nil
     }
   }
 

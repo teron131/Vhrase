@@ -161,14 +161,6 @@ struct DictationSettings: Codable, Equatable, Sendable {
       .filter { !$0.isEmpty }
   }
 
-  var transcriptionStyle: String {
-    switch provider {
-    case .gemini: geminiSmartTranscription ? "Smart transcription" : "Verbatim"
-    case .xai: includeFillerWords ? "Keep fillers" : "Remove fillers"
-    case .elevenLabs: elevenLabsNoVerbatim ? "Clean speech" : "Verbatim"
-    }
-  }
-
   /// Converts retired substitution targets into reference vocabulary without retaining executable replacement rules.
   static func migratingVocabulary(_ vocabulary: String, replacementRules: String) -> String {
     let targets = replacementRules.split(whereSeparator: \.isNewline).compactMap {

@@ -8,16 +8,17 @@ extension MainWindowView {
   var sidebar: some View {
     VStack(spacing: 0) {
       ScrollView {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
           HStack(spacing: 8) {
             ParrotMark()
-              .frame(width: 22, height: 22)
+              .frame(width: 24, height: 24)
               .accessibilityHidden(true)
             Text("Vhrase")
-              .font(VhraseFont.title)
+              .font(.system(.title2, design: .rounded, weight: .heavy))
           }
           .padding(.horizontal, 8)
-          .padding(.bottom, 12)
+          .padding(.top, 4)
+          .padding(.bottom, 14)
 
           ForEach(MainWindowTab.allCases) { tab in
             Button {
@@ -34,47 +35,41 @@ extension MainWindowView {
                 selectedTab = tab
               }
             } label: {
-              HStack(spacing: 10) {
+              HStack(spacing: 9) {
                 Image(systemName: tab.systemImage)
-                  .font(.callout)
-                  .foregroundStyle(
-                    selectedTab == tab ? VhraseTheme.accent : VhraseTheme.inkSecondary
+                  .font(.system(size: 13, weight: .semibold))
+                  .foregroundStyle(selectedTab == tab ? Color.white : VhraseTheme.inkSecondary)
+                  .frame(width: 18)
+                Text(tab.title)
+                  .font(
+                    .system(.body, design: .rounded, weight: selectedTab == tab ? .bold : .medium)
                   )
-                  .frame(width: 20)
-                VStack(alignment: .leading, spacing: 1) {
-                  Text(tab.title)
-                    .font(.callout.weight(selectedTab == tab ? .semibold : .medium))
-                    .lineLimit(1)
-                  Text(tab.detail)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                }
+                  .foregroundStyle(selectedTab == tab ? Color.white : Color.primary)
+                  .lineLimit(1)
 
                 if tab == .dictate, appState.isRecording {
                   Spacer(minLength: 4)
                   Circle()
-                    .fill(VhraseTheme.statusRecording)
+                    .fill(selectedTab == tab ? Color.white : VhraseTheme.statusRecording)
                     .frame(width: 7, height: 7)
                     .accessibilityHidden(true)
                 }
               }
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(.vertical, 7)
-              .padding(.horizontal, 8)
+              .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+              .padding(.horizontal, 10)
               .background {
                 if selectedTab == tab {
-                  RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(VhraseTheme.accentSubtle)
+                  Capsule()
+                    .fill(VhraseTheme.accent)
                     .matchedGeometryEffect(id: "navigation-selection", in: navigationSelection)
                 } else if hoveredTab == tab {
-                  RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.primary.opacity(0.05))
+                  Capsule()
+                    .fill(Color.primary.opacity(0.06))
                 }
               }
-              .contentShape(Rectangle())
+              .contentShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableButtonStyle(pressedScale: 0.96))
             .onHover { isHovered in
               if isHovered {
                 hoveredTab = tab
