@@ -36,6 +36,19 @@ struct TextInsertionCheck {
     precondition(pasteEventCount == 2)
     precondition(pasteboard.string(forType: .string) == "kept transcript")
 
+    let changeCountBeforeCancellation = pasteboard.changeCount
+    let cancelledPaste = Task { @MainActor in
+      withUnsafeCurrentTask { $0?.cancel() }
+      return try await inserter.paste("cancelled transcript", keepOnClipboard: true)
+    }
+    do {
+      _ = try await cancelledPaste.value
+      preconditionFailure("A cancelled paste must not touch the editor or clipboard.")
+    } catch is CancellationError {
+      precondition(pasteEventCount == 2)
+      precondition(pasteboard.changeCount == changeCountBeforeCancellation)
+    }
+
     var contextAwarePaste = ""
     let contextAwareInserter = TextInsertion(
       pasteboard: pasteboard,

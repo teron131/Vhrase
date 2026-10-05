@@ -14,12 +14,12 @@ final class RecorderHUDPanelController: NSWindowController {
 
   init(appState: AppState) {
     self.appState = appState
-    let hostingView = NSHostingView(rootView: StatusPopupView(appState: appState))
+    let hostingView = NSHostingView(rootView: RecorderHUDView(appState: appState))
     // The controller owns panel size and origin as the SwiftUI content changes between workflow states.
     hostingView.sizingOptions = []
 
     let panel = NSPanel(
-      contentRect: NSRect(origin: .zero, size: StatusPopupContentPolicy.size(for: .idle)),
+      contentRect: NSRect(origin: .zero, size: RecorderHUDView.size),
       styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
       backing: .buffered,
       defer: false
@@ -67,18 +67,19 @@ final class RecorderHUDPanelController: NSWindowController {
     if startsNewWorkflow || workflowScreen == nil {
       workflowScreen = screenAtPointer()
     }
-    applyFrame(to: panel, status: status)
+    applyFrame(to: panel)
     panel.orderFrontRegardless()
   }
 
   /// Applies size and position together so AppKit never exposes its top-edge-preserving resize behavior.
-  private func applyFrame(to panel: NSWindow, status: AppStatus) {
+  private func applyFrame(to panel: NSWindow) {
     guard let visibleFrame = workflowScreen?.visibleFrame else {
       return
     }
 
-    let contentSize = StatusPopupContentPolicy.size(for: status)
-    let frameSize = panel.frameRect(forContentRect: NSRect(origin: .zero, size: contentSize)).size
+    let frameSize = panel.frameRect(
+      forContentRect: NSRect(origin: .zero, size: RecorderHUDView.size)
+    ).size
     let frame = NSRect(
       x: visibleFrame.midX - frameSize.width / 2,
       y: visibleFrame.minY + 24,

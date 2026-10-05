@@ -188,3 +188,4 @@ Closing or hiding the main window keeps the menu-bar app running, while normal a
 The Transcription destination releases shortcut editing and microphone preview when leaving the destination or deactivating its window; System ends credential editing and flushes pending saves at those boundaries.
 `MainWindowEvents` scopes Escape and activation callbacks to the actual host window, and `MainWindowControls` contains only shared visual building blocks.
 The recorder's panel lifecycle belongs to `RecorderHUDPanelController`, separately from the SwiftUI pill content.
+`AudioRecorder` owns capture startup, health monitoring, and WAV delivery; `PCM16AudioConverter` owns resampling, enhancement, transport framing, and final audio draining.

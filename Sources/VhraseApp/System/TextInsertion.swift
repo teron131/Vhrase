@@ -58,11 +58,13 @@ struct TextInsertion {
   }
 
   /// Posts finalized text through Command-V and reports whether it remains on the clipboard.
+  /// Cancellation before insertion leaves the editor and clipboard untouched; cancellation afterward still restores the clipboard.
   func paste(
     _ text: String,
     keepOnClipboard: Bool,
     context: TextInsertionContext? = nil
   ) async throws -> Bool {
+    try Task.checkCancellation()
     let snapshot = PasteboardSnapshot(pasteboard)
     let insertionText = Self.preparedText(text, context: context)
     try copy(insertionText)

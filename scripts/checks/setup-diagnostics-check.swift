@@ -13,15 +13,14 @@ struct SetupDiagnosticsCheck {
       accessibility: .granted,
       inputMonitoring: .notDetermined
     )
-    precondition(readyDiagnostics.map(\.id) == ["ready"])
+    precondition(readyDiagnostics.map(\.id) == [.ready])
 
     let missingInsertionAccess = diagnostics(
       settings: settings,
       accessibility: .notDetermined,
       inputMonitoring: .granted
     )
-    precondition(missingInsertionAccess.contains { $0.id == "accessibility-permission" })
-    precondition(!missingInsertionAccess.contains { $0.id == "input-monitoring-permission" })
+    precondition(missingInsertionAccess.map(\.id) == [.accessibilityPermission])
 
     var invalidSettings = settings
     invalidSettings.keyterms = String(repeating: "A", count: 51)
@@ -30,7 +29,7 @@ struct SetupDiagnosticsCheck {
       accessibility: .granted,
       inputMonitoring: .granted
     )
-    precondition(invalidConfiguration.first?.id == "transcription-configuration")
+    precondition(invalidConfiguration.first?.id == .transcriptionConfiguration)
 
     print("setup diagnostics ok")
   }
@@ -42,9 +41,8 @@ struct SetupDiagnosticsCheck {
   ) -> [SetupDiagnostic] {
     SetupDiagnostics(
       settings: settings,
-      xaiAPIKey: "xai-key",
-      elevenLabsAPIKey: "elevenlabs-key",
-      llmAPIKey: "llm-key",
+      selectedProviderHasKey: true,
+      hasLLMKey: true,
       permissions: [
         PermissionSnapshot(permission: .microphone, state: .granted),
         PermissionSnapshot(permission: .inputMonitoring, state: inputMonitoring),

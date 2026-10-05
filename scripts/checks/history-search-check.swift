@@ -28,10 +28,10 @@ struct HistorySearchCheck {
       provider: "Gemini",
       createdAt: now.addingTimeInterval(-180)
     )
-    let items = [older, unrelated, metadataMatch, recent]
+    let index = HistorySearch.Index([older, unrelated, metadataMatch, recent])
 
     let ranked = HistorySearch.matches(
-      items,
+      index,
       query: "quarterly launch",
       dateFilter: .anyTime,
       provider: "",
@@ -41,7 +41,7 @@ struct HistorySearchCheck {
     precondition(ranked.map(\.id) == [recent.id, older.id])
 
     let providerMatches = HistorySearch.matches(
-      items,
+      index,
       query: "",
       dateFilter: .anyTime,
       provider: "Gemini",
@@ -51,7 +51,7 @@ struct HistorySearchCheck {
     precondition(providerMatches.map(\.id) == [recent.id, unrelated.id])
 
     let recentMatches = HistorySearch.matches(
-      items,
+      index,
       query: "",
       dateFilter: .lastSevenDays,
       provider: "",
@@ -61,7 +61,7 @@ struct HistorySearchCheck {
     precondition(!recentMatches.contains { $0.id == older.id })
 
     let destinationMatches = HistorySearch.matches(
-      items,
+      index,
       query: "notes",
       dateFilter: .anyTime,
       provider: "",
@@ -72,11 +72,11 @@ struct HistorySearchCheck {
     precondition(destinationMatches.contains { $0.id == older.id })
     let day = calendar.startOfDay(for: recent.createdAt)
     let customMatches = HistorySearch.matches(
-      items, query: "", dateFilter: .custom, provider: "", customRange: day...day,
+      index, query: "", dateFilter: .custom, provider: "", customRange: day...day,
       now: now, calendar: calendar)
     precondition(customMatches.map(\.id) == [recent.id, metadataMatch.id, unrelated.id])
-    precondition(HistorySearch.matches(items, query: "", dateFilter: .custom, provider: "").isEmpty)
-    let cleared = HistorySearch.matches(items, query: "  \n", dateFilter: .anyTime, provider: "")
+    precondition(HistorySearch.matches(index, query: "", dateFilter: .custom, provider: "").isEmpty)
+    let cleared = HistorySearch.matches(index, query: "  \n", dateFilter: .anyTime, provider: "")
     precondition(cleared.map(\.id) == [recent.id, metadataMatch.id, unrelated.id, older.id])
 
     let archive = (0..<41).map { index in

@@ -21,6 +21,16 @@ enum SecretKey: String, CaseIterable {
       "LLM API key"
     }
   }
+
+  /// Names the credential each transcription provider authenticates with.
+  init(_ provider: STTProvider) {
+    self =
+      switch provider {
+      case .xai: .xaiAPIKey
+      case .elevenLabs: .elevenLabsAPIKey
+      case .gemini: .geminiAPIKey
+      }
+  }
 }
 
 /// Persists secrets as generic-password items and resolves provider configuration without exposing environment values in editable state.
@@ -99,8 +109,8 @@ final class APIKeyStore: Sendable {
 
       let key = String(assignment[..<separator]).trimmingCharacters(in: .whitespaces)
       guard
-        (supportedKeys.contains(key) || supportedConfigurationKeys.contains(key)
-          || isCredentialEnvironmentVariableName(key)),
+        supportedKeys.contains(key) || supportedConfigurationKeys.contains(key)
+          || isCredentialEnvironmentVariableName(key),
         environment[key, default: ""].isEmpty
       else {
         continue

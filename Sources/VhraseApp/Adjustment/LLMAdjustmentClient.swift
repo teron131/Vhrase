@@ -2,88 +2,6 @@
 
 import Foundation
 
-final class LLMModelAccessClient: Sendable {
-  private let apiKey: String
-  private let baseURL: String
-
-  init(
-    apiKey: String,
-    baseURL: String
-  ) {
-    self.apiKey = apiKey
-    self.baseURL = baseURL
-  }
-
-  /// Sends a minimal completion probe through the configured model and the same route used by cleanup.
-  func checkModel(_ model: String) async throws {
-    let request = try Self.modelCheckRequest(
-      apiKey: apiKey,
-      baseURL: baseURL,
-      model: model
-    )
-    let (data, response) = try await URLSession.shared.data(for: request)
-    if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-      let message =
-        String(data: data, encoding: .utf8)
-        ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
-      throw NSError(
-        domain: "Vhrase.LLMModelsHTTP",
-        code: http.statusCode,
-        userInfo: [NSLocalizedDescriptionKey: message]
-      )
-    }
-  }
-
-  static func modelCheckRequest(
-    apiKey: String,
-    baseURL: String,
-    model: String
-  ) throws -> URLRequest {
-    guard !apiKey.isEmpty else {
-      throw NSError(
-        domain: "Vhrase.LLMModels",
-        code: 1,
-        userInfo: [NSLocalizedDescriptionKey: "LLM API key is required to check model access."]
-      )
-    }
-    let configuredModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !configuredModel.isEmpty else {
-      throw NSError(
-        domain: "Vhrase.LLMModels",
-        code: 2,
-        userInfo: [NSLocalizedDescriptionKey: "Choose an LLM model before checking access."]
-      )
-    }
-
-    let payload = LLMChatRequest(
-      model: configuredModel,
-      messages: [
-        LLMChatMessage(
-          role: "user",
-          content: [
-            LLMChatContent(
-              type: "text",
-              text: "Reply with OK.",
-              imageURL: nil
-            )
-          ]
-        )
-      ],
-      stream: false
-    )
-
-    var request = URLRequest(
-      url: try LLMEndpoint(baseURL: baseURL).appending("chat/completions")
-    )
-    request.httpMethod = "POST"
-    request.timeoutInterval = 20
-    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = try JSONEncoder().encode(payload)
-    return request
-  }
-}
-
 final class LLMAdjustmentClient: Sendable {
   private let apiKey: String
   private let baseURL: String
@@ -153,6 +71,63 @@ final class LLMAdjustmentClient: Sendable {
     )
   }
 
+  /// Sends a minimal completion probe through the configured model and the same route used by cleanup.
+  func checkModel(_ model: String) async throws {
+    _ = try await Self.send(
+      Self.modelCheckRequest(
+        apiKey: apiKey,
+        baseURL: baseURL,
+        model: model
+      ),
+      errorDomain: "Vhrase.LLMModelsHTTP"
+    )
+  }
+
+  static func modelCheckRequest(
+    apiKey: String,
+    baseURL: String,
+    model: String
+  ) throws -> URLRequest {
+    guard !apiKey.isEmpty else {
+      throw NSError(
+        domain: "Vhrase.LLMModels",
+        code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "LLM API key is required to check model access."]
+      )
+    }
+    let configuredModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !configuredModel.isEmpty else {
+      throw NSError(
+        domain: "Vhrase.LLMModels",
+        code: 2,
+        userInfo: [NSLocalizedDescriptionKey: "Choose an LLM model before checking access."]
+      )
+    }
+
+    let payload = LLMChatRequest(
+      model: configuredModel,
+      messages: [
+        LLMChatMessage(
+          role: "user",
+          content: [
+            LLMChatContent(
+              type: "text",
+              text: "Reply with OK.",
+              imageURL: nil
+            )
+          ]
+        )
+      ],
+      stream: false
+    )
+    return try chatCompletionsRequest(
+      apiKey: apiKey,
+      baseURL: baseURL,
+      timeout: 20,
+      body: JSONEncoder().encode(payload)
+    )
+  }
+
   /// Validates credentials and destination before callers capture or attach sensitive context.
   func validateConfiguration() throws {
     guard !apiKey.isEmpty else {
@@ -171,33 +146,19 @@ final class LLMAdjustmentClient: Sendable {
     screenshotDataURL: String?,
     model: String
   ) async throws -> String {
-    let body = try Self.requestBody(
-      systemInstruction: systemInstruction,
-      userText: userText,
-      screenshotDataURL: screenshotDataURL,
-      model: model
-    )
-
-    var request = URLRequest(url: try LLMEndpoint(baseURL: baseURL).appending("chat/completions"))
-    request.httpMethod = "POST"
-    request.timeoutInterval = 60
-    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = body
-
-    let (data, response) = try await URLSession.shared.data(for: request)
-    if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-      let message =
-        String(data: data, encoding: .utf8)
-        ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
-      throw NSError(
-        domain: "Vhrase.AdjustmentChatHTTP",
-        code: http.statusCode,
-        userInfo: [NSLocalizedDescriptionKey: message]
+    let request = try Self.chatCompletionsRequest(
+      apiKey: apiKey,
+      baseURL: baseURL,
+      timeout: 60,
+      body: Self.requestBody(
+        systemInstruction: systemInstruction,
+        userText: userText,
+        screenshotDataURL: screenshotDataURL,
+        model: model
       )
-    }
-
-    return try extractChatText(from: data)
+    )
+    return try extractChatText(
+      from: await Self.send(request, errorDomain: "Vhrase.AdjustmentChatHTTP"))
   }
 
   /// Encodes the behavior contract as a system message while keeping editable source material in the user message.
@@ -249,6 +210,38 @@ final class LLMAdjustmentClient: Sendable {
       stream: false
     )
     return try JSONEncoder().encode(payload)
+  }
+
+  /// Builds an authenticated chat-completions POST that cannot escape the validated base URL.
+  private static func chatCompletionsRequest(
+    apiKey: String,
+    baseURL: String,
+    timeout: TimeInterval,
+    body: Data
+  ) throws -> URLRequest {
+    var request = URLRequest(url: try LLMEndpoint(baseURL: baseURL).appending("chat/completions"))
+    request.httpMethod = "POST"
+    request.timeoutInterval = timeout
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = body
+    return request
+  }
+
+  /// Returns the response body, surfacing the endpoint's own error text for unsuccessful HTTP statuses.
+  private static func send(_ request: URLRequest, errorDomain: String) async throws -> Data {
+    let (data, response) = try await URLSession.shared.data(for: request)
+    if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+      let message =
+        String(data: data, encoding: .utf8)
+        ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
+      throw NSError(
+        domain: errorDomain,
+        code: http.statusCode,
+        userInfo: [NSLocalizedDescriptionKey: message]
+      )
+    }
+    return data
   }
 
   private func systemInstruction(for settings: DictationSettings) -> String {

@@ -13,6 +13,16 @@ enum TranscriptionContract {
     )
   }
 
+  /// Describes the first limit that would block recording, or returns `nil` for usable settings.
+  static func configurationIssue(in settings: DictationSettings) -> String? {
+    do {
+      try validate(settings: settings)
+      return nil
+    } catch {
+      return error.localizedDescription
+    }
+  }
+
   fileprivate static func validatedKeyterms(
     _ keyterms: [String],
     provider: STTProvider,

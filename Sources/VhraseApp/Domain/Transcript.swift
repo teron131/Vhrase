@@ -11,7 +11,6 @@ struct FrontmostApp: Sendable {
 struct TranscriptionResult: Sendable {
   let text: String
   let providerName: String
-  let duration: Double?
 }
 
 enum TranscriptCleanup: String, Codable, Equatable, Sendable {

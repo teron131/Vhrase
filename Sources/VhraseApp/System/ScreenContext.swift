@@ -8,7 +8,15 @@ struct ScreenContext: Sendable {
   private let screencaptureURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
 
   /// Returns a PNG data URL for the main display, or `nil` when authorization, capture, reading, or setup fails.
-  func mainDisplayPNGDataURL() -> String? {
+  /// Capture runs off the caller's actor because `screencapture` blocks until its process exits.
+  func mainDisplayPNGDataURL() async -> String? {
+    await Task.detached(priority: .userInitiated) {
+      captureMainDisplay()
+    }
+    .value
+  }
+
+  private func captureMainDisplay() -> String? {
     guard isScreenCaptureAuthorized else {
       return nil
     }

@@ -8,7 +8,7 @@ struct SystemView: View {
   @Binding var selectedTab: MainWindowTab
   @State private var isOpenCCInstallConfirmationPresented = false
   @State private var credentialFocusMonitor = CredentialFocusMonitor()
-  @FocusState private var focusedSecretField: String?
+  @FocusState private var focusedSecretField: SecretKey?
   private var presentation: DictationPresentation { appState.presentation }
 
   var body: some View {
@@ -39,7 +39,8 @@ struct SystemView: View {
   }
 
   private var systemTab: some View {
-    ScrollView {
+    let diagnostics = appState.setupDiagnostics
+    return ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         pageHeader(
           "System",
@@ -47,8 +48,10 @@ struct SystemView: View {
           systemImage: MainWindowTab.system.systemImage
         )
 
-        setupOverviewCard
-          .hoverLift()
+        if let primary = diagnostics.first {
+          setupOverviewCard(primary)
+            .hoverLift()
+        }
 
         ViewThatFits(in: .horizontal) {
           HStack(alignment: .top, spacing: 20) {
@@ -60,7 +63,7 @@ struct SystemView: View {
               permissionsCard
                 .frame(minWidth: 470)
                 .hoverLift()
-              diagnosticsFullCard
+              diagnosticsFullCard(diagnostics)
                 .hoverLift()
             }
             .frame(maxWidth: .infinity)
@@ -71,7 +74,7 @@ struct SystemView: View {
               .hoverLift()
             permissionsCard
               .hoverLift()
-            diagnosticsFullCard
+            diagnosticsFullCard(diagnostics)
               .hoverLift()
           }
           .frame(maxWidth: .infinity)
@@ -83,9 +86,8 @@ struct SystemView: View {
     }
   }
 
-  private var setupOverviewCard: some View {
-    let diagnostic = primarySetupDiagnostic
-    return HStack(alignment: .center, spacing: 14) {
+  private func setupOverviewCard(_ diagnostic: SetupDiagnostic) -> some View {
+    HStack(alignment: .center, spacing: 14) {
       Image(systemName: diagnostic.systemImage)
         .font(.system(size: 25, weight: .semibold))
         .foregroundStyle(VhraseTheme.diagnosticColor(diagnostic.severity))
@@ -110,12 +112,12 @@ struct SystemView: View {
 
       if let actionTitle = setupDiagnosticActionTitle(diagnostic) {
         Button(actionTitle) {
-          handleSetupDiagnostic(primarySetupDiagnostic)
+          handleSetupDiagnostic(diagnostic)
         }
         .buttonStyle(.borderedProminent)
         .tint(VhraseTheme.accent)
         .disabled(
-          diagnostic.id == "opencc-s2hk"
+          diagnostic.id == .openCC
             && appState.openCCInstallationState == .installing
         )
       }
@@ -132,11 +134,10 @@ struct SystemView: View {
       )
 
       Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 14) {
-        keyField("xAI API key", key: .xaiAPIKey, text: apiKeyBinding(.xaiAPIKey))
-        keyField(
-          "ElevenLabs API key", key: .elevenLabsAPIKey, text: apiKeyBinding(.elevenLabsAPIKey))
-        keyField("Gemini API key", key: .geminiAPIKey, text: apiKeyBinding(.geminiAPIKey))
-        keyField("LLM API key", key: .llmAPIKey, text: apiKeyBinding(.llmAPIKey))
+        keyField(.xaiAPIKey)
+        keyField(.elevenLabsAPIKey)
+        keyField(.geminiAPIKey)
+        keyField(.llmAPIKey)
         configurationField(
           "LLM base URL",
           text: Binding(
@@ -154,24 +155,10 @@ struct SystemView: View {
       LazyVGrid(
         columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 10
       ) {
-        keyStatus(
-          "xAI",
-          isReady: !appState.effectiveXAIAPIKey.isEmpty,
-          usesEnvironmentFallback: appState.usesEnvironmentFallback(for: .xaiAPIKey)
-        )
-        keyStatus(
-          "ElevenLabs",
-          isReady: !appState.effectiveElevenLabsAPIKey.isEmpty,
-          usesEnvironmentFallback: appState.usesEnvironmentFallback(for: .elevenLabsAPIKey)
-        )
-        keyStatus(
-          "LLM",
-          isReady: !appState.effectiveLLMAPIKey.isEmpty,
-          usesEnvironmentFallback: appState.usesEnvironmentFallback(for: .llmAPIKey)
-        )
-        keyStatus(
-          "Gemini", isReady: !appState.effectiveGeminiAPIKey.isEmpty,
-          usesEnvironmentFallback: appState.usesEnvironmentFallback(for: .geminiAPIKey))
+        keyStatus("xAI", key: .xaiAPIKey)
+        keyStatus("ElevenLabs", key: .elevenLabsAPIKey)
+        keyStatus("LLM", key: .llmAPIKey)
+        keyStatus("Gemini", key: .geminiAPIKey)
       }
 
       HStack(spacing: 10) {
@@ -189,7 +176,7 @@ struct SystemView: View {
           }
         }
         .buttonStyle(.bordered)
-        .disabled(appState.isCheckingLLMModelAccess || appState.effectiveLLMAPIKey.isEmpty)
+        .disabled(appState.isCheckingLLMModelAccess || appState.effectiveAPIKey(.llmAPIKey).isEmpty)
 
         Text("Sends only a tiny “Reply with OK” request using the configured model.")
           .font(.caption)
@@ -226,21 +213,21 @@ struct SystemView: View {
     .contentSection()
   }
 
-  private func keyField(
-    _ title: String,
-    key: SecretKey,
-    text: Binding<String>
-  ) -> some View {
-    GridRow {
-      Text(title)
+  private func keyField(_ key: SecretKey) -> some View {
+    let text = Binding(
+      get: { appState.apiKeyField(key) },
+      set: { appState.updateAPIKey(key, value: $0) }
+    )
+    return GridRow {
+      Text(key.title)
         .font(.callout.weight(.medium))
         .gridColumnAlignment(.trailing)
 
       Group {
         if showsCredentialReference(text.wrappedValue) {
-          TextField(title, text: text)
+          TextField(key.title, text: text)
         } else {
-          SecureField(title, text: text)
+          SecureField(key.title, text: text)
         }
       }
       .textFieldStyle(.roundedBorder)
@@ -249,7 +236,7 @@ struct SystemView: View {
       .transaction { transaction in
         transaction.animation = nil
       }
-      .focused($focusedSecretField, equals: key.rawValue)
+      .focused($focusedSecretField, equals: key)
       .onSubmit {
         finishAPIKeyEditing()
       }
@@ -304,7 +291,7 @@ struct SystemView: View {
           !microphone.state.isReady
         {
           Button {
-            appState.handlePermissionAction(microphone)
+            appState.handlePermissionAction(.microphone)
           } label: {
             Label(
               microphone.state == .notDetermined
@@ -334,13 +321,13 @@ struct SystemView: View {
     .contentSection()
   }
 
-  private var diagnosticsFullCard: some View {
+  private func diagnosticsFullCard(_ diagnostics: [SetupDiagnostic]) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       sectionHeader(
         "Readiness details",
         description: "Review the selected provider, permissions, and optional capabilities.")
 
-      ForEach(appState.setupDiagnostics) { diagnostic in
+      ForEach(diagnostics) { diagnostic in
         HStack(alignment: .top, spacing: 10) {
           Image(systemName: diagnostic.systemImage)
             .foregroundStyle(VhraseTheme.diagnosticColor(diagnostic.severity))
@@ -351,7 +338,7 @@ struct SystemView: View {
             Text(diagnostic.detail)
               .font(.callout)
               .foregroundStyle(.secondary)
-            if diagnostic.id == "opencc-s2hk",
+            if diagnostic.id == .openCC,
               let failureMessage = appState.openCCInstallationState.failureMessage
             {
               Text(failureMessage)
@@ -361,7 +348,7 @@ struct SystemView: View {
             }
           }
           Spacer()
-          if diagnostic.id == "opencc-s2hk",
+          if diagnostic.id == .openCC,
             appState.openCCInstallationState == .installing
           {
             ProgressView()
@@ -374,7 +361,7 @@ struct SystemView: View {
             }
             .buttonStyle(.bordered)
             .disabled(
-              diagnostic.id == "opencc-s2hk"
+              diagnostic.id == .openCC
                 && appState.openCCInstallationState == .installing
             )
           }
@@ -386,24 +373,13 @@ struct SystemView: View {
     .contentSection()
   }
 
-  private var primarySetupDiagnostic: SetupDiagnostic {
-    appState.setupDiagnostics.first
-      ?? SetupDiagnostic(
-        id: "ready",
-        title: "Ready",
-        detail: "Vhrase is ready to record.",
-        systemImage: "checkmark.circle.fill",
-        severity: .ready
-      )
-  }
-
   private func setupOverviewTitle(_ diagnostic: SetupDiagnostic) -> String {
     return switch diagnostic.id {
-    case "ready", "opencc-s2hk":
+    case .ready, .openCC:
       "Ready to dictate"
-    case "screen-permission", "accessibility-permission":
+    case .screenPermission, .accessibilityPermission:
       "Recording is ready"
-    default:
+    case .transcriptionConfiguration, .providerKey, .microphonePermission, .adjustmentKey:
       "Finish setup"
     }
   }
@@ -425,32 +401,32 @@ struct SystemView: View {
   }
 
   private func setupOverviewDetail(_ diagnostic: SetupDiagnostic) -> String {
-    if diagnostic.id == "opencc-s2hk",
+    if diagnostic.id == .openCC,
       let failureMessage = appState.openCCInstallationState.failureMessage
     {
       return failureMessage
     }
     return switch diagnostic.id {
-    case "ready":
+    case .ready:
       "The selected provider and required permissions are ready."
-    case "opencc-s2hk", "screen-permission", "accessibility-permission":
+    case .openCC, .screenPermission, .accessibilityPermission:
       "Core recording works. \(diagnostic.detail)"
-    default:
+    case .transcriptionConfiguration, .providerKey, .microphonePermission, .adjustmentKey:
       diagnostic.detail
     }
   }
 
   private func setupDiagnosticActionTitle(_ diagnostic: SetupDiagnostic) -> String? {
     switch diagnostic.id {
-    case "transcription-configuration":
+    case .transcriptionConfiguration:
       "Review Transcription"
-    case "selected-provider-key", "adjustment-key":
+    case .providerKey, .adjustmentKey:
       "Add Key"
-    case "microphone-permission":
+    case .microphonePermission:
       "Request Access"
-    case "screen-permission":
+    case .screenPermission:
       "Open Settings"
-    case "accessibility-permission":
+    case .accessibilityPermission:
       if presentation.permissionSnapshot(.accessibility)?.requestedBefore == true {
         "Open Settings"
       } else if appState.settings.hotkeyPreset == .fn {
@@ -458,7 +434,7 @@ struct SystemView: View {
       } else {
         "Enable Insertion"
       }
-    case "opencc-s2hk":
+    case .openCC:
       if appState.openCCInstallationState == .installing {
         "Installing…"
       } else if !appState.canInstallOpenCC {
@@ -468,9 +444,7 @@ struct SystemView: View {
       } else {
         "Install OpenCC"
       }
-    case "ready":
-      nil
-    default:
+    case .ready:
       nil
     }
   }
@@ -478,54 +452,33 @@ struct SystemView: View {
   /// Routes the leading setup issue to the existing configuration or macOS permission action.
   private func handleSetupDiagnostic(_ diagnostic: SetupDiagnostic) {
     switch diagnostic.id {
-    case "transcription-configuration":
+    case .transcriptionConfiguration:
       selectedTab = .capture
-    case "selected-provider-key":
-      focusedSecretField =
-        switch appState.settings.provider {
-        case .xai:
-          SecretKey.xaiAPIKey.rawValue
-        case .elevenLabs:
-          SecretKey.elevenLabsAPIKey.rawValue
-        case .gemini:
-          SecretKey.geminiAPIKey.rawValue
-        }
-    case "adjustment-key":
-      focusedSecretField = SecretKey.llmAPIKey.rawValue
-    case "microphone-permission":
-      if let snapshot = presentation.permissionSnapshot(.microphone) {
-        appState.handlePermissionAction(snapshot)
-      } else {
-        appState.setupPermissionsOnce()
-      }
-    case "screen-permission":
-      if let snapshot = presentation.permissionSnapshot(.screenRecording) {
-        appState.handlePermissionAction(snapshot)
-      }
-    case "accessibility-permission":
-      if let snapshot = presentation.permissionSnapshot(.accessibility) {
-        appState.handlePermissionAction(snapshot)
-      }
-    case "opencc-s2hk":
+    case .providerKey:
+      focusedSecretField = SecretKey(appState.settings.provider)
+    case .adjustmentKey:
+      focusedSecretField = .llmAPIKey
+    case .microphonePermission:
+      appState.handlePermissionAction(.microphone)
+    case .screenPermission:
+      appState.handlePermissionAction(.screenRecording)
+    case .accessibilityPermission:
+      appState.handlePermissionAction(.accessibility)
+    case .openCC:
       if appState.canInstallOpenCC {
         isOpenCCInstallConfirmationPresented = true
       } else {
         appState.openHomebrewSetup()
       }
-    case "ready":
-      break
-    default:
+    case .ready:
       break
     }
   }
 
-  private func keyStatus(
-    _ title: String,
-    isReady: Bool,
-    usesEnvironmentFallback: Bool
-  ) -> some View {
-    StatusPill(
-      title: usesEnvironmentFallback
+  private func keyStatus(_ title: String, key: SecretKey) -> some View {
+    let isReady = !appState.effectiveAPIKey(key).isEmpty
+    return StatusPill(
+      title: appState.usesEnvironmentFallback(for: key)
         ? "\(title) from environment"
         : (isReady ? "\(title) ready" : "\(title) missing"),
       systemImage: isReady ? "checkmark.circle.fill" : "exclamationmark.circle.fill",
@@ -535,7 +488,7 @@ struct SystemView: View {
 
   private func permissionTile(_ snapshot: PermissionSnapshot) -> some View {
     Button {
-      appState.handlePermissionAction(snapshot)
+      appState.handlePermissionAction(snapshot.permission)
     } label: {
       HStack(spacing: 10) {
         Image(systemName: snapshot.permission.systemImage)
@@ -564,22 +517,6 @@ struct SystemView: View {
     .accessibilityHint(
       snapshot.state.isReady
         ? "Opens macOS permission settings" : "Requests access or opens macOS permission settings")
-  }
-
-  private func apiKeyBinding(_ key: SecretKey) -> Binding<String> {
-    Binding(
-      get: {
-        switch key {
-        case .xaiAPIKey: appState.xaiAPIKey
-        case .elevenLabsAPIKey: appState.elevenLabsAPIKey
-        case .geminiAPIKey: appState.geminiAPIKey
-        case .llmAPIKey: appState.llmAPIKey
-        }
-      },
-      set: { value in
-        appState.updateAPIKey(key, value: value)
-      }
-    )
   }
 
   /// Ends credential editing and commits any pending Keychain update.

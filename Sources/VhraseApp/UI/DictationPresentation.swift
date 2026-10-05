@@ -7,13 +7,10 @@ import SwiftUI
 struct DictationPresentation {
   let status: AppStatus
   let settings: DictationSettings
-  let xaiAPIKey: String
-  let elevenLabsAPIKey: String
-  let geminiAPIKey: String
+  let selectedProviderHasKey: Bool
   let permissions: [PermissionSnapshot]
   let liveTranscript: String
   let recordingElapsedSeconds: Int
-  let delivery: TranscriptDelivery
   let completion: WorkflowCompletion
   let transcriptionConfigurationIssue: String?
 
@@ -21,49 +18,20 @@ struct DictationPresentation {
   init(
     status: AppStatus,
     settings: DictationSettings,
-    xaiAPIKey: String,
-    elevenLabsAPIKey: String,
+    selectedProviderHasKey: Bool,
     permissions: [PermissionSnapshot],
     liveTranscript: String,
     recordingElapsedSeconds: Int,
-    delivery: TranscriptDelivery = .none,
-    completion: WorkflowCompletion? = nil,
-    geminiAPIKey: String = ""
+    completion: WorkflowCompletion = .transcript(.none)
   ) {
     self.status = status
     self.settings = settings
-    self.xaiAPIKey = xaiAPIKey
-    self.elevenLabsAPIKey = elevenLabsAPIKey
-    self.geminiAPIKey = geminiAPIKey
+    self.selectedProviderHasKey = selectedProviderHasKey
     self.permissions = permissions
     self.liveTranscript = liveTranscript
     self.recordingElapsedSeconds = recordingElapsedSeconds
-    self.delivery = delivery
-    self.completion = completion ?? .transcript(delivery)
-    do {
-      try TranscriptionContract.validate(settings: settings)
-      transcriptionConfigurationIssue = nil
-    } catch {
-      transcriptionConfigurationIssue = error.localizedDescription
-    }
-  }
-
-  var selectedProviderHasKey: Bool {
-    switch settings.provider {
-    case .xai:
-      !xaiAPIKey.isEmpty
-    case .elevenLabs:
-      !elevenLabsAPIKey.isEmpty
-    case .gemini:
-      !geminiAPIKey.isEmpty
-    }
-  }
-
-  var selectedWorkflowReady: Bool {
-    coreRecordingReady
-      && (!settings.adjustWithLLM || !settings.includeScreenshot
-        || permissionIsReady(.screenRecording))
-      && permissionIsReady(.accessibility)
+    self.completion = completion
+    transcriptionConfigurationIssue = TranscriptionContract.configurationIssue(in: settings)
   }
 
   var coreRecordingReady: Bool {
@@ -79,14 +47,9 @@ struct DictationPresentation {
       || permissionIsReady(.accessibility)
   }
 
-  var needsAccessibilityForInsertion: Bool {
-    !permissionIsReady(.accessibility)
-  }
-
+  /// Offers the Accessibility action that lets finalized text return to the originating app.
   var insertionPermissionActionTitle: String? {
-    guard needsAccessibilityForInsertion,
-      let snapshot = permissionSnapshot(.accessibility)
-    else {
+    guard let snapshot = permissionSnapshot(.accessibility), !snapshot.state.isReady else {
       return nil
     }
     return snapshot.requestedBefore ? "Open Accessibility" : "Enable Insertion"
@@ -142,7 +105,7 @@ struct DictationPresentation {
     case .recording:
       VhraseTheme.statusRecording
     case .completed:
-      delivery == .none ? VhraseTheme.statusWarning : VhraseTheme.statusSuccess
+      completion == .transcript(.none) ? VhraseTheme.statusWarning : VhraseTheme.statusSuccess
     case .failed:
       VhraseTheme.statusFailure
     case .preparing, .transcribing, .adjusting:
@@ -326,7 +289,8 @@ struct DictationPresentation {
     permissions.first { $0.permission == permission }
   }
 
-  func historyMetadata(
+  /// Summarizes a saved transcript's source and cleanup without depending on the current workflow.
+  static func historyMetadata(
     _ item: TranscriptHistoryItem,
     relativeTo date: Date? = Date()
   ) -> String {
@@ -356,7 +320,7 @@ struct DictationPresentation {
       ? "Listening for realtime transcript…" : "Recording audio for upload transcription…"
   }
 
-  private func relativeDateLabel(
+  private static func relativeDateLabel(
     for createdAt: Date,
     relativeTo date: Date
   ) -> String {

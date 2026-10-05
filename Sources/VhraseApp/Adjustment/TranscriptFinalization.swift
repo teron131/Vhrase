@@ -7,14 +7,14 @@ import Foundation
 struct TranscriptFinalizer {
   let settings: DictationSettings
   let llmAPIKey: String
-  let screenshotDataURLProvider: @Sendable () -> String?
+  let screenshotDataURLProvider: @Sendable () async -> String?
   let chineseTextConverter: ChineseTextConverter
 
   init(
     settings: DictationSettings,
     llmAPIKey: String,
-    screenshotDataURLProvider: @escaping @Sendable () -> String? = {
-      ScreenContext().mainDisplayPNGDataURL()
+    screenshotDataURLProvider: @escaping @Sendable () async -> String? = {
+      await ScreenContext().mainDisplayPNGDataURL()
     },
     chineseTextConverter: ChineseTextConverter = ChineseTextConverter()
   ) {
@@ -84,23 +84,16 @@ struct TranscriptFinalizer {
     return FinalizedTranscript(
       text: finalText,
       warning: warnings.joined(separator: " "),
-      targetApp: targetApp,
       cleanup: cleanup,
       refinement: refinement
     )
   }
 
-  /// Captures optional screen context outside the UI actor because `screencapture` is a blocking process boundary.
   private func screenshotDataURL() async -> String? {
     guard settings.includeScreenshot else {
       return nil
     }
-
-    let provider = screenshotDataURLProvider
-    return await Task.detached(priority: .userInitiated) {
-      provider()
-    }
-    .value
+    return await screenshotDataURLProvider()
   }
 
   private func fallbackTranscript(
@@ -144,7 +137,6 @@ struct TranscriptFinalizer {
 struct FinalizedTranscript {
   let text: String
   let warning: String
-  let targetApp: FrontmostApp?
   let cleanup: TranscriptCleanup
   let refinement: LLMRefinement?
 }

@@ -23,7 +23,7 @@ final class AppState: ObservableObject {
   private static let developmentEnvironmentFileArgument = "--development-environment-file"
   private static let workflowOutcomeDisplayDuration = Duration.seconds(4)
 
-  @Published var status: AppStatus = .idle {
+  @Published private(set) var status: AppStatus = .idle {
     didSet {
       guard status != oldValue else { return }
       scheduleWorkflowOutcomeDismissal(for: status)
@@ -41,31 +41,32 @@ final class AppState: ObservableObject {
       logger.notice("Workflow attempt=\(self.recordingSequence) phase=\(phase, privacy: .public)")
     }
   }
-  @Published var settings: DictationSettings
-  @Published var xaiAPIKey: String
-  @Published var elevenLabsAPIKey: String
-  @Published var geminiAPIKey: String
-  @Published var llmAPIKey: String
+  @Published private(set) var settings: DictationSettings
+  /// Editable credential values: saved secrets, this session's edits, or the LLM environment reference, never environment fallbacks.
+  @Published private var apiKeyFields: [SecretKey: String] = [:]
   @Published private(set) var unsavedAPIKeys: Set<SecretKey> = []
   @Published private(set) var keychainReadNotice = ""
-  @Published var lastTranscript = ""
-  @Published var lastRecognizedTranscript = ""
-  @Published var lastTranscriptionSeconds: Double?
-  @Published var liveTranscript = ""
-  @Published var recordingLevel = 0.0
-  @Published var recordingWaveformHistory: [Double] = []
+  @Published private(set) var lastTranscript = ""
+  @Published private(set) var lastRecognizedTranscript = ""
+  @Published private(set) var lastTranscriptionSeconds: Double?
+  @Published private(set) var liveTranscript = ""
+  @Published private(set) var recordingLevel = 0.0
+  @Published private(set) var recordingWaveformHistory: [Double] = []
   let audioInputPreview = AudioInputPreview()
-  @Published var recordingElapsedSeconds = 0
-  @Published var permissions: [PermissionSnapshot] = []
-  @Published var history: [TranscriptHistoryItem] = []
+  @Published private(set) var recordingElapsedSeconds = 0
+  @Published private(set) var permissions: [PermissionSnapshot] = []
+  @Published private(set) var history: [TranscriptHistoryItem] = [] {
+    didSet {
+      cachedHistoryIndex = nil
+    }
+  }
   @Published private(set) var activityDays: [DictationActivityDay] = []
-  @Published var savesTranscriptHistory = true
-  @Published var lastAdjustmentWarning = ""
-  @Published var lastDelivery: TranscriptDelivery = .none
-  @Published var lastCompletion: WorkflowCompletion = .transcript(.none)
-  @Published var targetAppLabel = ""
-  @Published var customizationNotice = ""
-  @Published var openCCInstallationState = OpenCCInstallationState.idle
+  @Published private(set) var savesTranscriptHistory = true
+  @Published private(set) var lastAdjustmentWarning = ""
+  @Published private(set) var lastCompletion: WorkflowCompletion = .transcript(.none)
+  @Published private(set) var targetAppLabel = ""
+  @Published private(set) var customizationNotice = ""
+  @Published private(set) var openCCInstallationState = OpenCCInstallationState.idle
   @Published private(set) var isCheckingLLMModelAccess = false
   @Published private(set) var isWorkflowPopupDismissed = false {
     didSet {
@@ -73,9 +74,14 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Counts saved transcripts created today for the activity summaries across UI surfaces.
-  var transcriptsTodayCount: Int {
-    history.filter { Calendar.current.isDateInToday($0.createdAt) }.count
+  /// Reuses normalized transcripts across History renders and searches until the saved history changes.
+  var historyIndex: HistorySearch.Index {
+    if let cachedHistoryIndex {
+      return cachedHistoryIndex
+    }
+    let index = HistorySearch.Index(history)
+    cachedHistoryIndex = index
+    return index
   }
 
   private let settingsStore = SettingsStore()
@@ -113,6 +119,7 @@ final class AppState: ObservableObject {
   private var pendingAPIKeySaves: Set<SecretKey> = []
   private var editedAPIKeys: Set<SecretKey> = []
   private var shouldLoadSavedAPIKeysAfterLaunch = false
+  private var cachedHistoryIndex: HistorySearch.Index?
   private let ownsInstance: Bool
 
   init(ownsInstance: Bool) {
@@ -144,10 +151,7 @@ final class AppState: ObservableObject {
     let apiKeys = APIKeyStore(environment: environment)
     self.apiKeys = apiKeys
     settings = settingsStore.load()
-    xaiAPIKey = ""
-    elevenLabsAPIKey = ""
-    geminiAPIKey = ""
-    llmAPIKey = apiKeys.savedLLMCredentialReference()
+    apiKeyFields = [.llmAPIKey: apiKeys.savedLLMCredentialReference()]
     shouldLoadSavedAPIKeysAfterLaunch = developmentEnvironmentFileURL == nil
     history = historyStore.load()
     activityDays = activityStore.load()
@@ -172,7 +176,7 @@ final class AppState: ObservableObject {
     let keys = SecretKey.allCases.filter { key in
       !editedAPIKeys.contains(key)
         && !(key == .llmAPIKey
-          && APIKeyStore.isCredentialEnvironmentVariableName(llmAPIKey))
+          && APIKeyStore.isCredentialEnvironmentVariableName(apiKeyField(.llmAPIKey)))
     }
     Task {
       let loaded = await Task.detached {
@@ -191,7 +195,7 @@ final class AppState: ObservableObject {
 
       for key in keys where !editedAPIKeys.contains(key) {
         guard let value = loaded.values[key] else { continue }
-        self[keyPath: apiKeyPath(for: key)] = value
+        apiKeyFields[key] = value
       }
 
       let keychainNotice = loaded.notices.joined(separator: " ")
@@ -222,20 +226,14 @@ final class AppState: ObservableObject {
     return URL(fileURLWithPath: arguments[pathIndex])
   }
 
-  var effectiveXAIAPIKey: String {
-    effectiveAPIKey(.xaiAPIKey)
+  /// Returns the credential field shown for editing, which excludes environment fallbacks.
+  func apiKeyField(_ key: SecretKey) -> String {
+    apiKeyFields[key, default: ""]
   }
 
-  var effectiveElevenLabsAPIKey: String {
-    effectiveAPIKey(.elevenLabsAPIKey)
-  }
-
-  var effectiveGeminiAPIKey: String {
-    effectiveAPIKey(.geminiAPIKey)
-  }
-
-  var effectiveLLMAPIKey: String {
-    effectiveAPIKey(.llmAPIKey)
+  /// Resolves the credential a request will use: the edited or saved field first, then its environment fallback.
+  func effectiveAPIKey(_ key: SecretKey) -> String {
+    apiKeys.effectiveValue(for: key, savedValue: apiKeyField(key))
   }
 
   var effectiveLLMBaseURL: String {
@@ -251,44 +249,34 @@ final class AppState: ObservableObject {
     DictationPresentation(
       status: status,
       settings: settings,
-      xaiAPIKey: effectiveXAIAPIKey,
-      elevenLabsAPIKey: effectiveElevenLabsAPIKey,
+      selectedProviderHasKey: !selectedProviderAPIKey.isEmpty,
       permissions: permissions,
       liveTranscript: liveTranscript,
       recordingElapsedSeconds: recordingElapsedSeconds,
-      delivery: lastDelivery,
-      completion: lastCompletion,
-      geminiAPIKey: effectiveGeminiAPIKey
+      completion: lastCompletion
     )
   }
 
   func usesEnvironmentFallback(for key: SecretKey) -> Bool {
-    apiKeys.usesEnvironmentFallback(
-      for: key,
-      savedValue: self[keyPath: apiKeyPath(for: key)]
-    )
+    apiKeys.usesEnvironmentFallback(for: key, savedValue: apiKeyField(key))
   }
 
   var isRecording: Bool {
-    if case .recording = status {
-      return true
-    }
-    return false
+    status == .recording
   }
 
   var isTextPolishing: Bool {
     textPolishID != nil
   }
 
+  /// Lists setup work in priority order, or a single Ready diagnostic when nothing needs attention.
   var setupDiagnostics: [SetupDiagnostic] {
     SetupDiagnostics(
       settings: settings,
-      xaiAPIKey: effectiveXAIAPIKey,
-      elevenLabsAPIKey: effectiveElevenLabsAPIKey,
-      llmAPIKey: effectiveLLMAPIKey,
+      selectedProviderHasKey: !selectedProviderAPIKey.isEmpty,
+      hasLLMKey: !effectiveAPIKey(.llmAPIKey).isEmpty,
       permissions: permissions,
-      chineseConversionIsAvailable: ChineseTextConverter.isAvailable,
-      geminiAPIKey: effectiveGeminiAPIKey
+      chineseConversionIsAvailable: ChineseTextConverter.isAvailable
     ).build()
   }
 
@@ -335,15 +323,6 @@ final class AppState: ObservableObject {
     NSWorkspace.shared.open(url)
   }
 
-  var transcriptionConfigurationIssue: String? {
-    do {
-      try TranscriptionContract.validate(settings: settings)
-      return nil
-    } catch {
-      return error.localizedDescription
-    }
-  }
-
   func toggleRecording() {
     switch status {
     case .preparing:
@@ -373,15 +352,7 @@ final class AppState: ObservableObject {
       return
     }
 
-    recordingID = nil
-    recordingTask?.cancel()
-    recordingTask = nil
-    realtimeSession?.cancel()
-    realtimeSession = nil
-    recorder?.cancel()
-    recorder = nil
-    stopRecordingTimer()
-    clearRecordingContext()
+    releaseRecording()
     liveTranscript = ""
     status = .idle
     customizationNotice = "Recording cancelled."
@@ -479,7 +450,7 @@ final class AppState: ObservableObject {
     }
     var failures: [String] = []
     for key in keys {
-      let value = self[keyPath: apiKeyPath(for: key)]
+      let value = apiKeyField(key)
       if key == .llmAPIKey,
         APIKeyStore.isCredentialEnvironmentVariableName(value)
       {
@@ -511,12 +482,11 @@ final class AppState: ObservableObject {
 
   /// Updates one editable credential and debounces its Keychain write for 500 milliseconds.
   func updateAPIKey(_ key: SecretKey, value: String) {
-    let path = apiKeyPath(for: key)
-    guard value != self[keyPath: path] else {
+    guard value != apiKeyField(key) else {
       return
     }
 
-    self[keyPath: path] = value
+    apiKeyFields[key] = value
 
     pendingAPIKeySaves.insert(key)
     editedAPIKeys.insert(key)
@@ -610,31 +580,15 @@ final class AppState: ObservableObject {
     fnHotkeyManager.refreshAuthorization()
   }
 
-  func requestPermission(_ permission: AppPermission) {
+  /// Opens the privacy pane for granted access; otherwise requests it, falling back to the pane where macOS requires it.
+  func handlePermissionAction(_ permission: AppPermission) {
+    guard permissionState(for: permission)?.isReady != true else {
+      permissionManager.openSettings(for: permission)
+      return
+    }
     Task {
       await permissionManager.request(permission)
       refreshPermissions()
-    }
-  }
-
-  func setupPermissionsOnce() {
-    Task {
-      await permissionManager.setupPermissions()
-      refreshPermissions()
-      customizationNotice =
-        "Microphone setup started. Optional permissions are requested when you enable their features."
-    }
-  }
-
-  func openPermissionSettings(_ permission: AppPermission) {
-    permissionManager.openSettings(for: permission)
-  }
-
-  func handlePermissionAction(_ snapshot: PermissionSnapshot) {
-    if snapshot.state.isReady {
-      openPermissionSettings(snapshot.permission)
-    } else {
-      requestPermission(snapshot.permission)
     }
   }
 
@@ -684,7 +638,6 @@ final class AppState: ObservableObject {
     }
 
     lastTranscript = latestTranscript
-    lastDelivery = .none
     if lastCompletion.isTranscript {
       lastCompletion = .transcript(.none)
     }
@@ -705,14 +658,7 @@ final class AppState: ObservableObject {
     textPolishID = nil
     textPolishTask?.cancel()
     textPolishTask = nil
-    recordingID = nil
-    recordingTask?.cancel()
-    recordingTask = nil
-    realtimeSession?.cancel()
-    realtimeSession = nil
-    recorder?.cancel()
-    recorder = nil
-    stopRecordingTimer()
+    releaseRecording()
     if let processingAudioURL {
       try? FileManager.default.removeItem(at: processingAudioURL)
       self.processingAudioURL = nil
@@ -765,7 +711,7 @@ final class AppState: ObservableObject {
     guard !isCheckingLLMModelAccess else {
       return
     }
-    let apiKey = effectiveLLMAPIKey
+    let apiKey = effectiveAPIKey(.llmAPIKey)
     guard !apiKey.isEmpty else {
       customizationNotice = "Add LLM API key before checking model access."
       return
@@ -778,7 +724,7 @@ final class AppState: ObservableObject {
     Task {
       defer { isCheckingLLMModelAccess = false }
       do {
-        try await LLMModelAccessClient(
+        try await LLMAdjustmentClient(
           apiKey: apiKey,
           baseURL: baseURL
         )
@@ -935,7 +881,7 @@ final class AppState: ObservableObject {
       guard recordingSpeechPresence?.hasLikelySpeech == true else {
         throw RecordingContentError.noSpeechDetected
       }
-      let started = Date()
+      let transcriptionStarted = ContinuousClock.now
       let result: TranscriptionResult
       if let session {
         result = try await session.finish()
@@ -944,21 +890,16 @@ final class AppState: ObservableObject {
           .transcribe(fileURL: fileURL, settings: configuration.settings)
       }
 
-      let transcriptionSeconds = Date().timeIntervalSince(started)
       try await finalizeTranscript(
         result,
         adjustment: .provider,
         configuration: configuration,
-        recordingSeconds: recorder.recordedSeconds,
-        transcriptionSeconds: transcriptionSeconds,
-        processingStarted: processingStarted
+        timing: DictationTiming(
+          recordingSeconds: recorder.recordedSeconds,
+          transcriptionSeconds: transcriptionStarted.duration(to: .now) / .seconds(1),
+          processingStarted: processingStarted
+        )
       )
-      lastTranscriptionSeconds = transcriptionSeconds
-      let elapsed = processingStarted.duration(to: .now).components
-      activityDays = activityStore.record(
-        text: lastTranscript, recordingSeconds: recorder.recordedSeconds,
-        processingSeconds: Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18,
-        settings: configuration.settings, days: activityDays)
     } catch {
       let failure = error as NSError
       logger.error(
@@ -968,10 +909,7 @@ final class AppState: ObservableObject {
       guard recordingID == id else {
         return
       }
-      realtimeSession = nil
-      self.recorder = nil
-      stopRecordingTimer()
-      clearRecordingContext()
+      releaseRecording()
       status = .failed(error.localizedDescription)
     }
   }
@@ -993,31 +931,17 @@ final class AppState: ObservableObject {
     configuration: RecordingConfiguration,
     recordingID: UUID
   ) throws -> RealtimeTranscriptionSession? {
-    let settings = configuration.settings
-    guard settings.transcriptionMode == .realtime else {
+    guard configuration.settings.transcriptionMode == .realtime else {
       return nil
     }
-
-    switch settings.provider {
-    case .gemini:
-      throw NSError(
-        domain: "Vhrase.STT", code: 2,
-        userInfo: [NSLocalizedDescriptionKey: "Choose Upload for Gemini transcription."])
-    case .xai:
-      return try XAIRealtimeTranscriptionClient(apiKey: configuration.providerAPIKey).start(
-        settings: settings,
-        onPartialTranscript: partialTranscriptHandler(recordingID: recordingID)
-      )
-    case .elevenLabs:
-      return try ElevenLabsRealtimeTranscriptionClient(apiKey: configuration.providerAPIKey).start(
-        settings: settings,
-        onPartialTranscript: partialTranscriptHandler(recordingID: recordingID)
-      )
-    }
+    return try RealtimeTranscriptionSession.start(
+      settings: configuration.settings,
+      apiKey: configuration.providerAPIKey,
+      onPartialTranscript: partialTranscriptHandler(recordingID: recordingID)
+    )
   }
 
   private func runDemoDictationPipeline() async {
-    lastTranscriptionSeconds = nil
     let configuration = currentRecordingConfiguration()
     recordingTargetApp = appContext.targetApp()
     targetAppLabel = recordingTargetApp?.name ?? ""
@@ -1025,8 +949,7 @@ final class AppState: ObservableObject {
       try await pauseForDemoVisibility()
       let result = TranscriptionResult(
         text: "Please send this custom dictation demo to open AI and x AI using eleven labs.",
-        providerName: "Local Demo",
-        duration: nil
+        providerName: "Local Demo"
       )
       try await finalizeTranscript(
         result,
@@ -1046,7 +969,7 @@ final class AppState: ObservableObject {
     guard configuration.providerAPIKey.isEmpty else {
       return
     }
-    throw missingProviderKey(secretKey(for: configuration.settings.provider).rawValue)
+    throw missingProviderKey(SecretKey(configuration.settings.provider).rawValue)
   }
 
   private func permissionState(for permission: AppPermission) -> PermissionState? {
@@ -1068,34 +991,13 @@ final class AppState: ObservableObject {
     resolvedSettings.adjustmentBaseURL = effectiveLLMBaseURL
     return RecordingConfiguration(
       settings: resolvedSettings,
-      providerAPIKey: effectiveAPIKey(secretKey(for: settings.provider)),
-      llmAPIKey: effectiveLLMAPIKey
+      providerAPIKey: selectedProviderAPIKey,
+      llmAPIKey: effectiveAPIKey(.llmAPIKey)
     )
   }
 
-  private func effectiveAPIKey(_ key: SecretKey) -> String {
-    apiKeys.effectiveValue(
-      for: key,
-      savedValue: self[keyPath: apiKeyPath(for: key)]
-    )
-  }
-
-  private func secretKey(for provider: STTProvider) -> SecretKey {
-    switch provider {
-    case .xai: .xaiAPIKey
-    case .elevenLabs: .elevenLabsAPIKey
-    case .gemini: .geminiAPIKey
-    }
-  }
-
-  /// Uses the same editable credential field for launch reads, user edits, and persistence retries.
-  private func apiKeyPath(for key: SecretKey) -> ReferenceWritableKeyPath<AppState, String> {
-    switch key {
-    case .xaiAPIKey: \.xaiAPIKey
-    case .elevenLabsAPIKey: \.elevenLabsAPIKey
-    case .geminiAPIKey: \.geminiAPIKey
-    case .llmAPIKey: \.llmAPIKey
-    }
+  private var selectedProviderAPIKey: String {
+    effectiveAPIKey(SecretKey(settings.provider))
   }
 
   /// Completes the pending Keychain batch and clears its debounce state.
@@ -1132,16 +1034,24 @@ final class AppState: ObservableObject {
     guard recordingID == id else {
       return
     }
-    realtimeSession = nil
-    recorder = nil
-    recordingTask = nil
-    stopRecordingTimer()
-    clearRecordingContext()
+    releaseRecording()
     if let error {
       status = .failed(error.localizedDescription)
     } else if status == .preparing {
       status = .idle
     }
+  }
+
+  /// Stops every resource owned by the active recording, then clears its live feedback and target context.
+  private func releaseRecording() {
+    recordingTask?.cancel()
+    recordingTask = nil
+    realtimeSession?.cancel()
+    realtimeSession = nil
+    recorder?.cancel()
+    recorder = nil
+    stopRecordingTimer()
+    clearRecordingContext()
   }
 
   private func registerHotkey() {
@@ -1190,22 +1100,12 @@ final class AppState: ObservableObject {
     case .cancelRecording:
       cancelRecording()
     case .cancelRecordingAndPolishText:
-      if status == .preparing || status == .recording {
-        cancelRecording()
-      } else if status == .completed || isFailed {
-        dismissWorkflowOutcome()
-      }
+      cancelRecording()
+      dismissWorkflowOutcome()
       beginTextPolish()
     case .none:
       break
     }
-  }
-
-  private var isFailed: Bool {
-    if case .failed = status {
-      return true
-    }
-    return false
   }
 
   /// Captures the focused editor before contacting the LLM and replaces it only if the same source remains focused when the result returns.
@@ -1227,7 +1127,7 @@ final class AppState: ObservableObject {
         throw TextPolishError.missingModel
       }
       client = LLMAdjustmentClient(
-        apiKey: effectiveLLMAPIKey,
+        apiKey: effectiveAPIKey(.llmAPIKey),
         baseURL: effectiveLLMBaseURL
       )
       try client.validateConfiguration()
@@ -1243,9 +1143,8 @@ final class AppState: ObservableObject {
     customizationNotice = "Polishing text in \(target.app.name)…"
     textPolishTask = Task { [weak self] in
       guard let self else { return }
-      let screenshotDataURL = await self.textPolishScreenshotDataURL(
-        includeScreenshot: includeScreenshot
-      )
+      let screenshotDataURL: String? =
+        if includeScreenshot { await ScreenContext().mainDisplayPNGDataURL() } else { nil }
       do {
         let replacement = try await client.polish(
           text: target.text,
@@ -1260,6 +1159,8 @@ final class AppState: ObservableObject {
         guard await self.appContext.activate(target.app) else {
           throw TextPolishError.targetUnavailable
         }
+        // Activation yields to Escape handling; a cancelled rewrite must not alter the editor's selection.
+        try Task.checkCancellation()
         try target.prepareReplacement()
         _ = try await self.inserter.paste(replacement, keepOnClipboard: false)
         guard self.textPolishID == id else {
@@ -1296,16 +1197,6 @@ final class AppState: ObservableObject {
     customizationNotice = "Text polishing cancelled."
   }
 
-  private func textPolishScreenshotDataURL(includeScreenshot: Bool) async -> String? {
-    guard includeScreenshot else {
-      return nil
-    }
-    return await Task.detached(priority: .userInitiated) {
-      ScreenContext().mainDisplayPNGDataURL()
-    }
-    .value
-  }
-
   /// Prevents late provider callbacks from mutating a newer recording generation.
   private func partialTranscriptHandler(
     recordingID: UUID
@@ -1326,7 +1217,6 @@ final class AppState: ObservableObject {
     recordingWaveformHistory = []
     recordingWaveformTick = 0
     recordingElapsedSeconds = 0
-    lastDelivery = .none
     lastCompletion = .transcript(.none)
     lastAdjustmentWarning = ""
   }
@@ -1356,13 +1246,12 @@ final class AppState: ObservableObject {
     recordingWaveformTick = 0
   }
 
+  /// Publishes finalized text, returns it to the target app, and records history and activity with one processing measurement.
   private func finalizeTranscript(
     _ result: TranscriptionResult,
     adjustment: AdjustmentExecution,
     configuration: RecordingConfiguration,
-    recordingSeconds: Double? = nil,
-    transcriptionSeconds: Double? = nil,
-    processingStarted: ContinuousClock.Instant? = nil
+    timing: DictationTiming? = nil
   ) async throws {
     let settings = configuration.settings
     let targetApp = recordingTargetApp ?? appContext.targetApp()
@@ -1385,106 +1274,83 @@ final class AppState: ObservableObject {
     lastRecognizedTranscript = result.text
     lastTranscript = finalized.text
     liveTranscript = ""
-    var warnings = [finalized.warning].filter { !$0.isEmpty }
-    var delivery: TranscriptDelivery?
-    var copyFallbackReason: String?
-
-    switch configuration.deliveryPlan {
-    case .copyOnly:
-      break
-    case .insert(let keepOnClipboard):
-      refreshPermissions()
-      if permissionState(for: .accessibility)?.isReady != true {
-        copyFallbackReason =
-          "Copied the transcript because Accessibility permission is unavailable."
-      } else if let targetApp,
-        await appContext.activate(targetApp)
-      {
-        do {
-          let insertionContext = focusedTextService.insertionContext()
-          let clipboardRetained = try await inserter.paste(
-            finalized.text,
-            keepOnClipboard: keepOnClipboard,
-            context: insertionContext
-          )
-          delivery = .pasteCommandSent(
-            clipboardRetained: clipboardRetained
-          )
-        } catch {
-          copyFallbackReason = error.localizedDescription
-        }
-      } else {
-        copyFallbackReason = "Copied the transcript because the target app was unavailable."
-      }
-    }
-
-    if delivery == nil {
-      if let copyFallbackReason {
-        warnings.append(copyFallbackReason)
-      }
-      do {
-        try inserter.copy(finalized.text)
-        delivery = .copied
-      } catch {
-        warnings.append(error.localizedDescription)
-      }
-    }
-    lastDelivery = delivery ?? .none
-    lastCompletion = .transcript(lastDelivery)
-    lastAdjustmentWarning = warnings.joined(separator: " ")
-    let processingSeconds = processingStarted.map { start in
-      let elapsed = start.duration(to: .now).components
-      return Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
-    }
-    recordHistory(
-      text: finalized.text,
-      providerName: result.providerName,
-      transcriptionMode: settings.transcriptionMode.title,
-      targetApp: finalized.targetApp,
-      cleanup: finalized.cleanup,
-      refinement: finalized.refinement,
-      recordingSeconds: recordingSeconds,
-      transcriptionSeconds: transcriptionSeconds,
-      processingSeconds: processingSeconds
+    let (delivery, deliveryWarnings) = await deliver(
+      finalized.text,
+      plan: configuration.deliveryPlan,
+      to: targetApp
     )
+    lastCompletion = .transcript(delivery)
+    lastAdjustmentWarning = ([finalized.warning].filter { !$0.isEmpty } + deliveryWarnings)
+      .joined(separator: " ")
+    lastTranscriptionSeconds = timing?.transcriptionSeconds
+    let processingSeconds = timing.map { $0.processingStarted.duration(to: .now) / .seconds(1) }
+    history = historyStore.prepend(
+      TranscriptHistoryItem(
+        id: UUID(),
+        createdAt: Date(),
+        text: finalized.text,
+        provider: result.providerName,
+        transcriptionMode: settings.transcriptionMode.title,
+        cleanup: finalized.cleanup,
+        targetAppName: targetApp?.name,
+        targetAppBundleIdentifier: targetApp?.bundleIdentifier,
+        refinement: finalized.refinement,
+        recordingSeconds: timing?.recordingSeconds,
+        transcriptionSeconds: timing?.transcriptionSeconds,
+        processingSeconds: processingSeconds
+      ),
+      to: history
+    )
+    if let timing, let processingSeconds {
+      activityDays = activityStore.record(
+        text: finalized.text,
+        recordingSeconds: timing.recordingSeconds,
+        processingSeconds: processingSeconds,
+        settings: settings,
+        days: activityDays
+      )
+    }
     clearRecordingContext()
     status = .completed
   }
 
-  private func pauseForDemoVisibility() async throws {
-    try await Task.sleep(nanoseconds: 650_000_000)
+  /// Pastes into the recorded target when possible; otherwise leaves the text on the clipboard and explains why.
+  private func deliver(
+    _ text: String,
+    plan: DeliveryPlan,
+    to targetApp: FrontmostApp?
+  ) async -> (delivery: TranscriptDelivery, warnings: [String]) {
+    var warnings: [String] = []
+    if case .insert(let keepOnClipboard) = plan {
+      refreshPermissions()
+      if permissionState(for: .accessibility)?.isReady != true {
+        warnings.append("Copied the transcript because Accessibility permission is unavailable.")
+      } else if let targetApp, await appContext.activate(targetApp) {
+        do {
+          let clipboardRetained = try await inserter.paste(
+            text,
+            keepOnClipboard: keepOnClipboard,
+            context: focusedTextService.insertionContext()
+          )
+          return (.pasteCommandSent(clipboardRetained: clipboardRetained), [])
+        } catch {
+          warnings.append(error.localizedDescription)
+        }
+      } else {
+        warnings.append("Copied the transcript because the target app was unavailable.")
+      }
+    }
+    do {
+      try inserter.copy(text)
+      return (.copied, warnings)
+    } catch {
+      warnings.append(error.localizedDescription)
+      return (.none, warnings)
+    }
   }
 
-  private func recordHistory(
-    text: String,
-    providerName: String,
-    transcriptionMode: String,
-    targetApp: FrontmostApp?,
-    cleanup: TranscriptCleanup,
-    refinement: LLMRefinement?,
-    recordingSeconds: Double?,
-    transcriptionSeconds: Double?,
-    processingSeconds: Double?
-  ) {
-    guard !text.isEmpty else {
-      return
-    }
-
-    let item = TranscriptHistoryItem(
-      id: UUID(),
-      createdAt: Date(),
-      text: text,
-      provider: providerName,
-      transcriptionMode: transcriptionMode,
-      cleanup: cleanup,
-      targetAppName: targetApp?.name,
-      targetAppBundleIdentifier: targetApp?.bundleIdentifier,
-      refinement: refinement,
-      recordingSeconds: recordingSeconds,
-      transcriptionSeconds: transcriptionSeconds,
-      processingSeconds: processingSeconds
-    )
-    history = historyStore.prepend(item, to: history)
+  private func pauseForDemoVisibility() async throws {
+    try await Task.sleep(for: .milliseconds(650))
   }
 
   private func clearRecordingContext() {
@@ -1503,6 +1369,13 @@ final class AppState: ObservableObject {
       }
     }
   }
+}
+
+/// Measurements recorded for a real dictation; demos have none.
+private struct DictationTiming {
+  let recordingSeconds: Double
+  let transcriptionSeconds: Double
+  let processingStarted: ContinuousClock.Instant
 }
 
 private struct RecordingConfiguration {

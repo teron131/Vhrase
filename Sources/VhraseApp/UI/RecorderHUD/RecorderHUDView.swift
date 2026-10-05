@@ -4,7 +4,10 @@ import AppKit
 import SwiftUI
 
 /// Keeps active dictation to a waveform or progress indicator, revealing controls only when approached.
-struct StatusPopupView: View {
+struct RecorderHUDView: View {
+  /// One capsule size for every workflow state, so the panel never resizes or shifts between states.
+  static let size = CGSize(width: 184, height: 52)
+
   @ObservedObject var appState: AppState
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var showsControls = false
@@ -18,8 +21,8 @@ struct StatusPopupView: View {
       }
     }
     .frame(
-      width: popupSize.width,
-      height: popupSize.height
+      width: Self.size.width,
+      height: Self.size.height
     )
     .background {
       RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -177,12 +180,8 @@ struct StatusPopupView: View {
     .accessibilityLabel(title)
   }
 
-  private var popupSize: CGSize {
-    StatusPopupContentPolicy.size(for: appState.status)
-  }
-
   private var cornerRadius: CGFloat {
-    popupSize.height / 2
+    Self.size.height / 2
   }
 }
 

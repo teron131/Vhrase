@@ -63,7 +63,6 @@ APP_PRESENTATION_CHECK_SOURCES=(
   Sources/VhraseApp/UI/Design/VhraseTheme.swift
   Sources/VhraseApp/UI/Design/WaveformLevelResponse.swift
   Sources/VhraseApp/UI/DictationPresentation.swift
-  Sources/VhraseApp/UI/StatusPopup/StatusPopupContentPolicy.swift
 )
 APP_PRESENTATION_CHECKS=(
   scripts/checks/permission-request-plan-check.swift
@@ -72,7 +71,6 @@ APP_PRESENTATION_CHECKS=(
   scripts/checks/setup-diagnostics-check.swift
   scripts/checks/history-metadata-check.swift
   scripts/checks/waveform-response-check.swift
-  scripts/checks/status-popup-content-check.swift
 )
 APP_CORE_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"
@@ -97,6 +95,7 @@ APP_CORE_CHECKS=(
 APP_PROVIDER_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"
   Sources/VhraseApp/Transcription/Audio/AudioRecorder.swift
+  Sources/VhraseApp/Transcription/Audio/PCM16AudioConverter.swift
   Sources/VhraseApp/Transcription/Audio/AudioInputDevice.swift
   Sources/VhraseApp/Transcription/Audio/DeviceAudioCapture.swift
   Sources/VhraseApp/Transcription/Audio/AudioPreprocessor.swift
@@ -135,6 +134,7 @@ APP_FINALIZATION_CHECKS=(
   scripts/checks/opencc-installer-check.swift
 )
 APP_CREDENTIAL_CHECK_SOURCES=(
+  "${APP_DOMAIN_SOURCES[@]}"
   Sources/VhraseApp/Storage/APIKeyStore.swift
 )
 APP_CREDENTIAL_CHECKS=(
