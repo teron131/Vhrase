@@ -46,6 +46,8 @@ mkdir -p "$MACOS" "$RESOURCES"
 cp "$BINARY" "$MACOS/Vhrase"
 cp -R "$ROOT/.build/$BUILD_CONFIG/Vhrase_VhraseApp.bundle" "$RESOURCES/"
 cp "$ROOT/.build/checkouts/CSpeex/LICENSE.txt" "$RESOURCES/Speex-LICENSE.txt"
+cp "$ROOT/.build/checkouts/FluidAudio/LICENSE" "$RESOURCES/FluidAudio-LICENSE.txt"
+cp -R "$ROOT/.build/checkouts/FluidAudio/ThirdPartyLicenses" "$RESOURCES/FluidAudio-ThirdPartyLicenses"
 render_app_icon
 
 cat > "$CONTENTS/Info.plist" <<'PLIST'
@@ -64,9 +66,9 @@ cat > "$CONTENTS/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.12.0</string>
+  <string>0.13.0</string>
   <key>CFBundleVersion</key>
-  <string>27</string>
+  <string>28</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>

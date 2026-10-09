@@ -18,6 +18,23 @@ Dictate shows the latest provider transcription alongside the final output and i
 This original-text comparison is held only in memory; saved history retains finalized text as before.
 Long history entries can be expanded with “Read full transcript.”
 
+## On-device Parakeet
+
+Providers are grouped by where they run: **Cloud** (xAI, ElevenLabs, Gemini) sends the recording to that provider, while **Local** (Parakeet) recognizes speech on this Mac.
+Select **Parakeet** under Local in Transcription → Transcribe, Dictate, or the menu bar to transcribe on this Mac with NVIDIA Parakeet TDT 0.6B v3 (CC-BY-4.0), run on the Neural Engine through FluidAudio.
+It needs no API key; instead, **Download 480 MB** in Parakeet options or the System readiness card fetches the model once from FluidAudio's Hugging Face repository into `~/Library/Application Support/Vhrase/Models`, then Core ML prepares it for this Mac (about 15 seconds the first time).
+The download shows progress and can be cancelled; a cancelled or failed download leaves no partial model, and **Retry Download** starts over.
+Once downloaded, recognition reads only those files and never uses the network; **Remove** deletes them.
+
+Parakeet transcribes after you stop, so its mode reads **After stop** and Realtime stays disabled.
+Vhrase loads the model in the background when Parakeet is selected or a recording starts, and releases it after five idle minutes.
+Core ML keeps a compiled copy per app and discards it after macOS updates, so the first load afterwards takes about 15 seconds; a transcription that has to wait shows “Preparing Parakeet for this Mac” in the recorder.
+Press Escape or the recorder's cancel control during Parakeet transcription to discard the recording without delivering or saving text; cloud transcriptions keep their existing behavior because the provider has already received the audio.
+Parakeet detects among its 25 European languages automatically and ignores the Listen language code; it does not support Chinese or Cantonese, and it does not take Shared vocabulary hints.
+
+Audio never leaves the Mac with Parakeet, but LLM polishing still sends the transcript, and a screenshot when screen context is on, to the configured endpoint.
+Parakeet options state which applies and offer **Keep text on this Mac**, which turns automatic polishing off; OpenCC conversion and local cleanup stay on the Mac.
+
 ## Microphone processing
 
 Transcription → Listen contains the shared audio controls for every provider and mode.
@@ -57,7 +74,7 @@ Use the bundle for normal operation so macOS associates privacy permissions with
 ## First Setup
 
 1. Open **System** in the sidebar.
-2. Add xAI and/or ElevenLabs credentials in System, export them directly in `~/.zshrc`, or add them to the ignored `.env` file for prompt-free development builds.
+2. Add xAI and/or ElevenLabs credentials in System, export them directly in `~/.zshrc`, or add them to the ignored `.env` file for prompt-free development builds; Parakeet instead needs its one-time model download.
 3. Request Microphone access.
 4. Grant Accessibility so Vhrase can return finalized text to the originating app; it also enables the global Fn/Globe shortcut.
 5. Grant Input Monitoring only if Fn/Globe does not respond reliably, and Screen Recording only when screenshot context is enabled.

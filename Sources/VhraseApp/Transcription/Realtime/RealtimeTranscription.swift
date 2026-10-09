@@ -27,7 +27,7 @@ final class RealtimeTranscriptionSession: @unchecked Sendable {
   private var didSendFinish = false
   private var isTerminal = false
 
-  /// Opens the selected provider's WebSocket with validated query parameters; Gemini has no realtime transport.
+  /// Opens the selected provider's WebSocket with validated query parameters; Gemini and Parakeet have no realtime transport.
   static func start(
     settings: DictationSettings,
     apiKey: String,
@@ -55,10 +55,13 @@ final class RealtimeTranscriptionSession: @unchecked Sendable {
       request = URLRequest(url: components.url!)
       request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
       provider = .elevenLabs
-    case .gemini:
+    case .gemini, .parakeet:
       throw NSError(
         domain: "Vhrase.STT", code: 2,
-        userInfo: [NSLocalizedDescriptionKey: "Choose Upload for Gemini transcription."])
+        userInfo: [
+          NSLocalizedDescriptionKey:
+            "Choose \(TranscriptionMode.upload.title(for: settings.provider)) for \(settings.provider.title) transcription."
+        ])
     }
     return RealtimeTranscriptionSession(
       provider: provider,

@@ -22,14 +22,14 @@ enum SecretKey: String, CaseIterable {
     }
   }
 
-  /// Names the credential each transcription provider authenticates with.
-  init(_ provider: STTProvider) {
-    self =
-      switch provider {
-      case .xai: .xaiAPIKey
-      case .elevenLabs: .elevenLabsAPIKey
-      case .gemini: .geminiAPIKey
-      }
+  /// Names the credential each cloud transcription provider authenticates with; on-device recognition has none.
+  init?(_ provider: STTProvider) {
+    switch provider {
+    case .xai: self = .xaiAPIKey
+    case .elevenLabs: self = .elevenLabsAPIKey
+    case .gemini: self = .geminiAPIKey
+    case .parakeet: return nil
+    }
   }
 }
 

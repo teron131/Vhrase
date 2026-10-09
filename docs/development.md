@@ -116,9 +116,28 @@ bash scripts/bundle-app.sh
 ```
 
 The bundle is written to `dist/Vhrase.app` and signed with `VHRASE_CODESIGN_IDENTITY`, the local Vhrase development identity, or ad-hoc signing as a fallback.
-Provider pickers use the compact [Google](https://artificialanalysis.ai/img/logos/google_small.svg), [ElevenLabs](https://artificialanalysis.ai/img/logos/elevenlabs_small.svg), and [SpaceXAI](https://artificialanalysis.ai/img/logos/spacexai.svg) SVGs from Artificial Analysis, stored unchanged in `Sources/VhraseApp/UI/Resources/ProviderIcons`.
+Provider pickers use the compact [Google](https://artificialanalysis.ai/img/logos/google_small.svg), [ElevenLabs](https://artificialanalysis.ai/img/logos/elevenlabs_small.svg), [SpaceXAI](https://artificialanalysis.ai/img/logos/spacexai.svg), and [NVIDIA](https://artificialanalysis.ai/img/logos/nvidia.svg) SVGs from Artificial Analysis, stored unchanged in `Sources/VhraseApp/UI/Resources/ProviderIcons`.
 SwiftPM packages these assets in `Vhrase_VhraseApp.bundle`; the bundle script copies that resource bundle into the app's `Contents/Resources` directory so installed apps do not depend on the build checkout.
+FluidAudio compiles into the executable from source, so the bundle embeds no third-party frameworks and hardened-runtime library validation is unaffected; its trait list is empty to leave out the prebuilt NeMo text-normalization library that recognition does not use.
+The bundle script copies FluidAudio's Apache-2.0 license and third-party notices beside the Speex license; Parakeet model files are downloaded at runtime and never bundled.
 For normal local development, use the persistent Vhrase identity rather than the ad-hoc fallback so Keychain and TCC permissions remain attached to one designated application identity.
+
+## Parakeet Smoke
+
+The on-device path can be exercised end to end on WAV files without a microphone, provider usage, or the app's settings:
+
+```sh
+B=.build/arm64-apple-macosx/debug
+C=.build/checkouts/FluidAudio/Sources
+swiftc -parse-as-library -I $B/Modules -I $C/FastClusterWrapper/include -I $C/MachTaskSelfWrapper/include Sources/VhraseApp/Domain/*.swift Sources/VhraseApp/Transcription/ProviderContracts.swift Sources/VhraseApp/Transcription/Upload/*.swift Sources/VhraseApp/Transcription/OnDevice/*.swift Sources/VhraseApp/System/ScreenContext.swift Sources/VhraseApp/Adjustment/Local/*.swift Sources/VhraseApp/Adjustment/LLMEndpoint.swift Sources/VhraseApp/Adjustment/LLMAdjustmentClient.swift Sources/VhraseApp/Adjustment/TranscriptFinalization.swift Sources/VhraseApp/Storage/TranscriptHistoryStore.swift scripts/parakeet-stt-smoke.swift $B/FluidAudio.build/*.o $B/FastClusterWrapper.build/*.o $B/MachTaskSelfWrapper.build/*.o -lc++ -o .cache/checks/parakeet-stt-smoke
+.cache/checks/parakeet-stt-smoke --download recording.wav "expected phrase"
+```
+
+Run `swift build` first so FluidAudio's objects exist.
+Each recording should match Vhrase's capture format, 16 kHz mono Int16 WAV, for example from `afconvert -f WAVE -d LEI16@16000 -c 1 input output.wav`.
+The smoke uses the same `ParakeetModelStore`, `ParakeetRecognizer`, `TranscriptFinalizer`, and history store calls as the app, with history in a temporary defaults suite.
+It then checks that three seconds of silence produce nothing to deliver, that cancelling a four-minute transcription returns no text, and that the next transcription still succeeds.
+`--download` fetches the model into the app's own Models folder when it is missing, so a later app launch reuses it.
 
 ## Live STT Smokes
 

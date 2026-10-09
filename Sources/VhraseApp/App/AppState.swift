@@ -1,6 +1,7 @@
 // Coordinates Vhrase's observable application state and user-triggered workflows.
 
 import AppKit
+import Combine
 import Foundation
 import OSLog
 
@@ -55,6 +56,7 @@ final class AppState: ObservableObject {
   @Published private(set) var recordingLevel = 0.0
   @Published private(set) var recordingWaveformHistory: [Double] = []
   let audioInputPreview = AudioInputPreview()
+  let parakeetModel = ParakeetModelStore()
   @Published private(set) var recordingElapsedSeconds = 0
   @Published private(set) var permissions: [PermissionSnapshot] = []
   @Published private(set) var history: [TranscriptHistoryItem] = [] {
@@ -100,11 +102,13 @@ final class AppState: ObservableObject {
   private let fnHotkeyManager = FnHotkeyManager()
   private let escapeKeyMonitor = EscapeKeyMonitor()
   private var recorder: AudioRecorder?
+  private var parakeetModelObservation: AnyCancellable?
   private let logger = Logger(subsystem: "local.codex.Vhrase", category: "Dictation")
   private var recordingSequence = 0
   private var recordingWaveformTick = 0
   private var realtimeSession: RealtimeTranscriptionSession?
   private var recordingTask: Task<Void, Never>?
+  private var processingTask: Task<Void, Never>?
   private var recordingTimer: Timer?
   private var workflowOutcomeDismissTask: Task<Void, Never>?
   private var recordingID: UUID?
@@ -163,8 +167,15 @@ final class AppState: ObservableObject {
       AudioRecorder.removeAbandonedRecordings()
     }
     customizationNotice = credentialNotices.joined(separator: " ")
+    // Readiness and diagnostics read the model's setup state, so its changes refresh every AppState observer.
+    parakeetModelObservation = parakeetModel.objectWillChange.sink { [weak self] _ in
+      self?.objectWillChange.send()
+    }
     refreshPermissions()
     registerHotkey()
+    if ownsInstance {
+      warmUpParakeetIfSelected()
+    }
   }
 
   /// Loads Keychain credentials after the menu-bar lifecycle is established without blocking AppKit launch.
@@ -251,7 +262,7 @@ final class AppState: ObservableObject {
     DictationPresentation(
       status: status,
       settings: settings,
-      selectedProviderHasKey: !selectedProviderAPIKey.isEmpty,
+      providerReadiness: selectedProviderReadiness,
       permissions: permissions,
       liveTranscript: liveTranscript,
       recordingElapsedSeconds: recordingElapsedSeconds,
@@ -271,11 +282,16 @@ final class AppState: ObservableObject {
     textPolishID != nil
   }
 
+  /// Only on-device recognition stops cleanly mid-request; a cloud provider has already received the audio.
+  var canCancelTranscription: Bool {
+    status == .transcribing && recordingConfiguration?.settings.provider.location == .local
+  }
+
   /// Lists setup work in priority order, or a single Ready diagnostic when nothing needs attention.
   var setupDiagnostics: [SetupDiagnostic] {
     SetupDiagnostics(
       settings: settings,
-      selectedProviderHasKey: !selectedProviderAPIKey.isEmpty,
+      providerReadiness: selectedProviderReadiness,
       hasLLMKey: !effectiveAPIKey(.llmAPIKey).isEmpty,
       permissions: permissions,
       chineseConversionIsAvailable: ChineseTextConverter.isAvailable
@@ -360,6 +376,34 @@ final class AppState: ObservableObject {
     customizationNotice = "Recording cancelled."
   }
 
+  /// Stops on-device recognition of a finished recording; its audio is discarded and nothing is delivered or saved.
+  func cancelTranscription() {
+    guard canCancelTranscription else {
+      return
+    }
+
+    processingTask?.cancel()
+    processingTask = nil
+    releaseRecording()
+    status = .idle
+    customizationNotice = "Transcription cancelled."
+  }
+
+  /// Deletes the downloaded model only between dictations and reports the outcome like other setup actions.
+  func removeParakeetModel() {
+    guard status.canStartRecording else {
+      return
+    }
+    Task {
+      do {
+        try await parakeetModel.remove()
+        customizationNotice = "Parakeet model removed. Download it again to transcribe on this Mac."
+      } catch {
+        customizationNotice = "Couldn't remove the Parakeet model: \(error.localizedDescription)"
+      }
+    }
+  }
+
   /// Clears completed or failed feedback without changing an active workflow.
   func dismissWorkflowOutcome() {
     switch status {
@@ -379,6 +423,9 @@ final class AppState: ObservableObject {
       return true
     case .adjusting where isTextPolishing:
       cancelTextPolish()
+      return true
+    case .transcribing where canCancelTranscription:
+      cancelTranscription()
       return true
     case .transcribing, .adjusting:
       guard !isWorkflowPopupDismissed else { return false }
@@ -521,12 +568,24 @@ final class AppState: ObservableObject {
     update(&settings)
     if !settings.provider.availableModes.contains(settings.transcriptionMode) {
       settings.transcriptionMode = .upload
-      customizationNotice = "Gemini transcribes after you stop recording. Switched to Upload."
+      customizationNotice =
+        "\(settings.provider.title) transcribes after you stop recording. Switched to \(settings.transcriptionModeTitle)."
     }
     guard settings != previousSettings else {
       return
     }
     persistSettings(previous: previousSettings)
+    if settings.provider != previousSettings.provider {
+      warmUpParakeetIfSelected()
+    }
+  }
+
+  /// Prepares Parakeet once it is the selected provider, so Core ML's one-time compile for this app rarely delays a dictation.
+  private func warmUpParakeetIfSelected() {
+    guard settings.provider.location == .local else {
+      return
+    }
+    parakeetModel.prepare()
   }
 
   func beginShortcutCapture() {
@@ -657,6 +716,9 @@ final class AppState: ObservableObject {
     workflowOutcomeDismissTask = nil
     audioInputPreview.stop()
     flushPendingAPIKeySave()
+    parakeetModel.cancelDownload()
+    processingTask?.cancel()
+    processingTask = nil
     textPolishID = nil
     textPolishTask?.cancel()
     textPolishTask = nil
@@ -778,6 +840,8 @@ final class AppState: ObservableObject {
     do {
       try validateRecordingPermissions()
       try validateSelectedProvider(configuration)
+      // Loading overlaps the user's speech when the model was released while idle.
+      warmUpParakeetIfSelected()
       let startedSession = try startRealtimeSessionIfNeeded(
         configuration: configuration,
         recordingID: id
@@ -852,7 +916,7 @@ final class AppState: ObservableObject {
       return
     }
     status = .transcribing
-    Task {
+    processingTask = Task {
       await stopAndProcess(
         id: id,
         recorder: recorder
@@ -878,6 +942,8 @@ final class AppState: ObservableObject {
           processingAudioURL = nil
         }
       }
+      // Cancelling while capture drains may already have started a newer recording that owns these resources.
+      try ensureCurrentRecording(id)
       stopRecordingTimer()
       self.recorder = nil
       realtimeSession = nil
@@ -892,6 +958,8 @@ final class AppState: ObservableObject {
         result = try await transcriptionClient(configuration: configuration)
           .transcribe(fileURL: fileURL, settings: configuration.settings)
       }
+      // A cancelled or superseded recording must not deliver or save a late transcript.
+      try ensureCurrentRecording(id)
 
       try await finalizeTranscript(
         result,
@@ -927,6 +995,8 @@ final class AppState: ObservableObject {
       ElevenLabsTranscriptionClient(apiKey: configuration.providerAPIKey)
     case .gemini:
       GeminiTranscriptionClient(apiKey: configuration.providerAPIKey)
+    case .parakeet:
+      parakeetModel.recognizer
     }
   }
 
@@ -969,10 +1039,22 @@ final class AppState: ObservableObject {
     _ configuration: RecordingConfiguration
   ) throws {
     try TranscriptionContract.validate(settings: configuration.settings)
-    guard configuration.providerAPIKey.isEmpty else {
+    let provider = configuration.settings.provider
+    switch providerReadiness(provider, apiKey: configuration.providerAPIKey) {
+    case .ready:
       return
+    case .missingAPIKey:
+      throw missingProviderKey(SecretKey(provider)?.rawValue ?? provider.title)
+    case .missingLocalModel:
+      throw NSError(
+        domain: "Vhrase.Settings",
+        code: 2,
+        userInfo: [
+          NSLocalizedDescriptionKey:
+            "Download the \(provider.title) model in Transcription or System before recording."
+        ]
+      )
     }
-    throw missingProviderKey(SecretKey(configuration.settings.provider).rawValue)
   }
 
   private func permissionState(for permission: AppPermission) -> PermissionState? {
@@ -1000,7 +1082,19 @@ final class AppState: ObservableObject {
   }
 
   private var selectedProviderAPIKey: String {
-    effectiveAPIKey(SecretKey(settings.provider))
+    SecretKey(settings.provider).map(effectiveAPIKey) ?? ""
+  }
+
+  private var selectedProviderReadiness: ProviderReadiness {
+    providerReadiness(settings.provider, apiKey: selectedProviderAPIKey)
+  }
+
+  /// Applies one rule to readiness displays and recording validation: cloud providers need a credential, local ones the downloaded model.
+  private func providerReadiness(_ provider: STTProvider, apiKey: String) -> ProviderReadiness {
+    switch provider.location {
+    case .cloud: apiKey.isEmpty ? .missingAPIKey : .ready
+    case .local: parakeetModel.isInstalled ? .ready : .missingLocalModel
+    }
   }
 
   /// Completes the pending Keychain batch and clears its debounce state.
@@ -1293,7 +1387,7 @@ final class AppState: ObservableObject {
         createdAt: Date(),
         text: finalized.text,
         provider: result.providerName,
-        transcriptionMode: settings.transcriptionMode.title,
+        transcriptionMode: settings.transcriptionModeTitle,
         cleanup: finalized.cleanup,
         targetAppName: targetApp?.name,
         targetAppBundleIdentifier: targetApp?.bundleIdentifier,

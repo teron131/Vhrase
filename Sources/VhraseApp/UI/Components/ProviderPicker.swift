@@ -11,10 +11,12 @@ struct ProviderPicker: NSViewRepresentable {
   }
 
   @Binding var selection: STTProvider
+  /// Segments to offer; a location's subset shows no selection while the chosen provider belongs to another location.
+  var providers: [STTProvider] = STTProvider.allCases
   var style: Style = .menu
   @Environment(\.isEnabled) private var isEnabled
 
-  private static let providers = STTProvider.allCases
+  private static let allProviders = STTProvider.allCases
 
   // Decode once and preserve the supplied colors and backgrounds in both appearance modes.
   private static let icons: [STTProvider: NSImage] = {
@@ -23,12 +25,13 @@ struct ProviderPicker: NSViewRepresentable {
       Bundle.main.resourceURL.flatMap {
         Bundle(url: $0.appendingPathComponent("Vhrase_VhraseApp.bundle"))
       } ?? Bundle.module
-    return providers.reduce(into: [:]) { icons, provider in
+    return allProviders.reduce(into: [:]) { icons, provider in
       let name =
         switch provider {
         case .xai: "spacexai"
         case .elevenLabs: "elevenlabs_small"
         case .gemini: "google_small"
+        case .parakeet: "nvidia"
         }
       guard
         let url = bundle.url(
@@ -49,7 +52,7 @@ struct ProviderPicker: NSViewRepresentable {
       return NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: nil)
     }
     guard
-      let provider = providers.first(where: {
+      let provider = allProviders.first(where: {
         label == $0.title || label.hasPrefix("\($0.title) · ")
           || label == "\($0.title) Realtime"
       })
@@ -58,7 +61,7 @@ struct ProviderPicker: NSViewRepresentable {
   }
 
   func makeCoordinator() -> Coordinator {
-    Coordinator(selection: $selection)
+    Coordinator(selection: $selection, providers: providers)
   }
 
   /// Uses AppKit's explicit image slots because SwiftUI's macOS segmented Picker retains only label text.
@@ -66,19 +69,28 @@ struct ProviderPicker: NSViewRepresentable {
     let control: NSControl
     switch style {
     case .menu:
+      // Every provider appears under its location's header; tags map items back to providers.
       let menu = NSPopUpButton(frame: .zero, pullsDown: false)
-      for provider in Self.providers {
-        menu.addItem(withTitle: provider.title)
-        menu.lastItem?.image = Self.icons[provider]
+      menu.autoenablesItems = false
+      for location in ProviderLocation.allCases {
+        let header = NSMenuItem.sectionHeader(title: location.title)
+        header.isEnabled = false
+        menu.menu?.addItem(header)
+        for provider in location.providers {
+          let item = NSMenuItem(title: provider.title, action: nil, keyEquivalent: "")
+          item.image = Self.icons[provider]
+          item.tag = Self.allProviders.firstIndex(of: provider) ?? -1
+          menu.menu?.addItem(item)
+        }
       }
       menu.imagePosition = .imageLeading
       control = menu
     case .segmented:
       let segments = NSSegmentedControl(
-        labels: Self.providers.map(\.title), trackingMode: .selectOne,
+        labels: providers.map(\.title), trackingMode: .selectOne,
         target: nil, action: nil
       )
-      for (index, provider) in Self.providers.enumerated() {
+      for (index, provider) in providers.enumerated() {
         segments.setImage(Self.icons[provider], forSegment: index)
       }
       control = segments
@@ -93,35 +105,35 @@ struct ProviderPicker: NSViewRepresentable {
   func updateNSView(_ control: NSControl, context: Context) {
     context.coordinator.selection = $selection
     control.isEnabled = isEnabled
-    guard let index = Self.providers.firstIndex(of: selection) else { return }
     if let menu = control as? NSPopUpButton {
-      menu.selectItem(at: index)
+      menu.selectItem(withTag: Self.allProviders.firstIndex(of: selection) ?? -1)
     } else if let segments = control as? NSSegmentedControl {
       segments.selectedSegmentBezelColor = NSColor(VhraseTheme.accent)
-      segments.selectedSegment = index
+      segments.selectedSegment = providers.firstIndex(of: selection) ?? -1
     }
   }
 
   @MainActor
   final class Coordinator: NSObject {
     var selection: Binding<STTProvider>
+    let providers: [STTProvider]
 
-    init(selection: Binding<STTProvider>) {
+    init(selection: Binding<STTProvider>, providers: [STTProvider]) {
       self.selection = selection
+      self.providers = providers
     }
 
     /// Sends native selection changes through the existing settings binding and persistence policy.
     @objc func selectProvider(_ sender: NSControl) {
-      let index: Int
       if let menu = sender as? NSPopUpButton {
-        index = menu.indexOfSelectedItem
-      } else if let segments = sender as? NSSegmentedControl {
-        index = segments.selectedSegment
-      } else {
-        return
+        guard let tag = menu.selectedItem?.tag, ProviderPicker.allProviders.indices.contains(tag)
+        else { return }
+        selection.wrappedValue = ProviderPicker.allProviders[tag]
+      } else if let segments = sender as? NSSegmentedControl,
+        providers.indices.contains(segments.selectedSegment)
+      {
+        selection.wrappedValue = providers[segments.selectedSegment]
       }
-      guard ProviderPicker.providers.indices.contains(index) else { return }
-      selection.wrappedValue = ProviderPicker.providers[index]
     }
   }
 }

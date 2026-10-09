@@ -7,7 +7,7 @@ import SwiftUI
 struct DictationPresentation {
   let status: AppStatus
   let settings: DictationSettings
-  let selectedProviderHasKey: Bool
+  let providerReadiness: ProviderReadiness
   let permissions: [PermissionSnapshot]
   let liveTranscript: String
   let recordingElapsedSeconds: Int
@@ -18,7 +18,7 @@ struct DictationPresentation {
   init(
     status: AppStatus,
     settings: DictationSettings,
-    selectedProviderHasKey: Bool,
+    providerReadiness: ProviderReadiness,
     permissions: [PermissionSnapshot],
     liveTranscript: String,
     recordingElapsedSeconds: Int,
@@ -26,7 +26,7 @@ struct DictationPresentation {
   ) {
     self.status = status
     self.settings = settings
-    self.selectedProviderHasKey = selectedProviderHasKey
+    self.providerReadiness = providerReadiness
     self.permissions = permissions
     self.liveTranscript = liveTranscript
     self.recordingElapsedSeconds = recordingElapsedSeconds
@@ -35,7 +35,7 @@ struct DictationPresentation {
   }
 
   var coreRecordingReady: Bool {
-    selectedProviderHasKey
+    providerReadiness == .ready
       && permissionIsReady(.microphone)
       && transcriptionConfigurationIssue == nil
   }
@@ -66,13 +66,13 @@ struct DictationPresentation {
   }
 
   var compactWorkflowSummary: String {
-    "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) · \(settings.hotkeyDisplay)"
+    "\(settings.provider.title) \(settings.transcriptionModeTitle.lowercased()) · \(settings.hotkeyDisplay)"
   }
 
   var displayStatusTitle: String {
     switch status {
     case .idle:
-      if !selectedProviderHasKey || !permissionIsReady(.microphone) {
+      if providerReadiness != .ready || !permissionIsReady(.microphone) {
         "Needs setup"
       } else if transcriptionConfigurationIssue != nil {
         "Check settings"
@@ -142,8 +142,8 @@ struct DictationPresentation {
     case .completed:
       "checkmark.circle.fill"
     case .idle:
-      if !selectedProviderHasKey {
-        "key.fill"
+      if let providerSetupSystemImage {
+        providerSetupSystemImage
       } else if !permissionIsReady(.microphone) {
         "mic.slash.fill"
       } else if transcriptionConfigurationIssue != nil {
@@ -160,8 +160,15 @@ struct DictationPresentation {
     if case .failed(let message) = status {
       return message
     }
-    if !selectedProviderHasKey, !isRecording {
-      return "Add \(settings.provider.title) API key in System before recording."
+    if !isRecording {
+      switch providerReadiness {
+      case .ready:
+        break
+      case .missingAPIKey:
+        return "Add \(settings.provider.title) API key in System before recording."
+      case .missingLocalModel:
+        return "Download the \(settings.provider.title) model before recording."
+      }
     }
     if !permissionIsReady(.microphone), status.canStartRecording {
       return "Grant Microphone access before recording."
@@ -182,7 +189,7 @@ struct DictationPresentation {
     if transcriptionConfigurationIssue != nil {
       return "slider.horizontal.3"
     }
-    return "key"
+    return providerReadiness == .missingLocalModel ? "arrow.down.circle" : "key"
   }
 
   var recordAction: RecordAction {
@@ -205,8 +212,8 @@ struct DictationPresentation {
     if isRecording {
       return "stop.fill"
     }
-    if !selectedProviderHasKey {
-      return "key.fill"
+    if let providerSetupSystemImage {
+      return providerSetupSystemImage
     }
     if !permissionIsReady(.microphone) {
       return "mic.slash.fill"
@@ -224,8 +231,13 @@ struct DictationPresentation {
     if isRecording {
       return "Stop and Transcribe"
     }
-    if !selectedProviderHasKey {
+    switch providerReadiness {
+    case .ready:
+      break
+    case .missingAPIKey:
       return "Add \(settings.provider.title) Key"
+    case .missingLocalModel:
+      return "Download Model"
     }
     if !permissionIsReady(.microphone) {
       return "Set Up Microphone"
@@ -243,13 +255,17 @@ struct DictationPresentation {
     if isPreparing {
       return "Starting microphone…"
     }
-    if !selectedProviderHasKey {
-      switch style {
-      case .compact:
-        return "Keys are saved locally"
-      case .full:
-        return "Keys save locally"
-      }
+    switch (providerReadiness, style) {
+    case (.ready, _):
+      break
+    case (.missingAPIKey, .compact):
+      return "Keys are saved locally"
+    case (.missingAPIKey, .full):
+      return "Keys save locally"
+    case (.missingLocalModel, .compact):
+      return "One-time download, then works offline"
+    case (.missingLocalModel, .full):
+      return "Runs on this Mac"
     }
     if !permissionIsReady(.microphone) {
       return "Microphone permission is required"
@@ -261,7 +277,7 @@ struct DictationPresentation {
       switch style {
       case .compact:
         return
-          "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) is processing"
+          "\(settings.provider.title) \(settings.transcriptionModeTitle.lowercased()) is processing"
       case .full:
         return "\(settings.provider.title) is working"
       }
@@ -270,7 +286,7 @@ struct DictationPresentation {
     case .compact:
       let cleanup = settings.adjustWithLLM ? "LLM cleanup" : "Raw"
       return
-        "\(settings.provider.title) \(settings.transcriptionMode.title.lowercased()) · \(cleanup) · \(ShortcutGestureInterpreter.summary)"
+        "\(settings.provider.title) \(settings.transcriptionModeTitle.lowercased()) · \(cleanup) · \(ShortcutGestureInterpreter.summary)"
     case .full:
       return "\(settings.hotkeyDisplay) · \(ShortcutGestureInterpreter.summary)"
     }
@@ -328,8 +344,20 @@ struct DictationPresentation {
   }
 
   private var recordingPlaceholderText: String {
-    settings.transcriptionMode == .realtime
-      ? "Listening for realtime transcript…" : "Recording audio for upload transcription…"
+    if settings.transcriptionMode == .realtime {
+      return "Listening for realtime transcript…"
+    }
+    return settings.provider.location == .local
+      ? "Recording audio for on-device transcription…" : "Recording audio for upload transcription…"
+  }
+
+  /// Marks the missing credential or model with the icon its setup action uses.
+  private var providerSetupSystemImage: String? {
+    switch providerReadiness {
+    case .ready: nil
+    case .missingAPIKey: "key.fill"
+    case .missingLocalModel: "arrow.down.circle.fill"
+    }
   }
 
   private static func relativeDateLabel(

@@ -103,6 +103,9 @@ enum TranscriptionContract {
       )
     case (.elevenLabs, .realtime):
       KeytermPolicy(maximumCount: 50, characterLimit: 20)
+    case (.parakeet, _):
+      // Parakeet takes no vocabulary hints, so only LLM polishing reads the list.
+      KeytermPolicy(maximumCount: .max, characterLimit: .max)
     }
   }
 }
@@ -185,7 +188,7 @@ enum TranscriptionContractError: LocalizedError, Equatable {
     provider: STTProvider,
     mode: TranscriptionMode
   ) -> String {
-    "\(provider.title) \(mode.title.lowercased())"
+    "\(provider.title) \(mode.title(for: provider).lowercased())"
   }
 }
 

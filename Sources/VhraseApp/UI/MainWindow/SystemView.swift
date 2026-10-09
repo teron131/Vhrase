@@ -81,10 +81,7 @@ struct SystemView: View {
           handleSetupDiagnostic(diagnostic)
         }
         .buttonStyle(.borderedProminent)
-        .disabled(
-          diagnostic.id == .openCC
-            && appState.openCCInstallationState == .installing
-        )
+        .disabled(isDiagnosticActionRunning(diagnostic))
       }
     }
     .padding(18)
@@ -255,9 +252,7 @@ struct SystemView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
-            if diagnostic.id == .openCC,
-              let failureMessage = appState.openCCInstallationState.failureMessage
-            {
+            if let failureMessage = diagnosticFailureMessage(diagnostic) {
               Text(failureMessage)
                 .font(.caption)
                 .foregroundStyle(VhraseTheme.statusWarning)
@@ -272,16 +267,18 @@ struct SystemView: View {
               .controlSize(.small)
               .accessibilityLabel("Installing OpenCC")
           }
+          if diagnostic.id == .localModel, appState.parakeetModel.isDownloading {
+            ProgressView()
+              .controlSize(.small)
+              .accessibilityLabel("Downloading the Parakeet model")
+          }
           if let actionTitle = setupDiagnosticActionTitle(diagnostic) {
             Button(actionTitle) {
               handleSetupDiagnostic(diagnostic)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(
-              diagnostic.id == .openCC
-                && appState.openCCInstallationState == .installing
-            )
+            .disabled(isDiagnosticActionRunning(diagnostic))
           }
         }
         .settingsRowStyle()
@@ -296,7 +293,8 @@ struct SystemView: View {
       "Ready to dictate"
     case .screenPermission, .accessibilityPermission:
       "Recording is ready"
-    case .transcriptionConfiguration, .providerKey, .microphonePermission, .adjustmentKey:
+    case .transcriptionConfiguration, .providerKey, .localModel, .microphonePermission,
+      .adjustmentKey:
       "Finish setup"
     }
   }
@@ -318,9 +316,7 @@ struct SystemView: View {
   }
 
   private func setupOverviewDetail(_ diagnostic: SetupDiagnostic) -> String {
-    if diagnostic.id == .openCC,
-      let failureMessage = appState.openCCInstallationState.failureMessage
-    {
+    if let failureMessage = diagnosticFailureMessage(diagnostic) {
       return failureMessage
     }
     return switch diagnostic.id {
@@ -328,8 +324,29 @@ struct SystemView: View {
       "The selected provider and required permissions are ready."
     case .openCC, .screenPermission, .accessibilityPermission:
       "Core recording works. \(diagnostic.detail)"
-    case .transcriptionConfiguration, .providerKey, .microphonePermission, .adjustmentKey:
+    case .transcriptionConfiguration, .providerKey, .localModel, .microphonePermission,
+      .adjustmentKey:
       diagnostic.detail
+    }
+  }
+
+  /// Reports a failed optional install or download beside the diagnostic that retries it.
+  private func diagnosticFailureMessage(_ diagnostic: SetupDiagnostic) -> String? {
+    switch diagnostic.id {
+    case .openCC:
+      appState.openCCInstallationState.failureMessage
+    case .localModel:
+      if case .failed(let message) = appState.parakeetModel.state { message } else { nil }
+    default:
+      nil
+    }
+  }
+
+  private func isDiagnosticActionRunning(_ diagnostic: SetupDiagnostic) -> Bool {
+    switch diagnostic.id {
+    case .openCC: appState.openCCInstallationState == .installing
+    case .localModel: appState.parakeetModel.isDownloading
+    default: false
     }
   }
 
@@ -339,6 +356,15 @@ struct SystemView: View {
       "Review Transcription"
     case .providerKey, .adjustmentKey:
       "Add Key"
+    case .localModel:
+      switch appState.parakeetModel.state {
+      case .downloading(let fraction, let isCompiling):
+        ParakeetModelStore.State.progressTitle(fraction: fraction, isCompiling: isCompiling)
+      case .failed:
+        "Retry Download"
+      case .missing, .installed:
+        "Download \(ParakeetModelStore.downloadSizeLabel)"
+      }
     case .microphonePermission:
       "Request Access"
     case .screenPermission:
@@ -373,6 +399,8 @@ struct SystemView: View {
       selectedTab = .capture
     case .providerKey:
       focusedSecretField = SecretKey(appState.settings.provider)
+    case .localModel:
+      appState.parakeetModel.download()
     case .adjustmentKey:
       focusedSecretField = .llmAPIKey
     case .microphonePermission:

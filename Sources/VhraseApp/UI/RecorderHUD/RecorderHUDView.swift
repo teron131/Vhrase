@@ -94,7 +94,24 @@ struct RecorderHUDView: View {
         .padding(.horizontal, 12)
       }
     case .transcribing:
-      activityIndicator("Transcribing with \(appState.settings.provider.title)")
+      if appState.canCancelTranscription {
+        ZStack {
+          activityIndicator(
+            appState.parakeetModel.isPreparing
+              ? "Preparing Parakeet for this Mac"
+              : "Transcribing with \(appState.settings.provider.title)")
+          HStack {
+            Spacer()
+            hudButton("Cancel transcription", systemImage: "xmark") {
+              appState.cancelTranscription()
+            }
+            .opacity(showsControls ? 1 : 0)
+          }
+          .padding(.horizontal, 12)
+        }
+      } else {
+        activityIndicator("Transcribing with \(appState.settings.provider.title)")
+      }
     case .adjusting:
       if appState.isTextPolishing {
         ZStack {

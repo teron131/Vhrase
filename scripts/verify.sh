@@ -117,6 +117,7 @@ APP_PROVIDER_CHECKS=(
   scripts/checks/xai-stt-options-check.swift
   scripts/checks/elevenlabs-options-check.swift
   scripts/checks/gemini-stt-options-check.swift
+  scripts/checks/parakeet-options-check.swift
 )
 APP_FINALIZATION_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"

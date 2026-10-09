@@ -1,4 +1,4 @@
-// Verifies record-button actions against provider, microphone, and workflow readiness.
+// Verifies record-button actions against provider credential or model, microphone, and workflow readiness.
 
 import Foundation
 
@@ -28,21 +28,34 @@ struct RecordButtonStateCheck {
     precondition(invalidSettings.recordButtonTitle == "Review Settings")
     precondition(invalidSettings.statusMessage?.contains("found 51") == true)
 
+    let missingModel = presentation(
+      status: .idle, keyReady: true, provider: .parakeet, readiness: .missingLocalModel)
+    precondition(!missingModel.coreRecordingReady)
+    precondition(missingModel.recordAction == .openSetup)
+    precondition(missingModel.recordButtonTitle == "Download Model")
+    precondition(missingModel.recordButtonSystemImage == "arrow.down.circle.fill")
+    precondition(missingModel.statusMessage == "Download the Parakeet model before recording.")
+    let readyModel = presentation(status: .idle, keyReady: true, provider: .parakeet)
+    precondition(readyModel.recordAction == .toggleRecording)
+    precondition(readyModel.compactWorkflowSummary.hasPrefix("Parakeet after stop"))
+
     print("record button state ok")
   }
 
   private static func presentation(
     status: AppStatus,
     keyReady: Bool,
-    keyterms: String = ""
+    keyterms: String = "",
+    provider: STTProvider = .xai,
+    readiness: ProviderReadiness? = nil
   ) -> DictationPresentation {
     var settings = DictationSettings.defaults
-    settings.provider = .xai
+    settings.provider = provider
     settings.keyterms = keyterms
     return DictationPresentation(
       status: status,
       settings: settings,
-      selectedProviderHasKey: keyReady,
+      providerReadiness: readiness ?? (keyReady ? .ready : .missingAPIKey),
       permissions: [
         PermissionSnapshot(
           permission: .microphone,
