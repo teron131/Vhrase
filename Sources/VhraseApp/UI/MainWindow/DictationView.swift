@@ -107,21 +107,25 @@ struct DictationView: View {
   private func providerChip(onTint: Bool) -> some View {
     Menu {
       Picker("Provider", selection: appState.settingsBinding(\.provider)) {
-        ForEach(STTProvider.allCases, id: \.self) { provider in
-          Text(provider.title).tag(provider)
+        ForEach(ProviderLocation.allCases) { location in
+          Section(location.title) {
+            ForEach(location.providers, id: \.self) { provider in
+              Text(provider.title).tag(provider)
+            }
+          }
         }
       }
       .pickerStyle(.inline)
 
       Picker("Mode", selection: appState.settingsBinding(\.transcriptionMode)) {
         ForEach(TranscriptionMode.allCases, id: \.self) { mode in
-          Text(mode.title).tag(mode)
+          Text(mode.title(for: appState.settings.provider)).tag(mode)
             .disabled(!appState.settings.provider.availableModes.contains(mode))
         }
       }
       .pickerStyle(.inline)
     } label: {
-      Text("\(appState.settings.provider.title) · \(appState.settings.transcriptionMode.title)")
+      Text("\(appState.settings.provider.title) · \(appState.settings.transcriptionModeTitle)")
         .font(VhraseFont.pill)
     }
     .menuStyle(.borderlessButton)
@@ -359,8 +363,14 @@ struct DictationView: View {
     switch appState.status {
     case .idle:
       let presentation = self.presentation
-      if !presentation.selectedProviderHasKey {
+      switch presentation.providerReadiness {
+      case .ready:
+        break
+      case .missingAPIKey:
         return "Add the selected provider key before recording."
+      case .missingLocalModel:
+        return
+          "Download the \(appState.settings.provider.title) model once to transcribe on this Mac."
       }
       if !presentation.permissionIsReady(.microphone) {
         return "Grant Microphone access before recording."

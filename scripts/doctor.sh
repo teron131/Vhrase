@@ -172,6 +172,12 @@ else
   check warn "Gemini key" "add GEMINI_API_KEY in System or environment"
 fi
 
+if [[ -f "$HOME/Library/Application Support/Vhrase/Models/parakeet-tdt-0.6b-v3/.vhrase-complete" ]]; then
+  check ok "Parakeet model" "downloaded for on-device transcription"
+else
+  check warn "Parakeet model" "download it in Transcription or System to transcribe on this Mac"
+fi
+
 MIC_STATUS="$(permission_status kTCCServiceMicrophone)"
 case "$MIC_STATUS" in
   2)

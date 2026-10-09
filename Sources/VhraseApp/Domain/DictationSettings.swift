@@ -6,6 +6,7 @@ enum STTProvider: String, CaseIterable, Codable, Identifiable, Sendable {
   case xai
   case elevenLabs
   case gemini
+  case parakeet
 
   var id: String { rawValue }
 
@@ -17,11 +18,20 @@ enum STTProvider: String, CaseIterable, Codable, Identifiable, Sendable {
       "ElevenLabs"
     case .gemini:
       "Gemini"
+    case .parakeet:
+      "Parakeet"
     }
   }
 
   var availableModes: [TranscriptionMode] {
-    self == .gemini ? [.upload] : TranscriptionMode.allCases
+    switch self {
+    case .xai, .elevenLabs: TranscriptionMode.allCases
+    case .gemini, .parakeet: [.upload]
+    }
+  }
+
+  var location: ProviderLocation {
+    self == .parakeet ? .local : .cloud
   }
 
   var detail: String {
@@ -29,7 +39,29 @@ enum STTProvider: String, CaseIterable, Codable, Identifiable, Sendable {
     case .xai: "Grok speech recognition with vocabulary hints and optional filler removal."
     case .elevenLabs: "Scribe speech recognition with vocabulary hints and verbatim controls."
     case .gemini: "Gemini 3.5 Transcribe with vocabulary hints and optional Smart transcription."
+    case .parakeet:
+      "NVIDIA Parakeet TDT 0.6B v3 running on this Mac. No API key, and no network once downloaded."
     }
+  }
+}
+
+/// Where a provider recognizes speech: cloud providers need an API key, local ones a downloaded model.
+enum ProviderLocation: String, CaseIterable, Identifiable, Sendable {
+  case cloud
+  case local
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .cloud: "Cloud"
+    case .local: "Local"
+    }
+  }
+
+  /// Lists this location's providers in the order every picker presents them.
+  var providers: [STTProvider] {
+    STTProvider.allCases.filter { $0.location == self }
   }
 }
 
@@ -39,10 +71,11 @@ enum TranscriptionMode: String, CaseIterable, Codable, Identifiable, Sendable {
 
   var id: String { rawValue }
 
-  var title: String {
+  /// Names after-stop transcription by where it runs, so on-device recognition never reads as an upload.
+  func title(for provider: STTProvider) -> String {
     switch self {
     case .upload:
-      "Upload"
+      provider.location == .local ? "After stop" : "Upload"
     case .realtime:
       "Realtime"
     }
@@ -184,10 +217,17 @@ struct DictationSettings: Codable, Equatable, Sendable {
     case replacementRules
   }
 
+  /// Reports the language hint the selected provider actually receives; Parakeet always detects its language.
   var recognitionLanguage: String {
-    provider == .gemini
-      ? geminiLanguageCodes.joined(separator: ", ")
-      : language.trimmingCharacters(in: .whitespacesAndNewlines)
+    switch provider {
+    case .gemini: geminiLanguageCodes.joined(separator: ", ")
+    case .parakeet: ""
+    case .xai, .elevenLabs: language.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+  }
+
+  var transcriptionModeTitle: String {
+    transcriptionMode.title(for: provider)
   }
 
   /// Rejects persisted or imported values that cannot be produced by Vhrase's bounded controls.
@@ -198,7 +238,8 @@ struct DictationSettings: Codable, Equatable, Sendable {
     }
     guard provider.availableModes.contains(transcriptionMode) else {
       throw ConfigurationValidationError(
-        "Gemini currently transcribes after you stop recording. Choose Upload mode.")
+        "\(provider.title) currently transcribes after you stop recording. Choose \(TranscriptionMode.upload.title(for: provider)) mode."
+      )
     }
     guard (0...1).contains(xaiVADThreshold) else {
       throw ConfigurationValidationError("Grok speech sensitivity must be between 0 and 1.")

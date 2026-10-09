@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 struct TranscriptionModePicker: NSViewRepresentable {
   @Binding var selection: TranscriptionMode
+  let provider: STTProvider
   let enabledModes: [TranscriptionMode]
   @Environment(\.isEnabled) private var isEnabled
 
@@ -17,7 +18,7 @@ struct TranscriptionModePicker: NSViewRepresentable {
 
   func makeNSView(context: Context) -> NSSegmentedControl {
     let control = NSSegmentedControl(
-      labels: Self.modes.map(\.title),
+      labels: Self.modes.map { $0.title(for: provider) },
       trackingMode: .selectOne,
       target: context.coordinator,
       action: #selector(Coordinator.selectMode(_:))
@@ -31,6 +32,7 @@ struct TranscriptionModePicker: NSViewRepresentable {
     context.coordinator.selection = $selection
     control.selectedSegmentBezelColor = NSColor(VhraseTheme.accent)
     for (index, mode) in Self.modes.enumerated() {
+      control.setLabel(mode.title(for: provider), forSegment: index)
       control.setEnabled(isEnabled && enabledModes.contains(mode), forSegment: index)
     }
     guard let selectedIndex = Self.modes.firstIndex(of: selection) else {

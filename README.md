@@ -1,8 +1,9 @@
 # Vhrase
 
-Vhrase is a small native macOS menu bar app for configurable cloud speech-to-text and optional context-aware cleanup.
+Vhrase is a small native macOS menu bar app for configurable cloud or on-device speech-to-text and optional context-aware cleanup.
 
-It records microphone audio, transcribes natively with Gemini, Grok (xAI), or ElevenLabs, stores a local transcript history, and returns the result to the originating app.
+It records microphone audio, transcribes natively with Gemini, Grok (xAI), ElevenLabs, or NVIDIA Parakeet running on this Mac, stores a local transcript history, and returns the result to the originating app.
+Parakeet needs no API key and works offline after a one-time model download; it covers 25 European languages, not Chinese or Cantonese.
 Gemini offers vocabulary hints and Smart transcription; Grok offers vocabulary hints, filler removal, and number formatting.
 Grok and ElevenLabs also support realtime streaming, and an optional OpenAI-compatible model can provide a separate cleanup pass.
 
@@ -39,6 +40,7 @@ Normal Finder and menu-bar launches prefer saved Keychain credentials before usi
 - `Transcription/Audio`: microphone capture and PCM conversion.
 - `Transcription/Upload`: multipart upload provider adapters.
 - `Transcription/Realtime`: WebSocket sessions and ordered transcript accumulation.
+- `Transcription/OnDevice`: the Parakeet model download and on-device recognition through FluidAudio.
 - `Adjustment`: LLM polishing with shared vocabulary, Chinese conversion, and local cleanup fallback.
 - `System`: macOS permissions, hotkeys, frontmost app context, screenshots, and text insertion.
 - `Storage`: Keychain, settings, and transcript-history persistence.

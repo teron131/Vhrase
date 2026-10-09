@@ -16,6 +16,18 @@ Its shared vocabulary maps to repeated `keyterm` values; filler retention maps t
 
 References: [Gemini transcription](https://ai.google.dev/gemini-api/docs/transcribe), [Grok speech to text](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text).
 
+## Parakeet on-device transcription
+
+`ParakeetRecognizer` runs FluidAudio 0.17.1's `AsrManager` with `AsrModelVersion.v3`, NVIDIA Parakeet TDT 0.6B v3 converted to Core ML by FluidInference.
+`ParakeetModelStore` calls `AsrModels.download(to:force:version:)` only when the user asks; FluidAudio lists `FluidInference/parakeet-tdt-0.6b-v3-coreml` on Hugging Face, downloads the preprocessor, int8 encoder, decoder, `JointDecisionv3`, and vocabulary (about 480 MB), and compiles them with Core ML.
+FluidAudio reads that repository's `main` branch rather than a pinned commit; it ships fixes under new file names instead of replacing published files, and it sends a Hugging Face token only from `HF_TOKEN`-style environment variables.
+Vhrase writes a completion marker after the download finishes, so an interrupted folder is replaced rather than loaded.
+Recognition uses `AsrModels.loadLocal(from:)`, which reads only the downloaded folder and fails instead of downloading, and passes the recorded WAV to `AsrManager.transcribe(_:decoderState:)` without a language hint.
+`ParakeetModelStore.prepare()` performs the same local load in the background when Parakeet becomes the selected provider, because Core ML compiles the model once per app and again after macOS updates.
+Task cancellation stops at FluidAudio's chunk boundaries and surfaces as `CancellationError`.
+
+References: [FluidAudio](https://github.com/FluidInference/FluidAudio), [Parakeet TDT 0.6B v3 Core ML](https://huggingface.co/FluidInference/parakeet-tdt-0.6b-v3-coreml), [NVIDIA Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3).
+
 ## Credentials
 
 Vhrase stores API keys as macOS Keychain generic-password items under service `Vhrase`, with the environment-variable name as the account name.

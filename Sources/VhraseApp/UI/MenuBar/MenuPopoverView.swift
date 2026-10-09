@@ -254,7 +254,7 @@ struct MenuPopoverView: View {
 
       Picker("Mode", selection: appState.settingsBinding(\.transcriptionMode)) {
         ForEach(TranscriptionMode.allCases) { mode in
-          Text(mode.title).tag(mode)
+          Text(mode.title(for: appState.settings.provider)).tag(mode)
             .disabled(!appState.settings.provider.availableModes.contains(mode))
         }
       }

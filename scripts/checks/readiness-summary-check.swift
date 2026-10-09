@@ -42,7 +42,7 @@ struct ReadinessSummaryCheck {
     return DictationPresentation(
       status: .idle,
       settings: settings,
-      selectedProviderHasKey: true,
+      providerReadiness: .ready,
       permissions: [
         PermissionSnapshot(permission: .microphone, state: .granted),
         PermissionSnapshot(

@@ -1,10 +1,17 @@
-// Derives actionable setup diagnostics from settings, credentials, and macOS permission state.
+// Derives actionable setup diagnostics from settings, credentials, the on-device model, and macOS permission state.
 
 import Foundation
 
+/// Names what the selected speech provider still needs before recording can start.
+enum ProviderReadiness: Equatable, Sendable {
+  case ready
+  case missingAPIKey
+  case missingLocalModel
+}
+
 struct SetupDiagnostics {
   let settings: DictationSettings
-  let selectedProviderHasKey: Bool
+  let providerReadiness: ProviderReadiness
   let hasLLMKey: Bool
   let permissions: [PermissionSnapshot]
   let chineseConversionIsAvailable: Bool
@@ -21,13 +28,25 @@ struct SetupDiagnostics {
           systemImage: "slider.horizontal.3"
         ))
     }
-    if !selectedProviderHasKey {
+    switch providerReadiness {
+    case .ready:
+      break
+    case .missingAPIKey:
       diagnostics.append(
         SetupDiagnostic(
           id: .providerKey,
           title: "\(settings.provider.title) key",
           detail: "Add the selected STT provider key in Settings.",
           systemImage: "key.fill"
+        ))
+    case .missingLocalModel:
+      diagnostics.append(
+        SetupDiagnostic(
+          id: .localModel,
+          title: "\(settings.provider.title) model",
+          detail:
+            "Download the model once. Recognition then runs on this Mac without a network connection.",
+          systemImage: "arrow.down.circle.fill"
         ))
     }
     if permissionState(for: .microphone)?.isReady != true {
@@ -86,7 +105,9 @@ struct SetupDiagnostics {
         SetupDiagnostic(
           id: .ready,
           title: "Ready",
-          detail: "Keys and required permissions look ready.",
+          detail: settings.provider.location == .local
+            ? "The on-device model and required permissions look ready."
+            : "Keys and required permissions look ready.",
           systemImage: "checkmark.circle.fill"
         ))
     }
@@ -103,6 +124,7 @@ struct SetupDiagnostic: Identifiable, Sendable {
   enum ID: Hashable, Sendable {
     case transcriptionConfiguration
     case providerKey
+    case localModel
     case microphonePermission
     case accessibilityPermission
     case adjustmentKey

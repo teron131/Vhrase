@@ -89,6 +89,8 @@ final class DictationActivityStore {
         + (settings.keytermList.isEmpty ? 0 : 0.05)
     case .gemini:
       0.30
+    case .parakeet:
+      0
     }
   }
 }

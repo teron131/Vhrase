@@ -92,21 +92,26 @@ struct CaptureView: View {
     VStack(alignment: .leading, spacing: 24) {
       stageIntro("Choose the speech service and tune how it recognizes your words.")
 
-      settingsGroup(
-        "Service",
-        footer: appState.settings.provider == .gemini
-          ? "Audio is sent directly to Google after you stop. Interaction storage is disabled. Live Gemini transcription is not enabled in this version."
-          : nil
-      ) {
-        settingsRow("Provider", detail: appState.settings.provider.detail) {
-          ProviderPicker(selection: appState.settingsBinding(\.provider), style: .segmented)
+      settingsGroup("Service", footer: serviceFooter) {
+        ForEach(ProviderLocation.allCases) { location in
+          settingsRow(location.title, detail: providerDetail(for: location)) {
+            ProviderPicker(
+              selection: appState.settingsBinding(\.provider),
+              providers: location.providers,
+              style: .segmented
+            )
             .fixedSize()
+          }
         }
         settingsRow(
-          "Mode", detail: "Upload transcribes after you stop. Realtime transcribes while you speak."
+          "Mode",
+          detail: appState.settings.provider.location == .local
+            ? "Transcribes on this Mac once you stop recording."
+            : "Upload transcribes after you stop. Realtime transcribes while you speak."
         ) {
           TranscriptionModePicker(
             selection: appState.settingsBinding(\.transcriptionMode),
+            provider: appState.settings.provider,
             enabledModes: appState.settings.provider.availableModes
           )
           .fixedSize()
@@ -124,9 +129,34 @@ struct CaptureView: View {
     }
   }
 
+  /// Describes the chosen provider in its own location's row and what choosing the other location means.
+  private func providerDetail(for location: ProviderLocation) -> String {
+    let provider = appState.settings.provider
+    if provider.location == location {
+      return provider.detail
+    }
+    return switch location {
+    case .cloud: "Sends your recording to the provider; each needs its API key."
+    case .local: "Recognizes speech on this Mac after a one-time model download; no API key."
+    }
+  }
+
+  private var serviceFooter: String? {
+    switch appState.settings.provider {
+    case .gemini:
+      "Audio is sent directly to Google after you stop. Interaction storage is disabled. Live Gemini transcription is not enabled in this version."
+    case .parakeet:
+      "No audio leaves this Mac. Realtime streaming and vocabulary hints are not available for Parakeet."
+    case .xai, .elevenLabs:
+      nil
+    }
+  }
+
   @ViewBuilder
   private var providerSpecificControls: some View {
     switch appState.settings.provider {
+    case .parakeet:
+      ParakeetModelControls(appState: appState, model: appState.parakeetModel)
     case .gemini:
       settingsToggle(
         "Smart transcription",
@@ -375,7 +405,8 @@ struct CaptureView: View {
           refreshInputDevices()
         }
 
-        if appState.settings.provider == .gemini {
+        switch appState.settings.provider {
+        case .gemini:
           settingsRow(
             "Language hints",
             detail:
@@ -386,7 +417,16 @@ struct CaptureView: View {
               .labelsHidden()
               .frame(width: 220)
           }
-        } else {
+        case .parakeet:
+          settingsRow(
+            "Language",
+            detail:
+              "Parakeet detects the spoken language automatically among its 25 European languages, so no code is needed."
+          ) {
+            Text("Automatic")
+              .foregroundStyle(.secondary)
+          }
+        case .xai, .elevenLabs:
           settingsRow(
             "Language",
             detail: appState.settings.provider == .xai
@@ -481,8 +521,8 @@ struct CaptureView: View {
         id: .transcribe,
         title: "Transcribe",
         detail:
-          "\(appState.settings.provider.title) · \(appState.settings.transcriptionMode.title)",
-        badge: keytermCount == 0
+          "\(appState.settings.provider.title) · \(appState.settings.transcriptionModeTitle)",
+        badge: keytermCount == 0 || appState.settings.provider == .parakeet
           ? nil
           : "\(keytermCount) preferred terms"
       ),

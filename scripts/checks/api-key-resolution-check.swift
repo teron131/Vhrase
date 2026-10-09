@@ -6,6 +6,7 @@ import Foundation
 struct APIKeyResolutionCheck {
   static func main() throws {
     precondition(SecretKey.llmAPIKey.rawValue == "LLM_API_KEY")
+    precondition(SecretKey(.parakeet) == nil)
 
     let fixtureURL = FileManager.default.temporaryDirectory
       .appendingPathComponent("vhrase-api-key-resolution-\(UUID().uuidString).env")
