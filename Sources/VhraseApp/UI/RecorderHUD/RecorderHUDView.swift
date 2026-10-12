@@ -51,34 +51,30 @@ struct RecorderHUDView: View {
   private var capsuleContent: some View {
     switch appState.status {
     case .recording:
-      HStack(spacing: 8) {
-        hudButton("Cancel recording", systemImage: "xmark") {
-          appState.cancelRecording()
+      ZStack {
+        RecorderWaveform(level: appState.recordingLevel)
+          .overlay { waveformScrim }
+          .contentShape(Rectangle())
+          .onTapGesture { showsControls = true }
+          .accessibilityElement(children: .ignore)
+          .accessibilityHidden(false)
+          .accessibilityLabel("Recording")
+          .accessibilityValue(appState.presentation.elapsedTime)
+          .accessibilityAction(named: "Finish recording") { appState.toggleRecording() }
+          .accessibilityAction(named: "Cancel recording") { appState.cancelRecording() }
+
+        HStack {
+          hudButton("Cancel recording", systemImage: "xmark") {
+            appState.cancelRecording()
+          }
+          Spacer()
+          hudButton("Finish recording", systemImage: "checkmark") {
+            appState.toggleRecording()
+          }
+          .accessibilityHint("Stops recording and transcribes the captured audio")
         }
         .opacity(showsControls ? 1 : 0)
-
-        WaveformView(
-          history: appState.recordingWaveformHistory,
-          response: .live,
-          barCount: 14,
-          tint: .white,
-          height: 20
-        )
-        .frame(width: 104)
-        .contentShape(Rectangle())
-        .onTapGesture { showsControls = true }
-        .accessibilityElement(children: .ignore)
-        .accessibilityHidden(false)
-        .accessibilityLabel("Recording")
-        .accessibilityValue(appState.presentation.elapsedTime)
-        .accessibilityAction(named: "Finish recording") { appState.toggleRecording() }
-        .accessibilityAction(named: "Cancel recording") { appState.cancelRecording() }
-
-        hudButton("Finish recording", systemImage: "checkmark") {
-          appState.toggleRecording()
-        }
-        .opacity(showsControls ? 1 : 0)
-        .accessibilityHint("Stops recording and transcribes the captured audio")
+        .padding(.horizontal, 12)
       }
       .help(
         "Recording · \(appState.presentation.elapsedTime). Hover or click the waveform for controls."
@@ -153,6 +149,25 @@ struct RecorderHUDView: View {
     case .failed:
       EmptyView()
     }
+  }
+
+  /// Fades the waveform's ends into the pill while the recording controls show, so the stream passes behind them.
+  /// The stops stay solid across each 28-point control and clear within the next 14 points.
+  private var waveformScrim: some View {
+    LinearGradient(
+      stops: [
+        .init(color: VhraseTheme.recorderBackground, location: 0),
+        .init(color: VhraseTheme.recorderBackground, location: 0.19),
+        .init(color: .clear, location: 0.28),
+        .init(color: .clear, location: 0.72),
+        .init(color: VhraseTheme.recorderBackground, location: 0.81),
+        .init(color: VhraseTheme.recorderBackground, location: 1),
+      ],
+      startPoint: .leading,
+      endPoint: .trailing
+    )
+    .opacity(showsControls ? 1 : 0)
+    .allowsHitTesting(false)
   }
 
   private func activityIndicator(_ title: String) -> some View {

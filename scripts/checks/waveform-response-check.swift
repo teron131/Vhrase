@@ -1,4 +1,4 @@
-// Verifies that the live popup waveform reacts to speech without animating ambient silence.
+// Verifies that live waveforms react to speech without animating ambient silence.
 
 import Foundation
 
@@ -16,6 +16,14 @@ struct WaveformResponseCheck {
     precondition(WaveformLevelResponse.displayLevel(1, response: .live) == 1)
 
     precondition(WaveformLevelResponse.displayLevel(0.2, response: .standard) == 0.2)
+
+    precondition(WaveformLevelResponse.audibleLevel(0.01) == 0)
+    precondition(WaveformLevelResponse.audibleLevel(1) == 1)
+    let audibleStep =
+      WaveformLevelResponse.audibleLevel(0.5) - WaveformLevelResponse.audibleLevel(0.4)
+    let audibleDoubleStep =
+      WaveformLevelResponse.audibleLevel(0.6) - WaveformLevelResponse.audibleLevel(0.4)
+    precondition(abs(audibleDoubleStep - 2 * audibleStep) < 1e-9)
 
     print("Waveform response checks passed")
   }
