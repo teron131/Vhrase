@@ -24,11 +24,12 @@ final class OnDeviceModelStore: ObservableObject {
   /// The model this store sets up; Hugging Face's changes with the model named in settings.
   @Published private(set) var model: any OnDeviceModel
   @Published private(set) var state: State
-  /// True while the model loads in the background, which for Core ML models includes a compile on the first load per app and macOS version.
-  @Published private(set) var isPreparing = false
   private var downloadTask: Task<Void, Never>?
+  @Published private var preparationTask: Task<Void, Never>?
   /// Identifies the download whose progress and outcome may still change `state`.
   private var downloadID: UUID?
+  /// Invalidates removal completions when the selected model changes.
+  private var selectionID = UUID()
 
   init(model: any OnDeviceModel) {
     self.model = model
@@ -43,6 +44,11 @@ final class OnDeviceModelStore: ObservableObject {
     downloadTask != nil
   }
 
+  /// True while the model loads in the background, including Core ML's first-load compilation; the task is the source of truth for preparation state.
+  var isPreparing: Bool {
+    preparationTask != nil
+  }
+
   /// Words the download action with the model's measured size when there is one.
   var downloadTitle: String {
     model.downloadSizeLabel.map { "Download \($0)" } ?? "Download"
@@ -50,9 +56,11 @@ final class OnDeviceModelStore: ObservableObject {
 
   /// Points the store at another model of the same family, abandoning a download of the previous one.
   func select(_ model: any OnDeviceModel) {
+    cancelPreparation()
     downloadTask?.cancel()
     downloadTask = nil
     downloadID = nil
+    selectionID = UUID()
     self.model = model
     state = model.isInstalled ? .installed : .missing
   }
@@ -102,24 +110,34 @@ final class OnDeviceModelStore: ObservableObject {
   /// Loads the installed model in the background so a dictation does not wait for it.
   func prepare() {
     guard isInstalled, !isPreparing else { return }
-    isPreparing = true
     let model = model
-    Task {
+    preparationTask = Task {
       do {
         try await model.load()
+      } catch  where Task.isCancelled {
+        return
       } catch {
         // Transcription reports the failure to the user; the log keeps its cause for diagnosis.
         let failure = error as NSError
         Self.logger(for: model).error(
           "Model load failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
       }
-      isPreparing = false
+      guard !Task.isCancelled else { return }
+      preparationTask = nil
     }
   }
 
+  /// Stops a warm-up that no longer serves the selected provider, preventing a queued task from starting a new helper later.
+  func cancelPreparation() {
+    preparationTask?.cancel()
+    preparationTask = nil
+  }
+
   func remove() async throws {
-    guard downloadTask == nil else { return }
+    guard downloadTask == nil, !isPreparing else { return }
+    let id = selectionID
     try await model.remove()
+    guard selectionID == id else { return }
     state = .missing
   }
 

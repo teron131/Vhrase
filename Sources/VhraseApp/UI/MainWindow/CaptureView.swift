@@ -23,6 +23,7 @@ struct CaptureView: View {
       )
       .onChange(of: selectedCapturePipelineStage) { _, stage in
         if stage != .trigger { cancelShortcutCaptureIfNeeded() }
+        if stage != .transcribe { appState.transcriptionTest.cancel() }
       }
       .onChange(of: scenePhase) { _, phase in
         if phase == .active { refreshInputDevices() }
@@ -34,11 +35,12 @@ struct CaptureView: View {
   private func leaveCapture() {
     cancelShortcutCaptureIfNeeded()
     appState.audioInputPreview.stop()
+    appState.transcriptionTest.cancel()
   }
 
   /// A hidden window can become key without remounting its Listen view or changing the app's scene phase.
   private func resumePreview() {
-    guard selectedCapturePipelineStage == .listen, appState.status.canStartRecording else { return }
+    guard selectedCapturePipelineStage == .listen, appState.canStartRecording else { return }
     appState.audioInputPreview.start(settings: appState.settings)
   }
 
@@ -76,7 +78,7 @@ struct CaptureView: View {
 
   /// Repeated navigation to Listen reacquires capture without interrupting an active dictation.
   private func restartListeningPreview() {
-    guard selectedCapturePipelineStage == .listen, appState.status.canStartRecording else { return }
+    guard selectedCapturePipelineStage == .listen, appState.canStartRecording else { return }
     NSApp.activate()
     appState.audioInputPreview.restart(settings: appState.settings)
   }
@@ -117,15 +119,23 @@ struct CaptureView: View {
           .fixedSize()
         }
       }
+      .disabled(appState.transcriptionTest.state.isActive)
 
       settingsGroup("\(appState.settings.provider.title) options") {
         providerSpecificControls
+      }
+      .disabled(appState.transcriptionTest.state.isActive)
+
+      settingsGroup("Transcription test") {
+        TranscriptionTestView(appState: appState, test: appState.transcriptionTest)
+          .settingsRowStyle()
       }
 
       settingsGroup("Shared vocabulary") {
         VocabularyEditor(appState: appState)
           .settingsRowStyle()
       }
+      .disabled(appState.transcriptionTest.state.isActive)
     }
   }
 
@@ -470,7 +480,7 @@ struct CaptureView: View {
         MicrophonePreviewView(
           preview: appState.audioInputPreview,
           settings: appState.settings,
-          canPreview: appState.status.canStartRecording
+          canPreview: appState.canStartRecording
         )
         .settingsRowStyle()
       }

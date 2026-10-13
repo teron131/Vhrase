@@ -39,6 +39,11 @@ enum HuggingFaceRuntime {
     return try HuggingFaceProcess(process)
   }
 
+  /// Releases every helper, including a download, before the application exits.
+  static func stopAll() {
+    HuggingFaceProcess.stopAll()
+  }
+
   /// Copies the bundled script and its lockfile to their running location whenever they differ, so an updated app updates the helper.
   private static func installScript() throws -> URL {
     try FileManager.default.createDirectory(at: scriptDirectory, withIntermediateDirectories: true)
@@ -67,58 +72,6 @@ enum HuggingFaceRuntime {
     ]
     .map(URL.init(fileURLWithPath:))
     .first { FileManager.default.isExecutableFile(atPath: $0.path) }
-  }
-}
-
-/// A running helper with its pipes; `Process` is not Sendable, and stopping it is the only thing another task does to it.
-final class HuggingFaceProcess: @unchecked Sendable {
-  let input: FileHandle
-  let output: FileHandle
-  private let process: Process
-  private let lock = NSLock()
-  private var errorTail = Data()
-
-  fileprivate init(_ process: Process) throws {
-    let input = Pipe()
-    let output = Pipe()
-    let errors = Pipe()
-    process.standardInput = input
-    process.standardOutput = output
-    process.standardError = errors
-    self.process = process
-    self.input = input.fileHandleForWriting
-    self.output = output.fileHandleForReading
-    // Libraries write freely to standard error; draining it keeps the helper from blocking, and its end explains a failure.
-    errors.fileHandleForReading.readabilityHandler = { [weak self] handle in
-      let data = handle.availableData
-      guard !data.isEmpty else {
-        handle.readabilityHandler = nil
-        return
-      }
-      guard let self else { return }
-      lock.withLock {
-        self.errorTail = Data((self.errorTail + data).suffix(4_096))
-      }
-    }
-    try process.run()
-  }
-
-  /// The last thing the helper or uv said on standard error, which is where a crash or a failed environment build explains itself.
-  var lastErrorLine: String? {
-    let text = lock.withLock { String(decoding: errorTail, as: UTF8.self) }
-    return text.split(whereSeparator: \.isNewline).last.map(String.init)
-  }
-
-  /// Ends uv and the Python process it started; closing standard input also ends a server that is between requests.
-  func stop() {
-    try? input.close()
-    if process.isRunning {
-      process.terminate()
-    }
-  }
-
-  func waitUntilExit() {
-    process.waitUntilExit()
   }
 }
 

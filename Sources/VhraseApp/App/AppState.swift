@@ -56,6 +56,7 @@ final class AppState: ObservableObject {
   @Published private(set) var recordingLevel = 0.0
   @Published private(set) var recordingWaveformHistory: [Double] = []
   let audioInputPreview = AudioInputPreview()
+  let transcriptionTest = TranscriptionTest()
   let parakeetModelStore = OnDeviceModelStore(model: ParakeetModel())
   /// Follows the Hugging Face model named in settings; one recognizer serves every model so only one stays in memory.
   let huggingFaceModelStore: OnDeviceModelStore
@@ -105,7 +106,7 @@ final class AppState: ObservableObject {
   private let fnHotkeyManager = FnHotkeyManager()
   private let escapeKeyMonitor = EscapeKeyMonitor()
   private var recorder: AudioRecorder?
-  private var localModelObservations: [AnyCancellable] = []
+  private var childStateObservations: [AnyCancellable] = []
   private let logger = Logger(subsystem: "local.codex.Vhrase", category: "Dictation")
   private var recordingSequence = 0
   private var recordingWaveformTick = 0
@@ -173,9 +174,13 @@ final class AppState: ObservableObject {
       AudioRecorder.removeAbandonedRecordings()
     }
     customizationNotice = credentialNotices.joined(separator: " ")
-    // Readiness and diagnostics read each model's setup state, so its changes refresh every AppState observer.
-    localModelObservations = [parakeetModelStore, huggingFaceModelStore].map { store in
-      store.objectWillChange.sink { [weak self] _ in
+    // Readiness and recording availability depend on child workflows, so their changes refresh AppState observers.
+    childStateObservations = [
+      parakeetModelStore.objectWillChange,
+      huggingFaceModelStore.objectWillChange,
+      transcriptionTest.objectWillChange,
+    ].map { changes in
+      changes.sink { [weak self] _ in
         self?.objectWillChange.send()
       }
     }
@@ -263,6 +268,11 @@ final class AppState: ObservableObject {
 
   var usesEnvironmentLLMBaseURL: Bool {
     apiKeys.usesEnvironmentLLMBaseURL
+  }
+
+  /// Dictation and setup recording share capture and recognition resources, so neither starts while the other is active.
+  var canStartRecording: Bool {
+    status.canStartRecording && !transcriptionTest.state.isActive
   }
 
   /// Creates the shared UI projection from the current application state.
@@ -412,7 +422,7 @@ final class AppState: ObservableObject {
 
   /// Deletes a downloaded model only between dictations and reports the outcome like other setup actions.
   func removeLocalModel(_ store: OnDeviceModelStore) {
-    guard status.canStartRecording else {
+    guard canStartRecording else {
       return
     }
     let title = store.model.title
@@ -439,6 +449,10 @@ final class AppState: ObservableObject {
   /// Cancels the active transient workflow when possible and otherwise hides its non-blocking feedback immediately.
   @discardableResult
   func handleEscapeCommand() -> Bool {
+    if transcriptionTest.state.isActive {
+      transcriptionTest.cancel()
+      return true
+    }
     switch status {
     case .preparing, .recording:
       cancelRecording()
@@ -490,7 +504,7 @@ final class AppState: ObservableObject {
   }
 
   func handleHotkeyPressed() {
-    guard !isShortcutCaptureActive else {
+    guard !isShortcutCaptureActive, !transcriptionTest.state.isActive else {
       logger.notice("Shortcut press ignored during capture")
       return
     }
@@ -505,6 +519,7 @@ final class AppState: ObservableObject {
   }
 
   func handleHotkeyReleased() {
+    guard !transcriptionTest.state.isActive else { return }
     logger.notice("Shortcut released")
     performShortcutAction(
       shortcutGesture.release(
@@ -586,6 +601,7 @@ final class AppState: ObservableObject {
   }
 
   func updateSettings(_ update: (inout DictationSettings) -> Void) {
+    guard !transcriptionTest.state.isActive else { return }
     let previousSettings = settings
     update(&settings)
     if !settings.provider.availableModes.contains(settings.transcriptionMode) {
@@ -731,15 +747,18 @@ final class AppState: ObservableObject {
     workflowOutcomeDismissTask?.cancel()
     workflowOutcomeDismissTask = nil
     audioInputPreview.stop()
+    transcriptionTest.cancel()
     flushPendingAPIKeySave()
     parakeetModelStore.cancelDownload()
     huggingFaceModelStore.cancelDownload()
+    huggingFaceModelStore.cancelPreparation()
     processingTask?.cancel()
     processingTask = nil
     textPolishID = nil
     textPolishTask?.cancel()
     textPolishTask = nil
     releaseRecording()
+    HuggingFaceRuntime.stopAll()
     if let processingAudioURL {
       try? FileManager.default.removeItem(at: processingAudioURL)
       self.processingAudioURL = nil
@@ -748,7 +767,7 @@ final class AppState: ObservableObject {
   }
 
   func runDemoDictation() {
-    guard status.canStartRecording else {
+    guard canStartRecording else {
       return
     }
 
@@ -818,7 +837,7 @@ final class AppState: ObservableObject {
   }
 
   private func beginRecording() {
-    guard status.canStartRecording else {
+    guard canStartRecording else {
       return
     }
 
@@ -856,7 +875,8 @@ final class AppState: ObservableObject {
     var session: RealtimeTranscriptionSession?
     do {
       try validateRecordingPermissions()
-      try validateSelectedProvider(configuration)
+      try validateSelectedProvider(
+        settings: configuration.settings, apiKey: configuration.providerAPIKey)
       // Loading overlaps the user's speech when the model was released while idle.
       warmUpSelectedLocalModel()
       let startedSession = try startRealtimeSessionIfNeeded(
@@ -972,8 +992,10 @@ final class AppState: ObservableObject {
       if let session {
         result = try await session.finish()
       } else {
-        result = try await transcriptionClient(configuration: configuration)
-          .transcribe(fileURL: fileURL, settings: configuration.settings)
+        result = try await transcriptionClient(
+          provider: configuration.settings.provider, apiKey: configuration.providerAPIKey
+        )
+        .transcribe(fileURL: fileURL, settings: configuration.settings)
       }
       // A cancelled or superseded recording must not deliver or save a late transcript.
       try ensureCurrentRecording(id)
@@ -1002,24 +1024,41 @@ final class AppState: ObservableObject {
     }
   }
 
-  private func transcriptionClient(
-    configuration: RecordingConfiguration
-  ) -> SpeechToTextClient {
-    switch configuration.settings.provider {
+  private func transcriptionClient(provider: STTProvider, apiKey: String) -> SpeechToTextClient {
+    switch provider {
     case .xai:
-      XAITranscriptionClient(apiKey: configuration.providerAPIKey)
+      XAITranscriptionClient(apiKey: apiKey)
     case .elevenLabs:
-      ElevenLabsTranscriptionClient(apiKey: configuration.providerAPIKey)
+      ElevenLabsTranscriptionClient(apiKey: apiKey)
     case .gemini:
-      GeminiTranscriptionClient(apiKey: configuration.providerAPIKey)
+      GeminiTranscriptionClient(apiKey: apiKey)
     case .openAI:
-      OpenAITranscriptionClient(apiKey: configuration.providerAPIKey)
+      OpenAITranscriptionClient(apiKey: apiKey)
     case .vercel:
-      VercelTranscriptionClient(apiKey: configuration.providerAPIKey)
+      VercelTranscriptionClient(apiKey: apiKey)
     case .parakeet:
       parakeetModelStore.model.recognizer
     case .huggingFace:
       huggingFaceModelStore.model.recognizer
+    }
+  }
+
+  /// Tests the selected recognition setup without applying adjustment or invoking dictation delivery and storage.
+  func startTranscriptionTest() {
+    guard canStartRecording else { return }
+    var settings = settings
+    settings.adjustWithLLM = false
+    let apiKey = selectedProviderAPIKey
+    do {
+      try validateRecordingPermissions()
+      try validateSelectedProvider(settings: settings, apiKey: apiKey)
+      audioInputPreview.stop()
+      warmUpSelectedLocalModel()
+      transcriptionTest.start(
+        settings: settings, apiKey: apiKey,
+        client: transcriptionClient(provider: settings.provider, apiKey: apiKey))
+    } catch {
+      transcriptionTest.reportFailure(error)
     }
   }
 
@@ -1058,12 +1097,10 @@ final class AppState: ObservableObject {
     }
   }
 
-  private func validateSelectedProvider(
-    _ configuration: RecordingConfiguration
-  ) throws {
-    try TranscriptionContract.validate(settings: configuration.settings)
-    let provider = configuration.settings.provider
-    switch providerReadiness(provider, apiKey: configuration.providerAPIKey) {
+  private func validateSelectedProvider(settings: DictationSettings, apiKey: String) throws {
+    try TranscriptionContract.validate(settings: settings)
+    let provider = settings.provider
+    switch providerReadiness(provider, apiKey: apiKey) {
     case .ready:
       return
     case .missingAPIKey:
@@ -1131,6 +1168,13 @@ final class AppState: ObservableObject {
   /// Persists changed preferences and refreshes global listeners only when their key definition changed.
   private func persistSettings(previous: DictationSettings) {
     settingsStore.save(settings)
+    if previous.provider == .huggingFace, settings.provider != .huggingFace {
+      huggingFaceModelStore.cancelPreparation()
+      Task { [weak self] in
+        guard let self, self.settings.provider != .huggingFace else { return }
+        await self.huggingFaceRecognizer.unload()
+      }
+    }
     if settings.hotkeyPreset != previous.hotkeyPreset
       || settings.customHotkey != previous.customHotkey
     {
@@ -1238,7 +1282,7 @@ final class AppState: ObservableObject {
 
   /// Captures the focused editor before contacting the LLM and replaces it only if the same source remains focused when the result returns.
   private func beginTextPolish() {
-    guard status.canStartRecording else {
+    guard canStartRecording else {
       return
     }
 
@@ -1553,35 +1597,5 @@ private enum TextPolishError: LocalizedError {
     case .targetUnavailable:
       "The app containing the text is no longer available. Nothing was replaced."
     }
-  }
-}
-
-/// Accepts very quiet speech while rejecting recordings that never rise above the existing live-waveform noise floor.
-private final class SpeechPresenceGate: @unchecked Sendable {
-  private static let minimumLevel = 0.012
-  private static let requiredChunks = 2
-
-  private let lock = NSLock()
-  private var audibleChunkCount = 0
-
-  func observe(level: Double) {
-    guard level > Self.minimumLevel else { return }
-    lock.withLock {
-      audibleChunkCount += 1
-    }
-  }
-
-  var hasLikelySpeech: Bool {
-    lock.withLock {
-      audibleChunkCount >= Self.requiredChunks
-    }
-  }
-}
-
-private enum RecordingContentError: LocalizedError {
-  case noSpeechDetected
-
-  var errorDescription: String? {
-    "No speech was detected."
   }
 }

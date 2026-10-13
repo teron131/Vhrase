@@ -33,7 +33,7 @@ Options:
   --elevenlabs-min-silence-duration n
   --verbose                        Print realtime WebSocket diagnostics.
 
-Credentials use a nonempty XAI_API_KEY / ELEVENLABS_API_KEY override, then the saved Vhrase Keychain item.
+Credentials use the saved Vhrase Keychain item first, then XAI_API_KEY / ELEVENLABS_API_KEY from the environment.
 ElevenLabs uses fixed scribe_v2 upload and scribe_v2_realtime models, matching Vhrase.
 USAGE
 }

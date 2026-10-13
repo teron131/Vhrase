@@ -181,6 +181,23 @@ done
 for check_script in "${APP_INSERTION_CHECKS[@]}"; do
   run_compiled_check "$check_script" "${APP_INSERTION_CHECK_SOURCES[@]}"
 done
+run_compiled_check scripts/checks/on-device-model-store-check.swift \
+  "${APP_DOMAIN_SOURCES[@]}" \
+  Sources/VhraseApp/Transcription/ProviderContracts.swift \
+  Sources/VhraseApp/Transcription/OnDevice/OnDeviceModel.swift \
+  Sources/VhraseApp/Transcription/OnDevice/OnDeviceModelStore.swift
+run_compiled_check scripts/checks/hugging-face-process-check.swift \
+  "${APP_DOMAIN_SOURCES[@]}" \
+  Sources/VhraseApp/Transcription/ProviderContracts.swift \
+  Sources/VhraseApp/Transcription/OnDevice/HuggingFaceRecognizer.swift \
+  Sources/VhraseApp/Transcription/OnDevice/HuggingFaceProcess.swift
+run_compiled_check scripts/checks/transcription-test-check.swift \
+  Sources/VhraseApp/App/TranscriptionTest.swift \
+  Sources/VhraseApp/Transcription/Audio/SpeechPresenceGate.swift
+
+echo "==> Checking the Hugging Face helper without model dependencies"
+UV_CACHE_DIR="$ROOT/.cache/uv" uv run --offline --no-project --python 3.13 \
+  python scripts/checks/hugging-face-runtime-check.py
 
 echo "==> Compiling live STT smoke client"
 mkdir -p "$ROOT/.cache/live-stt-smoke"

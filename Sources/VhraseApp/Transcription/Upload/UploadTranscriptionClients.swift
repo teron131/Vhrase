@@ -2,10 +2,6 @@
 
 import Foundation
 
-protocol SpeechToTextClient: Sendable {
-  func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult
-}
-
 final class XAITranscriptionClient: SpeechToTextClient {
   private let apiKey: String
 

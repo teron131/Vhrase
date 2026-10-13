@@ -54,6 +54,8 @@ bash scripts/verify.sh
 The verification script runs focused Swift checks, generates and validates a nonempty mono 16 kHz Int16 PCM fixture at `.cache/audio-smoke/vhrase-smoke.wav`, compiles the live STT helpers, builds and signs the app bundle, validates its metadata, and runs the readiness doctor in strict mode.
 The generated fixture is offline proof of the audio format path; verification never submits it to a provider or consumes account usage.
 Credential checks validate environment resolution without requesting or printing secret values.
+The on-device lifecycle checks use controlled model operations, the process check proves that a stubborn helper and its children exit, and the setup-test check verifies automatic recording completion, cancellation, and temporary-audio cleanup without a microphone.
+The Hugging Face helper check uses `uv` with an already installed Python 3.13 to exercise model replacement and failure recovery without importing model libraries or downloading weights.
 
 For stable macOS privacy permissions during local development, create the local codesigning identity once:
 
@@ -217,3 +219,10 @@ The Transcription destination releases shortcut editing and microphone preview w
 `VhraseTheme` and `VhraseFont` carry the visual rules: the orange accent identifies Vhrase's controls, status colors mark recording, processing, readiness, and failure, and the New York serif sets only the user's own words.
 The recorder's panel lifecycle belongs to `RecorderHUDPanelController`, separately from the SwiftUI pill content.
 `AudioRecorder` owns capture startup, health monitoring, and WAV delivery; `PCM16AudioConverter` owns resampling, enhancement, transport framing, and final audio draining.
+`HistorySearch.Index` owns one archive snapshot, its provider and destination summaries, and the most recent ranking; history edits replace the index, while date filters and counts refresh when the calendar day or time zone changes.
+On-device model preparation and removal completions belong to the selection that started them; idle countdowns start only after all warm-up and transcription operations finish, lasting ten minutes for Hugging Face and five minutes for Parakeet.
+Hugging Face listens for macOS memory-pressure events: warning or critical pressure releases an idle helper and suppresses background warm-up; active recognition finishes before release, and explicit transcription remains available under pressure.
+Returning to normal pressure permits the warm period again without reloading an idle model.
+`HuggingFaceProcess` owns uv and its Python children as one process group, requests termination once, escalates to a kill after one second, and lets recognition await exit before replacing the helper.
+Normal app termination stops all registered Hugging Face helpers and rejects launches from queued tasks; changing away from Hugging Face also cancels its pending warm-up and unloads the recognizer.
+`TranscriptionTest` owns the five-second setup recording and raw result, reusing the selected recognition transport and speech-presence gate without entering the adjustment, insertion, history, or activity pipeline.
