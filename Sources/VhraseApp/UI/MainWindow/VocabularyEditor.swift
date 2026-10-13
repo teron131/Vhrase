@@ -59,9 +59,12 @@ struct VocabularyEditor: View {
     case (.elevenLabs, .realtime):
       return
         "ElevenLabs realtime accepts up to 50 keyterms of 20 characters each; using keyterms adds 20% to transcription usage."
-    case (.parakeet, _):
+    case (.openAI, _):
       return
-        "Parakeet does not take vocabulary hints, so these terms guide only LLM polishing."
+        "OpenAI reads these as keyword hints; a focused list works best, and terms cannot contain < or >."
+    case (.vercel, _), (.parakeet, _), (.huggingFace, _):
+      return
+        "\(appState.settings.provider.title) does not take vocabulary hints, so these terms guide only LLM polishing."
     }
   }
 

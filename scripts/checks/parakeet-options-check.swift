@@ -9,8 +9,10 @@ struct ParakeetOptionsCheck {
     settings.provider = .parakeet
     settings.transcriptionMode = .upload
     precondition(STTProvider.parakeet.availableModes == [.upload])
-    precondition(ProviderLocation.local.providers == [.parakeet])
-    precondition(ProviderLocation.cloud.providers == [.xai, .elevenLabs, .gemini])
+    // Each location lists its providers alphabetically by title, ignoring case, so xAI sorts last.
+    precondition(ProviderLocation.local.providers == [.huggingFace, .parakeet])
+    precondition(
+      ProviderLocation.cloud.providers == [.elevenLabs, .gemini, .openAI, .vercel, .xai])
     precondition(settings.transcriptionModeTitle == "After stop")
     precondition(TranscriptionMode.upload.title(for: .xai) == "Upload")
     settings.language = "yue"

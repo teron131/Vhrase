@@ -130,14 +130,32 @@ extension View {
     detail: String? = nil,
     @ViewBuilder control: () -> Control
   ) -> some View {
+    settingsRow(title, detail: detail, icon: { EmptyView() }, control: control)
+  }
+
+  /// A setting whose title follows a mark in a fixed slot, so titles in one group align under marks of different widths.
+  func settingsRow<Icon: View, Control: View>(
+    _ title: String,
+    detail: String? = nil,
+    @ViewBuilder icon: () -> Icon,
+    @ViewBuilder control: () -> Control
+  ) -> some View {
     HStack(alignment: .center, spacing: 20) {
-      VStack(alignment: .leading, spacing: 2) {
-        Text(title)
-        if let detail {
-          Text(detail)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+      HStack(alignment: .center, spacing: 12) {
+        // The plain variant passes `EmptyView`, which must not reserve the slot.
+        if Icon.self != EmptyView.self {
+          icon()
+            .frame(width: 20, height: 20)
+            .accessibilityHidden(true)
+        }
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+          if let detail {
+            Text(detail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)

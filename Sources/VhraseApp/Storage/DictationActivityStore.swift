@@ -78,8 +78,8 @@ final class DictationActivityStore {
     return updated
   }
 
-  // Public list rates checked 2026-09-16; Gemini uses Google's approximate blended audio/text rate.
-  // Sources: https://docs.x.ai/developers/models/speech-to-text, https://elevenlabs.io/pricing/api, https://ai.google.dev/gemini-api/docs/pricing.
+  // Public list rates checked 2026-09-16, OpenAI's on 2026-10-12; Gemini uses Google's approximate blended audio/text rate.
+  // Sources: https://docs.x.ai/developers/models/speech-to-text, https://elevenlabs.io/pricing/api, https://ai.google.dev/gemini-api/docs/pricing, https://developers.openai.com/api/docs/pricing.
   private func hourlyRate(_ settings: DictationSettings) -> Double {
     switch settings.provider {
     case .xai:
@@ -89,7 +89,12 @@ final class DictationActivityStore {
         + (settings.keytermList.isEmpty ? 0 : 0.05)
     case .gemini:
       0.30
-    case .parakeet:
+    case .openAI:
+      0.27
+    case .vercel:
+      // The gateway bills each model at its provider's list rate; other models are estimated at the common $0.006 per minute.
+      settings.vercelModel == DictationSettings.defaultVercelModel ? 0.10 : 0.36
+    case .parakeet, .huggingFace:
       0
     }
   }

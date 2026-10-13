@@ -20,21 +20,19 @@ struct ProviderPicker: NSViewRepresentable {
 
   // Decode once and preserve the supplied colors and backgrounds in both appearance modes.
   private static let icons: [STTProvider: NSImage] = {
-    // Packaged apps use Contents/Resources; SwiftPM executables use their generated module bundle.
-    let bundle =
-      Bundle.main.resourceURL.flatMap {
-        Bundle(url: $0.appendingPathComponent("Vhrase_VhraseApp.bundle"))
-      } ?? Bundle.module
     return allProviders.reduce(into: [:]) { icons, provider in
       let name =
         switch provider {
         case .xai: "spacexai"
         case .elevenLabs: "elevenlabs_small"
         case .gemini: "google_small"
+        case .openAI: "openai"
+        case .vercel: "vercel"
         case .parakeet: "nvidia"
+        case .huggingFace: "huggingface"
         }
       guard
-        let url = bundle.url(
+        let url = Bundle.vhraseResources.url(
           forResource: name, withExtension: "svg", subdirectory: "ProviderIcons"
         ), let image = NSImage(contentsOf: url)
       else {
@@ -45,6 +43,11 @@ struct ProviderPicker: NSViewRepresentable {
       icons[provider] = image
     }
   }()
+
+  /// The provider's mark for surfaces outside the pickers, such as its credential row.
+  static func icon(for provider: STTProvider) -> NSImage? {
+    icons[provider]
+  }
 
   /// Reuses cached provider artwork for persisted history labels, including Smart and Realtime variants.
   static func icon(forHistoryLabel label: String) -> NSImage? {

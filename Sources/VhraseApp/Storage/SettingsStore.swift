@@ -105,6 +105,8 @@ final class SettingsStore {
     settings.inputGainDB = boundedDouble("inputGainDB", fallback.inputGainDB, range: -6...6)
     settings.noiseReductionDB = boundedDouble(
       "noiseReductionDB", fallback.noiseReductionDB, range: 0...12)
+    settings.vercelModel = storedString("vercelModel", fallback.vercelModel)
+    settings.huggingFaceModel = storedString("huggingFaceModel", fallback.huggingFaceModel)
     if !settings.provider.availableModes.contains(settings.transcriptionMode) {
       settings.transcriptionMode = .upload
     }
@@ -166,6 +168,8 @@ final class SettingsStore {
     defaults.set(settings.inputGainDB, forKey: "inputGainDB")
     defaults.set(settings.noiseReductionDB, forKey: "noiseReductionDB")
     defaults.set(settings.inputDeviceUID, forKey: "inputDeviceUID")
+    defaults.set(settings.vercelModel, forKey: "vercelModel")
+    defaults.set(settings.huggingFaceModel, forKey: "huggingFaceModel")
   }
 
   private func nonEmptyString(_ key: String, _ fallback: String) -> String {

@@ -34,7 +34,7 @@ final class XAITranscriptionClient: SpeechToTextClient {
     request.httpBody = form.body
 
     let data = try await perform(request, providerName: "xAI")
-    let response = try JSONDecoder().decode(XAITranscriptionResponse.self, from: data)
+    let response = try JSONDecoder().decode(TextTranscriptionResponse.self, from: data)
     return TranscriptionResult(text: response.text, providerName: "xAI")
   }
 }
@@ -67,7 +67,7 @@ final class ElevenLabsTranscriptionClient: SpeechToTextClient {
     request.httpBody = form.body
 
     let data = try await perform(request, providerName: "ElevenLabs")
-    let response = try JSONDecoder().decode(ElevenLabsTranscriptionResponse.self, from: data)
+    let response = try JSONDecoder().decode(TextTranscriptionResponse.self, from: data)
     return TranscriptionResult(text: response.text, providerName: "ElevenLabs")
   }
 }
@@ -103,7 +103,70 @@ final class GeminiTranscriptionClient: SpeechToTextClient {
   }
 }
 
-private struct XAITranscriptionResponse: Decodable {
+final class OpenAITranscriptionClient: SpeechToTextClient {
+  private let apiKey: String
+
+  init(apiKey: String) {
+    self.apiKey = apiKey
+  }
+
+  func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult {
+    guard !apiKey.isEmpty else {
+      throw missingKey("OPENAI_API_KEY")
+    }
+
+    let form = try MultipartForm(
+      fields: try OpenAITranscriptionContract.uploadFields(settings: settings),
+      fileField: "file",
+      fileURL: fileURL,
+      mimeType: "audio/wav"
+    )
+
+    var request = URLRequest(url: URL(string: "https://api.openai.com/v1/audio/transcriptions")!)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 60
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.setValue(
+      "multipart/form-data; boundary=\(form.boundary)", forHTTPHeaderField: "Content-Type")
+    request.httpBody = form.body
+
+    let data = try await perform(request, providerName: "OpenAI")
+    let response = try JSONDecoder().decode(TextTranscriptionResponse.self, from: data)
+    return TranscriptionResult(text: response.text, providerName: "OpenAI")
+  }
+}
+
+final class VercelTranscriptionClient: SpeechToTextClient {
+  private let apiKey: String
+
+  init(apiKey: String) {
+    self.apiKey = apiKey
+  }
+
+  /// Sends the recording to whichever gateway model the settings name; the gateway forwards no vocabulary or language hint.
+  func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult {
+    guard !apiKey.isEmpty else {
+      throw missingKey("AI_GATEWAY_API_KEY")
+    }
+
+    var request = URLRequest(url: VercelTranscriptionContract.endpoint)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 60
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    for (name, value) in try VercelTranscriptionContract.headers(settings: settings) {
+      request.setValue(value, forHTTPHeaderField: name)
+    }
+    request.httpBody = try VercelTranscriptionContract.requestBody(
+      audio: Data(contentsOf: fileURL))
+
+    let data = try await perform(request, providerName: "Vercel AI Gateway")
+    let response = try JSONDecoder().decode(TextTranscriptionResponse.self, from: data)
+    return TranscriptionResult(text: response.text, providerName: "Vercel")
+  }
+}
+
+/// The response shape xAI, ElevenLabs, OpenAI, and Vercel AI Gateway share: a top-level transcript.
+private struct TextTranscriptionResponse: Decodable {
   let text: String
 }
 
@@ -130,10 +193,6 @@ private struct GeminiTranscriptionResponse: Decodable {
     let type: String
     let text: String?
   }
-}
-
-private struct ElevenLabsTranscriptionResponse: Decodable {
-  let text: String
 }
 
 private func missingKey(_ name: String) -> NSError {

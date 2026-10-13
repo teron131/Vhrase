@@ -172,10 +172,38 @@ else
   check warn "Gemini key" "add GEMINI_API_KEY in System or environment"
 fi
 
+OPENAI_SOURCE="$(key_value OPENAI_API_KEY)"
+if [[ -n "$OPENAI_SOURCE" ]]; then
+  check ok "OpenAI key" "$OPENAI_SOURCE"
+else
+  check warn "OpenAI key" "add OPENAI_API_KEY in System or environment"
+fi
+
+GATEWAY_SOURCE="$(key_value AI_GATEWAY_API_KEY)"
+if [[ -n "$GATEWAY_SOURCE" ]]; then
+  check ok "Vercel AI Gateway key" "$GATEWAY_SOURCE"
+else
+  check warn "Vercel AI Gateway key" "add AI_GATEWAY_API_KEY in System or environment"
+fi
+
 if [[ -f "$HOME/Library/Application Support/Vhrase/Models/parakeet-tdt-0.6b-v3/.vhrase-complete" ]]; then
   check ok "Parakeet model" "downloaded for on-device transcription"
 else
   check warn "Parakeet model" "download it in Transcription or System to transcribe on this Mac"
+fi
+
+# Each downloaded Hugging Face model folder carries the same completion marker.
+if compgen -G "$HOME/Library/Application Support/Vhrase/Models/huggingface/hub/models--*/.vhrase-complete" >/dev/null; then
+  check ok "Hugging Face model" "downloaded for on-device transcription"
+else
+  check warn "Hugging Face model" "download it in Transcription or System to transcribe on this Mac"
+fi
+
+# Hugging Face models run in a Python environment that uv builds; the app looks in these same places.
+if [[ -x /opt/homebrew/bin/uv || -x /usr/local/bin/uv || -x "$HOME/.local/bin/uv" || -x "$HOME/.cargo/bin/uv" ]]; then
+  check ok "uv" "available to build the Hugging Face runtime"
+else
+  check warn "uv" "install uv (brew install uv) to run Hugging Face models"
 fi
 
 MIC_STATUS="$(permission_status kTCCServiceMicrophone)"

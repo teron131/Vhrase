@@ -56,7 +56,10 @@ final class AppState: ObservableObject {
   @Published private(set) var recordingLevel = 0.0
   @Published private(set) var recordingWaveformHistory: [Double] = []
   let audioInputPreview = AudioInputPreview()
-  let parakeetModel = ParakeetModelStore()
+  let parakeetModelStore = OnDeviceModelStore(model: ParakeetModel())
+  /// Follows the Hugging Face model named in settings; one recognizer serves every model so only one stays in memory.
+  let huggingFaceModelStore: OnDeviceModelStore
+  private let huggingFaceRecognizer = HuggingFaceRecognizer()
   @Published private(set) var recordingElapsedSeconds = 0
   @Published private(set) var permissions: [PermissionSnapshot] = []
   @Published private(set) var history: [TranscriptHistoryItem] = [] {
@@ -102,7 +105,7 @@ final class AppState: ObservableObject {
   private let fnHotkeyManager = FnHotkeyManager()
   private let escapeKeyMonitor = EscapeKeyMonitor()
   private var recorder: AudioRecorder?
-  private var parakeetModelObservation: AnyCancellable?
+  private var localModelObservations: [AnyCancellable] = []
   private let logger = Logger(subsystem: "local.codex.Vhrase", category: "Dictation")
   private var recordingSequence = 0
   private var recordingWaveformTick = 0
@@ -156,7 +159,10 @@ final class AppState: ObservableObject {
     }
     let apiKeys = APIKeyStore(environment: environment)
     self.apiKeys = apiKeys
-    settings = settingsStore.load()
+    let settings = settingsStore.load()
+    self.settings = settings
+    huggingFaceModelStore = OnDeviceModelStore(
+      model: HuggingFaceModel(id: settings.huggingFaceModel, recognizer: huggingFaceRecognizer))
     apiKeyFields = [.llmAPIKey: apiKeys.savedLLMCredentialReference()]
     shouldLoadSavedAPIKeysAfterLaunch = developmentEnvironmentFileURL == nil
     history = historyStore.load()
@@ -167,14 +173,16 @@ final class AppState: ObservableObject {
       AudioRecorder.removeAbandonedRecordings()
     }
     customizationNotice = credentialNotices.joined(separator: " ")
-    // Readiness and diagnostics read the model's setup state, so its changes refresh every AppState observer.
-    parakeetModelObservation = parakeetModel.objectWillChange.sink { [weak self] _ in
-      self?.objectWillChange.send()
+    // Readiness and diagnostics read each model's setup state, so its changes refresh every AppState observer.
+    localModelObservations = [parakeetModelStore, huggingFaceModelStore].map { store in
+      store.objectWillChange.sink { [weak self] _ in
+        self?.objectWillChange.send()
+      }
     }
     refreshPermissions()
     registerHotkey()
     if ownsInstance {
-      warmUpParakeetIfSelected()
+      warmUpSelectedLocalModel()
     }
   }
 
@@ -389,17 +397,31 @@ final class AppState: ObservableObject {
     customizationNotice = "Transcription cancelled."
   }
 
-  /// Deletes the downloaded model only between dictations and reports the outcome like other setup actions.
-  func removeParakeetModel() {
+  /// The setup store for an on-device provider's model; cloud providers have none.
+  func localModelStore(for provider: STTProvider) -> OnDeviceModelStore? {
+    switch provider {
+    case .parakeet: parakeetModelStore
+    case .huggingFace: huggingFaceModelStore
+    case .xai, .elevenLabs, .gemini, .openAI, .vercel: nil
+    }
+  }
+
+  var selectedLocalModelStore: OnDeviceModelStore? {
+    localModelStore(for: settings.provider)
+  }
+
+  /// Deletes a downloaded model only between dictations and reports the outcome like other setup actions.
+  func removeLocalModel(_ store: OnDeviceModelStore) {
     guard status.canStartRecording else {
       return
     }
+    let title = store.model.title
     Task {
       do {
-        try await parakeetModel.remove()
-        customizationNotice = "Parakeet model removed. Download it again to transcribe on this Mac."
+        try await store.remove()
+        customizationNotice = "\(title) model removed. Download it again to transcribe on this Mac."
       } catch {
-        customizationNotice = "Couldn't remove the Parakeet model: \(error.localizedDescription)"
+        customizationNotice = "Couldn't remove the \(title) model: \(error.localizedDescription)"
       }
     }
   }
@@ -575,17 +597,11 @@ final class AppState: ObservableObject {
       return
     }
     persistSettings(previous: previousSettings)
-    if settings.provider != previousSettings.provider {
-      warmUpParakeetIfSelected()
-    }
   }
 
-  /// Prepares Parakeet once it is the selected provider, so Core ML's one-time compile for this app rarely delays a dictation.
-  private func warmUpParakeetIfSelected() {
-    guard settings.provider.location == .local else {
-      return
-    }
-    parakeetModel.prepare()
+  /// Prepares the selected on-device model, so its load, a Core ML compile or a Python start, rarely delays a dictation.
+  private func warmUpSelectedLocalModel() {
+    selectedLocalModelStore?.prepare()
   }
 
   func beginShortcutCapture() {
@@ -716,7 +732,8 @@ final class AppState: ObservableObject {
     workflowOutcomeDismissTask = nil
     audioInputPreview.stop()
     flushPendingAPIKeySave()
-    parakeetModel.cancelDownload()
+    parakeetModelStore.cancelDownload()
+    huggingFaceModelStore.cancelDownload()
     processingTask?.cancel()
     processingTask = nil
     textPolishID = nil
@@ -841,7 +858,7 @@ final class AppState: ObservableObject {
       try validateRecordingPermissions()
       try validateSelectedProvider(configuration)
       // Loading overlaps the user's speech when the model was released while idle.
-      warmUpParakeetIfSelected()
+      warmUpSelectedLocalModel()
       let startedSession = try startRealtimeSessionIfNeeded(
         configuration: configuration,
         recordingID: id
@@ -995,8 +1012,14 @@ final class AppState: ObservableObject {
       ElevenLabsTranscriptionClient(apiKey: configuration.providerAPIKey)
     case .gemini:
       GeminiTranscriptionClient(apiKey: configuration.providerAPIKey)
+    case .openAI:
+      OpenAITranscriptionClient(apiKey: configuration.providerAPIKey)
+    case .vercel:
+      VercelTranscriptionClient(apiKey: configuration.providerAPIKey)
     case .parakeet:
-      parakeetModel.recognizer
+      parakeetModelStore.model.recognizer
+    case .huggingFace:
+      huggingFaceModelStore.model.recognizer
     }
   }
 
@@ -1093,7 +1116,7 @@ final class AppState: ObservableObject {
   private func providerReadiness(_ provider: STTProvider, apiKey: String) -> ProviderReadiness {
     switch provider.location {
     case .cloud: apiKey.isEmpty ? .missingAPIKey : .ready
-    case .local: parakeetModel.isInstalled ? .ready : .missingLocalModel
+    case .local: localModelStore(for: provider)?.isInstalled == true ? .ready : .missingLocalModel
     }
   }
 
@@ -1112,6 +1135,14 @@ final class AppState: ObservableObject {
       || settings.customHotkey != previous.customHotkey
     {
       registerHotkey()
+    }
+    let huggingFaceModelChanged = settings.huggingFaceModel != previous.huggingFaceModel
+    if huggingFaceModelChanged {
+      huggingFaceModelStore.select(
+        HuggingFaceModel(id: settings.huggingFaceModel, recognizer: huggingFaceRecognizer))
+    }
+    if settings.provider != previous.provider || huggingFaceModelChanged {
+      warmUpSelectedLocalModel()
     }
   }
 

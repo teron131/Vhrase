@@ -50,6 +50,7 @@ fi
 echo "==> Running focused Swift checks"
 APP_DOMAIN_SOURCES=(
   Sources/VhraseApp/Domain/DictationSettings.swift
+  Sources/VhraseApp/Domain/HuggingFaceModelReference.swift
   Sources/VhraseApp/Domain/PolishPreferences.swift
   Sources/VhraseApp/Domain/Shortcut.swift
   Sources/VhraseApp/Domain/Transcript.swift
@@ -117,7 +118,10 @@ APP_PROVIDER_CHECKS=(
   scripts/checks/xai-stt-options-check.swift
   scripts/checks/elevenlabs-options-check.swift
   scripts/checks/gemini-stt-options-check.swift
+  scripts/checks/openai-stt-options-check.swift
+  scripts/checks/vercel-stt-options-check.swift
   scripts/checks/parakeet-options-check.swift
+  scripts/checks/hugging-face-options-check.swift
 )
 APP_FINALIZATION_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"
