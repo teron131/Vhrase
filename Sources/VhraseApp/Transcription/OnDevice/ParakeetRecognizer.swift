@@ -13,6 +13,7 @@ actor ParakeetRecognizer: SpeechToTextClient {
   private var manager: AsrManager?
   private var loading: Task<AsrManager, Error>?
   private var idleUnloadTask: Task<Void, Never>?
+  private var activeOperations = 0
   private let logger = Logger(subsystem: "local.codex.Vhrase", category: "Parakeet")
 
   init(directory: URL) {
@@ -21,15 +22,24 @@ actor ParakeetRecognizer: SpeechToTextClient {
 
   /// Loads the model ahead of transcription, typically while the user is still speaking.
   func load() async throws {
+    idleUnloadTask?.cancel()
+    activeOperations += 1
+    defer {
+      activeOperations -= 1
+      scheduleIdleUnload()
+    }
     _ = try await loadedManager()
-    scheduleIdleUnload()
   }
 
   /// Transcribes a finished recording; Parakeet has no per-request settings, and cancellation stops at FluidAudio's next chunk boundary without returning text.
   func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult {
-    let manager = try await loadedManager()
     idleUnloadTask?.cancel()
-    defer { scheduleIdleUnload() }
+    activeOperations += 1
+    defer {
+      activeOperations -= 1
+      scheduleIdleUnload()
+    }
+    let manager = try await loadedManager()
     try Task.checkCancellation()
     var decoderState = TdtDecoderState.make()
     let result: ASRResult
@@ -85,6 +95,8 @@ actor ParakeetRecognizer: SpeechToTextClient {
   }
 
   private func scheduleIdleUnload() {
+    // Warm-up and inference can share an awaited load; neither completion makes the other idle.
+    guard activeOperations == 0 else { return }
     idleUnloadTask?.cancel()
     idleUnloadTask = Task { [weak self] in
       do {
@@ -92,6 +104,7 @@ actor ParakeetRecognizer: SpeechToTextClient {
       } catch {
         return
       }
+      guard !Task.isCancelled else { return }
       await self?.unload()
     }
   }

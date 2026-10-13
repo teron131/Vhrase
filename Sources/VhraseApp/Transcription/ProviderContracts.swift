@@ -1,6 +1,11 @@
-// Builds and validates provider-specific upload and realtime transcription parameters.
+// Owns the shared recording-to-transcript interface and validates provider-specific upload and realtime parameters.
 
 import Foundation
+
+/// Recognizes a finished recording through a cloud request or an on-device runtime.
+protocol SpeechToTextClient: Sendable {
+  func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult
+}
 
 /// Enforces provider limits before recording starts and again at each request boundary.
 enum TranscriptionContract {

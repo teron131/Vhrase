@@ -14,8 +14,7 @@ struct HistoryView: View {
   }
 
   private var historyMatches: [TranscriptHistoryItem] {
-    HistorySearch.matches(
-      appState.historyIndex,
+    appState.historyIndex.matches(
       query: browsing.query,
       dateFilter: browsing.dateFilter,
       provider: browsing.provider,
@@ -209,9 +208,11 @@ struct HistoryView: View {
       .fixedSize()
       .accessibilityLabel("History date filter")
 
-      HistoryProviderPicker(selection: $browsing.provider, providers: historyProviders)
-        .fixedSize()
-        .accessibilityLabel("History provider filter")
+      HistoryProviderPicker(
+        selection: $browsing.provider, providers: appState.historyIndex.providers
+      )
+      .fixedSize()
+      .accessibilityLabel("History provider filter")
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 7)
@@ -219,13 +220,15 @@ struct HistoryView: View {
   }
 
   private var historyStatsCard: some View {
-    HStack(spacing: 10) {
-      StatTile(value: "\(historyTodayCount)", title: "Today", detail: "saved dictations")
-      StatTile(value: "\(historyWeekCount)", title: "Last 7 days", detail: "saved dictations")
+    let index = appState.historyIndex
+    let counts = index.counts()
+    return HStack(spacing: 10) {
+      StatTile(value: "\(counts.today)", title: "Today", detail: "saved dictations")
+      StatTile(value: "\(counts.week)", title: "Last 7 days", detail: "saved dictations")
       StatTile(
-        value: appState.historyIndex.wordCount.formatted(), title: "Words",
+        value: index.wordCount.formatted(), title: "Words",
         detail: "across saved text")
-      StatTile(value: historyTopDestination, title: "Top destination", detail: "among saved items")
+      StatTile(value: index.topDestination, title: "Top destination", detail: "among saved items")
     }
   }
 
@@ -253,34 +256,6 @@ struct HistoryView: View {
     }
   }
 
-  private var historyTodayCount: Int {
-    guard let today = Calendar.current.dateInterval(of: .day, for: Date()) else {
-      return 0
-    }
-    return appState.history.filter { $0.createdAt >= today.start && $0.createdAt < today.end }.count
-  }
-
-  private var historyWeekCount: Int {
-    guard
-      let weekStart = Calendar.current.date(
-        byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: Date()))
-    else {
-      return 0
-    }
-    return appState.history.filter { $0.createdAt >= weekStart }.count
-  }
-
-  private var historyTopDestination: String {
-    let destinations = appState.history.compactMap(\.targetAppName)
-    let counts = destinations.reduce(into: [String: Int]()) { result, destination in
-      result[destination, default: 0] += 1
-    }
-    guard let highestCount = counts.values.max() else {
-      return "—"
-    }
-    return destinations.first { counts[$0] == highestCount } ?? "—"
-  }
-
   private func historyCountTitle(_ page: HistorySearch.Page) -> String {
     if appState.history.isEmpty {
       return "Nothing saved"
@@ -298,12 +273,6 @@ struct HistoryView: View {
       return "\(start)–\(end) of \(appState.history.count)"
     }
     return "\(start)–\(end) of \(page.matchCount) \(resultLabel)"
-  }
-
-  private var historyProviders: [String] {
-    Array(Set(appState.history.map(\.provider))).sorted {
-      $0.localizedStandardCompare($1) == .orderedAscending
-    }
   }
 
   private func historyListIdentity(pageIndex: Int) -> String {

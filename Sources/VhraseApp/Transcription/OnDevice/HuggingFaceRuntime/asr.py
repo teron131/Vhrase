@@ -120,15 +120,17 @@ def serve(protocol: TextIO) -> int:
 
     Each request names its model, so the server holds whichever one was asked for last and releases the previous one first.
     """
-    loaded: tuple[str, Any] | None = None
+    model: str | None = None
+    recognizer = None
     for line in sys.stdin:
         request = json.loads(line)
         try:
-            if loaded is None or loaded[0] != request["model"]:
-                loaded = None
+            if recognizer is None or model != request["model"]:
+                # Drop the pipeline itself before loading another; a second local reference would keep the previous model alive.
+                recognizer = None
                 release_model_memory()
-                loaded = (request["model"], build_recognizer(request["model"]))
-            recognizer = loaded[1]
+                recognizer = build_recognizer(request["model"])
+                model = request["model"]
             if request["op"] == "transcribe":
                 text = transcribe(
                     recognizer, Path(request["path"]), request.get("language")

@@ -51,7 +51,11 @@ The first download builds the Python environment, about 1 GB of PyTorch and `tra
 Download, cancel, retry, and **Remove** work as they do for Parakeet; removing a model deletes its files, while the Python environment stays in uv's cache for other models.
 If you are logged in to Hugging Face on this Mac (`hf auth login`), the download uses that login, which is what lets gated models download.
 
-Vhrase starts the Python process in the background when Hugging Face is selected or a recording starts, which takes about seven seconds for Whisper Large v3 Turbo on an Apple M5, and stops it after five idle minutes to release the model's memory.
+Vhrase starts the Python process in the background when Hugging Face is selected or a recording starts, which takes about seven seconds for Whisper Large v3 Turbo on an Apple M5, and keeps it warm for up to ten idle minutes after the last operation finishes.
+If macOS reports elevated memory pressure, Vhrase releases an idle helper immediately; an active request finishes first, then releases its helper if pressure remains elevated.
+Background warm-up pauses while memory pressure is elevated, but an explicit transcription can still load the model when needed; normal pressure restores the ten-minute warm period without automatically reloading a model.
+The idle timeout, switching to another provider, cancelling inference, removing the model, or quitting Vhrase stops the helper and its children so their model allocations can be released; quitting begins cleanup immediately without waiting for the idle timeout, and a stubborn process is force-stopped after one second.
+Downloaded model files and the Python environment remain on disk for reuse, separately from the memory held by a running model.
 A seven-second sentence then takes about 0.8 seconds and a 45-second dictation about 3 seconds; Parakeet takes about 0.1 and 0.3 seconds, so Hugging Face is the choice for languages and models Parakeet does not cover.
 After the download, recognition reads only local files, and the Hub client runs in offline mode; cancelling a transcription stops the Python process, and the next dictation starts it again.
 
@@ -104,6 +108,11 @@ Use the bundle for normal operation so macOS associates privacy permissions with
 3. Request Microphone access.
 4. Grant Accessibility so Vhrase can return finalized text to the originating app; it also enables the global Fn/Globe shortcut.
 5. Grant Input Monitoring only if Fn/Globe does not respond reliably, and Screen Recording only when screenshot context is enabled.
+6. In **Transcription → Transcribe → Transcription test**, choose **Record test** and speak a short phrase; recording stops after five seconds, or choose **Stop and transcribe** sooner.
+
+The test uses your selected provider, mode, language, and vocabulary, and shows the raw recognized text with a **Copy** action.
+It does not polish, paste, add History entries, or change activity totals; cloud providers receive the test audio and bill it as ordinary transcription, while local tests stay on the Mac.
+**Cancel**, leaving the stage, or deactivating its window stops the test and discards its temporary audio.
 
 The System screen shows whether each credential is saved, loaded from the environment, or missing beside its field, and each permission row offers the next step: a native request while macOS still allows one, otherwise the matching privacy pane.
 Normal launches prefer saved Keychain values, then use launch-environment values or direct literal exports from `~/.zshrc`, while the development runner skips Keychain and can additionally resolve `.env` values in memory without printing them.

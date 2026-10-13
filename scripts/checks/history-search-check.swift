@@ -3,6 +3,7 @@
 import Foundation
 
 @main
+@MainActor
 struct HistorySearchCheck {
   static func main() {
     let calendar = Calendar(identifier: .gregorian)
@@ -10,6 +11,7 @@ struct HistorySearchCheck {
     let recent = item(
       text: "Draft the quarterly launch plan for Hong Kong",
       provider: "Gemini",
+      targetAppName: "Mail",
       createdAt: now.addingTimeInterval(-60)
     )
     let older = item(
@@ -30,8 +32,7 @@ struct HistorySearchCheck {
     )
     let index = HistorySearch.Index([older, unrelated, metadataMatch, recent])
 
-    let ranked = HistorySearch.matches(
-      index,
+    let ranked = index.matches(
       query: "quarterly launch",
       dateFilter: .anyTime,
       provider: "",
@@ -40,8 +41,7 @@ struct HistorySearchCheck {
     )
     precondition(ranked.map(\.id) == [recent.id, older.id])
 
-    let providerMatches = HistorySearch.matches(
-      index,
+    let providerMatches = index.matches(
       query: "",
       dateFilter: .anyTime,
       provider: "Gemini",
@@ -50,8 +50,7 @@ struct HistorySearchCheck {
     )
     precondition(providerMatches.map(\.id) == [recent.id, unrelated.id])
 
-    let recentMatches = HistorySearch.matches(
-      index,
+    let recentMatches = index.matches(
       query: "",
       dateFilter: .lastSevenDays,
       provider: "",
@@ -60,8 +59,7 @@ struct HistorySearchCheck {
     )
     precondition(!recentMatches.contains { $0.id == older.id })
 
-    let destinationMatches = HistorySearch.matches(
-      index,
+    let destinationMatches = index.matches(
       query: "notes",
       dateFilter: .anyTime,
       provider: "",
@@ -71,13 +69,52 @@ struct HistorySearchCheck {
     precondition(destinationMatches.first?.id == metadataMatch.id)
     precondition(destinationMatches.contains { $0.id == older.id })
     let day = calendar.startOfDay(for: recent.createdAt)
-    let customMatches = HistorySearch.matches(
-      index, query: "", dateFilter: .custom, provider: "", customRange: day...day,
+    let customMatches = index.matches(
+      query: "", dateFilter: .custom, provider: "", customRange: day...day,
       now: now, calendar: calendar)
     precondition(customMatches.map(\.id) == [recent.id, metadataMatch.id, unrelated.id])
-    precondition(HistorySearch.matches(index, query: "", dateFilter: .custom, provider: "").isEmpty)
-    let cleared = HistorySearch.matches(index, query: "  \n", dateFilter: .anyTime, provider: "")
+    precondition(index.matches(query: "", dateFilter: .custom, provider: "").isEmpty)
+    let cleared = index.matches(query: "  \n", dateFilter: .anyTime, provider: "")
     precondition(cleared.map(\.id) == [recent.id, metadataMatch.id, unrelated.id, older.id])
+
+    // Repeated renders reuse the ranking, but edits and calendar boundaries must refresh derived results.
+    precondition(index.matches(query: "  \n", dateFilter: .anyTime, provider: "") == cleared)
+    precondition(index.providers == ["ElevenLabs", "Gemini", "Grok"])
+    precondition(index.topDestination == "Notes")
+    precondition(index.counts(now: now, calendar: calendar).today == 3)
+    precondition(index.counts(now: now, calendar: calendar).week == 3)
+    let tomorrow = calendar.date(byAdding: .day, value: 1, to: now)!
+    precondition(index.counts(now: tomorrow, calendar: calendar).today == 0)
+    precondition(index.counts(now: tomorrow, calendar: calendar).week == 3)
+    let todayMatches = index.matches(
+      query: "", dateFilter: .today, provider: "", now: now, calendar: calendar)
+    precondition(todayMatches.count == 3)
+    precondition(
+      index.matches(query: "", dateFilter: .today, provider: "", now: tomorrow, calendar: calendar)
+        .isEmpty)
+    let afterEdit = HistorySearch.Index([older])
+    precondition(afterEdit.matches(query: "", dateFilter: .anyTime, provider: "") == [older])
+    precondition(afterEdit.providers == ["Grok"] && afterEdit.topDestination == "—")
+    precondition(afterEdit.wordCount == older.wordCount)
+    let boundary = HistorySearch.Index([
+      item(
+        text: "Late dictation", provider: "Gemini", createdAt: Date(timeIntervalSince1970: 85_000))
+    ])
+    var utc = Calendar(identifier: .gregorian)
+    utc.timeZone = TimeZone(secondsFromGMT: 0)!
+    var west = utc
+    west.timeZone = TimeZone(secondsFromGMT: -7_200)!
+    let afterMidnight = Date(timeIntervalSince1970: 90_000)
+    precondition(
+      boundary.matches(
+        query: "", dateFilter: .today, provider: "", now: afterMidnight, calendar: utc
+      ).isEmpty)
+    precondition(
+      boundary.matches(
+        query: "", dateFilter: .today, provider: "", now: afterMidnight, calendar: west
+      ).count == 1)
+    precondition(boundary.counts(now: afterMidnight, calendar: utc).today == 0)
+    precondition(boundary.counts(now: afterMidnight, calendar: west).today == 1)
 
     let archive = (0..<41).map { index in
       item(

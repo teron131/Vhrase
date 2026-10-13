@@ -56,76 +56,137 @@ enum HistoryDateFilter: String, CaseIterable, Identifiable {
 struct HistorySearch {
   static let visibleLimit = 20
 
-  /// Normalizes and tokenizes each saved transcript once, so renders and keystrokes reuse the work until the history changes.
-  struct Index {
-    fileprivate let documents: [SearchDocument]
-    /// Caches the separate language-aware word count so archive statistics do not retokenize on every render.
+  /// Owns one archive snapshot and its derived results; replacing the index after a history edit invalidates every cached value together.
+  @MainActor
+  final class Index {
+    private let documents: [SearchDocument]
     let wordCount: Int
+    let providers: [String]
+    let topDestination: String
+    private var lastSearch: (query: Query, items: [TranscriptHistoryItem])?
+    private var lastCounts: (day: CalendarDay, today: Int, week: Int)?
 
     init(_ items: [TranscriptHistoryItem]) {
       documents = items.map(SearchDocument.init)
       wordCount = items.reduce(0) { $0 + $1.wordCount }
+      providers = Array(Set(items.map(\.provider))).sorted {
+        $0.localizedStandardCompare($1) == .orderedAscending
+      }
+      let destinations = items.compactMap(\.targetAppName)
+      let counts = destinations.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
+      let highestCount = counts.values.max()
+      topDestination = destinations.first { counts[$0] == highestCount } ?? "—"
+    }
+
+    /// Reuses the last ranking across unrelated app updates and page changes, expiring date filters at the next calendar day or time-zone change.
+    func matches(
+      query: String,
+      dateFilter: HistoryDateFilter,
+      provider: String,
+      customRange: ClosedRange<Date>? = nil,
+      now: Date = Date(),
+      calendar: Calendar = .current
+    ) -> [TranscriptHistoryItem] {
+      let query = Query(
+        text: normalize(query), dateFilter: dateFilter, provider: provider,
+        customRange: customRange, day: CalendarDay(now: now, calendar: calendar))
+      if let lastSearch, lastSearch.query == query { return lastSearch.items }
+      let items = HistorySearch.rank(documents, query: query)
+      lastSearch = (query, items)
+      return items
+    }
+
+    /// Counts archive dates once per calendar day, independently of search filters.
+    func counts(now: Date = Date(), calendar: Calendar = .current) -> (today: Int, week: Int) {
+      let day = CalendarDay(now: now, calendar: calendar)
+      if let lastCounts, lastCounts.day == day { return (lastCounts.today, lastCounts.week) }
+      let today = calendar.dateInterval(of: .day, for: now)
+      let weekStart = calendar.date(byAdding: .day, value: -6, to: day.start)
+      var todayCount = 0
+      var weekCount = 0
+      for document in documents {
+        let date = document.item.createdAt
+        if let today, date >= today.start, date < today.end { todayCount += 1 }
+        if let weekStart, date >= weekStart { weekCount += 1 }
+      }
+      lastCounts = (day, todayCount, weekCount)
+      return (todayCount, weekCount)
     }
   }
 
-  /// Filters the complete archive first, then applies BM25-style local ranking without a network request.
-  static func matches(
-    _ index: Index,
-    query: String,
-    dateFilter: HistoryDateFilter,
-    provider: String,
-    customRange: ClosedRange<Date>? = nil,
-    now: Date = Date(),
-    calendar: Calendar = .current
-  ) -> [TranscriptHistoryItem] {
-    let includesDate = dateFilter.predicate(
-      relativeTo: now, calendar: calendar, customRange: customRange)
-    let documents = index.documents.filter { document in
-      includesDate(document.item.createdAt)
-        && (provider.isEmpty
-          || document.item.provider.localizedCaseInsensitiveCompare(provider) == .orderedSame)
+  private struct CalendarDay: Equatable {
+    let start: Date
+    let calendar: Calendar
+
+    init(now: Date, calendar: Calendar) {
+      start = calendar.startOfDay(for: now)
+      self.calendar = calendar
     }
-    let normalizedQuery = normalize(query)
+  }
+
+  private struct Query: Equatable {
+    let text: String
+    let dateFilter: HistoryDateFilter
+    let provider: String
+    let customRange: ClosedRange<Date>?
+    let day: CalendarDay
+  }
+
+  /// Filters the complete archive first, then applies BM25-style local ranking without a network request.
+  private static func rank(
+    _ documents: [SearchDocument], query: Query
+  ) -> [TranscriptHistoryItem] {
+    let includesDate = query.dateFilter.predicate(
+      relativeTo: query.day.start, calendar: query.day.calendar, customRange: query.customRange)
+    let documents = documents.filter { document in
+      includesDate(document.item.createdAt)
+        && (query.provider.isEmpty
+          || document.item.provider.localizedCaseInsensitiveCompare(query.provider) == .orderedSame)
+    }
+    let normalizedQuery = query.text
     guard !normalizedQuery.isEmpty else {
       return documents.map(\.item).sorted { $0.createdAt > $1.createdAt }
     }
 
     let queryTerms = uniqueTerms(in: normalizedQuery)
+    guard !queryTerms.isEmpty else { return [] }
     let averageLength =
       documents.isEmpty
       ? 1
       : Double(documents.reduce(0) { $0 + $1.length }) / Double(documents.count)
     let minimumCoverage = max(1, Int(ceil(Double(queryTerms.count) * 0.6)))
-    // Corpus frequency is constant across candidates; compute it once per query term.
-    let inverseFrequencies = queryTerms.map { term in
-      let documentFrequency = documents.reduce(into: 0) { count, candidate in
-        if candidate.contains(term) {
-          count += 1
-        }
-      }
-      return log(
-        1 + (Double(documents.count - documentFrequency) + 0.5)
-          / (Double(documentFrequency) + 0.5))
-    }
-
-    return documents.compactMap { document -> RankedItem? in
+    // Count corpus coverage and each candidate's term weights together, avoiding a second substring scan during scoring.
+    var documentFrequencies = Array(repeating: 0, count: queryTerms.count)
+    let candidates = documents.compactMap {
+      document -> (document: SearchDocument, frequencies: [Double])? in
       var matchedTerms = 0
-      var score = 0.0
-      for (term, inverseFrequency) in zip(queryTerms, inverseFrequencies) {
+      let frequencies = queryTerms.enumerated().map { offset, term in
         let textFrequency = termFrequency(
           term, counts: document.textTermCounts, normalized: document.text)
         let metadataFrequency = termFrequency(
           term, counts: document.metadataTermCounts, normalized: document.metadata)
         let frequency = textFrequency + metadataFrequency * 2
-        guard frequency > 0 else {
-          continue
+        if frequency > 0 {
+          matchedTerms += 1
+          documentFrequencies[offset] += 1
         }
-        matchedTerms += 1
-        let lengthAdjustment = 1 - 0.75 + 0.75 * Double(document.length) / averageLength
-        score += inverseFrequency * (frequency * 2.2) / (frequency + 1.2 * lengthAdjustment)
+        return frequency
       }
-      guard matchedTerms >= minimumCoverage else {
-        return nil
+      return matchedTerms >= minimumCoverage ? (document, frequencies) : nil
+    }
+    let inverseFrequencies = documentFrequencies.map { documentFrequency in
+      log(
+        1 + (Double(documents.count - documentFrequency) + 0.5)
+          / (Double(documentFrequency) + 0.5))
+    }
+
+    let ranked = candidates.map { candidate -> RankedItem in
+      let document = candidate.document
+      var score = 0.0
+      let lengthAdjustment = 1 - 0.75 + 0.75 * Double(document.length) / averageLength
+      for (frequency, inverseFrequency) in zip(candidate.frequencies, inverseFrequencies)
+      where frequency > 0 {
+        score += inverseFrequency * (frequency * 2.2) / (frequency + 1.2 * lengthAdjustment)
       }
       if document.text.contains(normalizedQuery) {
         score += 4
@@ -135,7 +196,7 @@ struct HistorySearch {
       }
       return RankedItem(item: document.item, score: score)
     }
-    .sorted { left, right in
+    return ranked.sorted { left, right in
       left.score > right.score
         || (left.score == right.score && left.item.createdAt > right.item.createdAt)
     }
@@ -158,7 +219,7 @@ struct HistorySearch {
     }
   }
 
-  fileprivate struct SearchDocument {
+  private struct SearchDocument {
     let item: TranscriptHistoryItem
     let text: String
     let metadata: String
@@ -179,12 +240,6 @@ struct HistorySearch {
       textTermCounts = textTerms.reduce(into: [:]) { $0[$1, default: 0] += 1 }
       metadataTermCounts = metadataTerms.reduce(into: [:]) { $0[$1, default: 0] += 1 }
       length = max(textTerms.count + metadataTerms.count, 1)
-    }
-
-    /// Terms hold only alphanumerics, so a substring match can never span the text and metadata boundary.
-    func contains(_ term: String) -> Bool {
-      textTermCounts[term] != nil || metadataTermCounts[term] != nil
-        || text.contains(term) || metadata.contains(term)
     }
   }
 

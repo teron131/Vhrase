@@ -47,11 +47,13 @@ struct HuggingFaceModel: OnDeviceModel {
   ) async throws {
     let reference = try HuggingFaceModelReference(id)
     let directory = HuggingFaceRuntime.modelDirectory(for: reference)
+    var activeHelper: HuggingFaceProcess?
     do {
       // uv builds the environment before the helper can report anything, so setup starts without a percentage.
       progress(0, true)
       let helper = try HuggingFaceRuntime.start(
         ["download", reference.id], allowsModelDownload: true)
+      activeHelper = helper
       var outcome: DownloadEvent?
       try await withTaskCancellationHandler {
         for try await line in helper.output.bytes.lines {
@@ -62,10 +64,10 @@ struct HuggingFaceModel: OnDeviceModel {
           default: outcome = event
           }
         }
+        await helper.waitForExit()
       } onCancel: {
         helper.stop()
       }
-      helper.waitUntilExit()
       try Task.checkCancellation()
       guard outcome?.event == "installed" else {
         throw outcome?.message.map(HuggingFaceError.failed)
@@ -73,6 +75,8 @@ struct HuggingFaceModel: OnDeviceModel {
       }
       try Data().write(to: OnDeviceModelFiles.completionMarker(in: directory))
     } catch {
+      activeHelper?.stop()
+      await activeHelper?.waitForExit()
       try? FileManager.default.removeItem(at: directory)
       throw error
     }
