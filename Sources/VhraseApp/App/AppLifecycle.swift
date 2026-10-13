@@ -20,6 +20,7 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
   /// Defers credential loading until AppKit has launched; duplicate processes never take over shortcuts.
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApplication.shared.setActivationPolicy(.accessory)
+    AppearancePreference.saved.apply()
     if singleInstanceGuard.ownsInstance {
       appState.loadSavedAPIKeysAfterLaunch()
     } else {

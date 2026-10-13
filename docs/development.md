@@ -82,7 +82,7 @@ It reports credential presence from macOS Keychain or an environment fallback wi
 
 ## Credentials
 
-Vhrase saves generic-password items under the Keychain service `Vhrase`, using `GEMINI_API_KEY`, `XAI_API_KEY`, `ELEVENLABS_API_KEY`, and `LLM_API_KEY` as account names.
+Vhrase saves generic-password items under the Keychain service `Vhrase`, using `GEMINI_API_KEY`, `XAI_API_KEY`, `ELEVENLABS_API_KEY`, `OPENAI_API_KEY`, `AI_GATEWAY_API_KEY`, and `LLM_API_KEY` as account names.
 Normal Finder launches read saved Keychain values first, then use launch-environment values and direct literal exports from `~/.zshrc` as fallbacks.
 All credential operations run inside a serialized, process-local no-interaction scope and restore the previous interaction flag afterward.
 The file-based login Keychain ignores LAContext-only dialog suppression, so this boundary deliberately uses the deprecated SecKeychain interaction APIs while retaining existing items and their access controls.
@@ -95,6 +95,8 @@ Use this non-executable `.env` format:
 XAI_API_KEY=
 GEMINI_API_KEY=
 ELEVENLABS_API_KEY=
+OPENAI_API_KEY=
+AI_GATEWAY_API_KEY=
 LLM_API_KEY=
 ```
 
@@ -116,39 +118,45 @@ bash scripts/bundle-app.sh
 ```
 
 The bundle is written to `dist/Vhrase.app` and signed with `VHRASE_CODESIGN_IDENTITY`, the local Vhrase development identity, or ad-hoc signing as a fallback.
-Provider pickers use the compact [Google](https://artificialanalysis.ai/img/logos/google_small.svg), [ElevenLabs](https://artificialanalysis.ai/img/logos/elevenlabs_small.svg), [SpaceXAI](https://artificialanalysis.ai/img/logos/spacexai.svg), and [NVIDIA](https://artificialanalysis.ai/img/logos/nvidia.svg) SVGs from Artificial Analysis, stored unchanged in `Sources/VhraseApp/UI/Resources/ProviderIcons`.
+Provider pickers use the compact [Google](https://artificialanalysis.ai/img/logos/google_small.svg), [ElevenLabs](https://artificialanalysis.ai/img/logos/elevenlabs_small.svg), [SpaceXAI](https://artificialanalysis.ai/img/logos/spacexai.svg), [NVIDIA](https://artificialanalysis.ai/img/logos/nvidia.svg), [OpenAI](https://artificialanalysis.ai/img/logos/openai.svg), [Vercel](https://artificialanalysis.ai/img/logos/vercel.svg), and [Hugging Face](https://artificialanalysis.ai/img/logos/huggingface.svg) SVGs from Artificial Analysis, stored unchanged in `Sources/VhraseApp/UI/Resources/ProviderIcons`.
 SwiftPM packages these assets in `Vhrase_VhraseApp.bundle`; the bundle script copies that resource bundle into the app's `Contents/Resources` directory so installed apps do not depend on the build checkout.
 FluidAudio compiles into the executable from source, so the bundle embeds no third-party frameworks and hardened-runtime library validation is unaffected; its trait list is empty to leave out the prebuilt NeMo text-normalization library that recognition does not use.
-The bundle script copies FluidAudio's Apache-2.0 license and third-party notices beside the Speex license; Parakeet model files are downloaded at runtime and never bundled.
+The bundle script copies FluidAudio's Apache-2.0 license and third-party notices beside the Speex license; Parakeet and Hugging Face model files are downloaded at runtime and never bundled.
+The same resource bundle carries `asr.py` and `asr.py.lock`, each packaged by name so nothing else in their source folder comes along; the Python environment they describe is built by uv on the user's Mac, outside the app bundle and outside its code signature.
+After changing the script's dependency block, run `uv lock --script Sources/VhraseApp/Transcription/OnDevice/HuggingFaceRuntime/asr.py` so the lockfile matches, because uv cannot rewrite it inside a signed bundle.
 For normal local development, use the persistent Vhrase identity rather than the ad-hoc fallback so Keychain and TCC permissions remain attached to one designated application identity.
 
-## Parakeet Smoke
+## On-device Smoke
 
-The on-device path can be exercised end to end on WAV files without a microphone, provider usage, or the app's settings:
+The on-device paths can be exercised end to end on WAV files without a microphone, provider usage, or the app's settings:
 
 ```sh
 B=.build/arm64-apple-macosx/debug
 C=.build/checkouts/FluidAudio/Sources
-swiftc -parse-as-library -I $B/Modules -I $C/FastClusterWrapper/include -I $C/MachTaskSelfWrapper/include Sources/VhraseApp/Domain/*.swift Sources/VhraseApp/Transcription/ProviderContracts.swift Sources/VhraseApp/Transcription/Upload/*.swift Sources/VhraseApp/Transcription/OnDevice/*.swift Sources/VhraseApp/System/ScreenContext.swift Sources/VhraseApp/Adjustment/Local/*.swift Sources/VhraseApp/Adjustment/LLMEndpoint.swift Sources/VhraseApp/Adjustment/LLMAdjustmentClient.swift Sources/VhraseApp/Adjustment/TranscriptFinalization.swift Sources/VhraseApp/Storage/TranscriptHistoryStore.swift scripts/parakeet-stt-smoke.swift $B/FluidAudio.build/*.o $B/FastClusterWrapper.build/*.o $B/MachTaskSelfWrapper.build/*.o -lc++ -o .cache/checks/parakeet-stt-smoke
-.cache/checks/parakeet-stt-smoke --download recording.wav "expected phrase"
+swiftc -parse-as-library -I $B/Modules -I $C/FastClusterWrapper/include -I $C/MachTaskSelfWrapper/include Sources/VhraseApp/Domain/*.swift Sources/VhraseApp/Transcription/ProviderContracts.swift Sources/VhraseApp/Transcription/Upload/*.swift Sources/VhraseApp/Transcription/OnDevice/*.swift Sources/VhraseApp/System/ScreenContext.swift Sources/VhraseApp/Adjustment/Local/*.swift Sources/VhraseApp/Adjustment/LLMEndpoint.swift Sources/VhraseApp/Adjustment/LLMAdjustmentClient.swift Sources/VhraseApp/Adjustment/TranscriptFinalization.swift Sources/VhraseApp/Storage/TranscriptHistoryStore.swift Sources/VhraseApp/System/ResourceBundle.swift $B/VhraseApp.build/DerivedSources/resource_bundle_accessor.swift scripts/on-device-stt-smoke.swift $B/FluidAudio.build/*.o $B/FastClusterWrapper.build/*.o $B/MachTaskSelfWrapper.build/*.o -lc++ -o .cache/checks/on-device-stt-smoke
+.cache/checks/on-device-stt-smoke --download recording.wav "expected phrase"
+.cache/checks/on-device-stt-smoke --hugging-face --language auto --download recording.wav "expected phrase"
 ```
 
-Run `swift build` first so FluidAudio's objects exist.
+Run `swift build` first so FluidAudio's objects and the resource bundle with the Hugging Face helper exist.
+Without options the smoke runs Parakeet; `--hugging-face` runs the built-in Whisper model, `--hugging-face owner/name` any other Hugging Face model ID, and `--language` sets a Whisper model's language code or `auto`.
 Each recording should match Vhrase's capture format, 16 kHz mono Int16 WAV, for example from `afconvert -f WAVE -d LEI16@16000 -c 1 input output.wav`.
-The smoke uses the same `ParakeetModelStore`, `ParakeetRecognizer`, `TranscriptFinalizer`, and history store calls as the app, with history in a temporary defaults suite.
+The smoke uses the same `OnDeviceModelStore`, model, recognizer, `TranscriptFinalizer`, and history store calls as the app, with history in a temporary defaults suite.
 It then checks that three seconds of silence produce nothing to deliver, that cancelling a four-minute transcription returns no text, and that the next transcription still succeeds.
+For Hugging Face the silence step only reports what came back, because Whisper models word silence and the app's recording-level gate, not the recognizer, refuses such recordings.
 `--download` fetches the model into the app's own Models folder when it is missing, so a later app launch reuses it.
 
 ## Live STT Smokes
 
-The app's actual native Gemini and Grok adapters can be tested with a short WAV and environment credentials, without reading Keychain or changing app settings:
+The app's actual cloud upload adapters can be tested with a short WAV and environment credentials, without reading Keychain or changing app settings:
 
 ```sh
-swiftc -parse-as-library Sources/VhraseApp/Domain/*.swift Sources/VhraseApp/Transcription/ProviderContracts.swift Sources/VhraseApp/Transcription/Upload/*.swift scripts/live-native-stt-smoke.swift -o .cache/checks/live-native-stt-smoke
+swiftc -parse-as-library Sources/VhraseApp/Domain/*.swift Sources/VhraseApp/Transcription/ProviderContracts.swift Sources/VhraseApp/Transcription/Upload/*.swift Sources/VhraseApp/Storage/APIKeyStore.swift scripts/live-native-stt-smoke.swift -o .cache/checks/live-native-stt-smoke
 .cache/checks/live-native-stt-smoke /absolute/path/recording.wav
+.cache/checks/live-native-stt-smoke /absolute/path/recording.wav vercel openAI
 ```
 
-This makes one native request per provider with the same developer vocabulary and Gemini Smart enabled.
+This makes one native request to Gemini, Grok, OpenAI, and Vercel AI Gateway, or only to the providers named after the recording, with the same developer vocabulary and Gemini Smart enabled; a provider whose key is not in the environment is skipped.
 It may consume provider usage and prints the sample transcripts, never credentials.
 To explicitly show the rebuilt control center, launch `dist/Vhrase.app` with `--show-window`; normal launches retain menu-bar-only behavior.
 

@@ -6,7 +6,10 @@ enum STTProvider: String, CaseIterable, Codable, Identifiable, Sendable {
   case xai
   case elevenLabs
   case gemini
+  case openAI
+  case vercel
   case parakeet
+  case huggingFace
 
   var id: String { rawValue }
 
@@ -18,20 +21,37 @@ enum STTProvider: String, CaseIterable, Codable, Identifiable, Sendable {
       "ElevenLabs"
     case .gemini:
       "Gemini"
+    case .openAI:
+      "OpenAI"
+    case .vercel:
+      "Vercel"
     case .parakeet:
       "Parakeet"
+    case .huggingFace:
+      "Hugging Face"
     }
   }
 
   var availableModes: [TranscriptionMode] {
     switch self {
     case .xai, .elevenLabs: TranscriptionMode.allCases
-    case .gemini, .parakeet: [.upload]
+    case .gemini, .openAI, .vercel, .parakeet, .huggingFace: [.upload]
+    }
+  }
+
+  /// False for providers whose recognition ignores the shared vocabulary, leaving it to LLM polishing alone.
+  var takesVocabularyHints: Bool {
+    switch self {
+    case .xai, .elevenLabs, .gemini, .openAI: true
+    case .vercel, .parakeet, .huggingFace: false
     }
   }
 
   var location: ProviderLocation {
-    self == .parakeet ? .local : .cloud
+    switch self {
+    case .xai, .elevenLabs, .gemini, .openAI, .vercel: .cloud
+    case .parakeet, .huggingFace: .local
+    }
   }
 
   var detail: String {
@@ -39,8 +59,13 @@ enum STTProvider: String, CaseIterable, Codable, Identifiable, Sendable {
     case .xai: "Grok speech recognition with vocabulary hints and optional filler removal."
     case .elevenLabs: "Scribe speech recognition with vocabulary hints and verbatim controls."
     case .gemini: "Gemini 3.5 Transcribe with vocabulary hints and optional Smart transcription."
+    case .openAI: "GPT Transcribe with vocabulary hints and an optional language hint."
+    case .vercel:
+      "Any transcription model on Vercel AI Gateway, reached with one gateway key."
     case .parakeet:
       "NVIDIA Parakeet TDT 0.6B v3 running on this Mac. No API key, and no network once downloaded."
+    case .huggingFace:
+      "Any Hugging Face speech model the transformers pipeline accepts, running on this Mac. No API key, and no network once downloaded."
     }
   }
 }
@@ -59,9 +84,11 @@ enum ProviderLocation: String, CaseIterable, Identifiable, Sendable {
     }
   }
 
-  /// Lists this location's providers in the order every picker presents them.
+  /// Lists this location's providers alphabetically, the order every picker and the credential rows present them in.
   var providers: [STTProvider] {
-    STTProvider.allCases.filter { $0.location == self }
+    STTProvider.allCases
+      .filter { $0.location == self }
+      .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
   }
 }
 
@@ -132,7 +159,11 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var inputGainDB: Double = 0
   var noiseReductionDB: Double = 6
   var inputDeviceUID: String = ""
+  var vercelModel: String = defaultVercelModel
+  var huggingFaceModel: String = HuggingFaceModelReference.whisperTurbo
 
+  /// Vercel AI Gateway's identifier for xAI's speech-to-text, the same default youtube-toolkit uses.
+  static let defaultVercelModel = "spacexai/grok-stt"
   static let legacyDefaultAdjustmentPrompt = """
     Rewrite the transcript into polished text that is ready to insert into the active app. Fix obvious speech-to-text mistakes, punctuation, casing, and awkward phrasing while preserving intent. Use the screenshot only as context. Return only the final text.
     """
@@ -217,12 +248,13 @@ struct DictationSettings: Codable, Equatable, Sendable {
     case replacementRules
   }
 
-  /// Reports the language hint the selected provider actually receives; Parakeet always detects its language.
+  /// Reports the language hint the selected provider actually receives; Parakeet and the gateway always detect the language.
   var recognitionLanguage: String {
     switch provider {
     case .gemini: geminiLanguageCodes.joined(separator: ", ")
-    case .parakeet: ""
-    case .xai, .elevenLabs: language.trimmingCharacters(in: .whitespacesAndNewlines)
+    case .parakeet, .vercel: ""
+    case .xai, .elevenLabs, .openAI, .huggingFace:
+      language.trimmingCharacters(in: .whitespacesAndNewlines)
     }
   }
 
@@ -275,6 +307,16 @@ struct DictationSettings: Codable, Equatable, Sendable {
     guard hotkeyPreset != .custom || customHotkey != nil else {
       throw ConfigurationValidationError("Capture a custom shortcut before selecting Custom.")
     }
+    // A free-text model name blocks recording only for the provider that would use it.
+    guard
+      provider != .vercel || !vercelModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+      throw ConfigurationValidationError(
+        "Enter a Vercel AI Gateway transcription model, such as \(Self.defaultVercelModel).")
+    }
+    if provider == .huggingFace {
+      _ = try HuggingFaceModelReference(huggingFaceModel)
+    }
   }
 }
 
@@ -313,9 +355,11 @@ extension DictationSettings {
     case inputGainDB
     case noiseReductionDB
     case inputDeviceUID
+    case vercelModel
+    case huggingFaceModel
   }
 
-  /// Supplies audio defaults for existing exports while retaining validation of the original settings contract.
+  /// Supplies audio and model defaults for existing exports while retaining validation of the original settings contract.
   init(from decoder: Decoder) throws {
     let values = try decoder.container(keyedBy: CodingKeys.self)
     provider = try values.decode(STTProvider.self, forKey: .provider)
@@ -364,6 +408,11 @@ extension DictationSettings {
     inputGainDB = try values.decodeIfPresent(Double.self, forKey: .inputGainDB) ?? 0
     noiseReductionDB = try values.decodeIfPresent(Double.self, forKey: .noiseReductionDB) ?? 6
     inputDeviceUID = try values.decodeIfPresent(String.self, forKey: .inputDeviceUID) ?? ""
+    vercelModel =
+      try values.decodeIfPresent(String.self, forKey: .vercelModel) ?? Self.defaultVercelModel
+    huggingFaceModel =
+      try values.decodeIfPresent(String.self, forKey: .huggingFaceModel)
+      ?? HuggingFaceModelReference.whisperTurbo
   }
 }
 
@@ -371,7 +420,8 @@ struct CustomizationSnapshot: Codable, Equatable, Sendable {
   let settings: DictationSettings
 }
 
-private struct ConfigurationValidationError: LocalizedError {
+/// Carries the sentence shown when a setting cannot be used, both beside the control and when recording is refused.
+struct ConfigurationValidationError: LocalizedError {
   let message: String
 
   init(_ message: String) {

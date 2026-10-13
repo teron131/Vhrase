@@ -103,8 +103,11 @@ enum TranscriptionContract {
       )
     case (.elevenLabs, .realtime):
       KeytermPolicy(maximumCount: 50, characterLimit: 20)
-    case (.parakeet, _):
-      // Parakeet takes no vocabulary hints, so only LLM polishing reads the list.
+    case (.openAI, _):
+      // OpenAI documents no count or length limit, but rejects a request whose keyword contains an angle bracket.
+      KeytermPolicy(maximumCount: .max, characterLimit: .max, unsupportedCharacters: ["<", ">"])
+    case (.vercel, _), (.parakeet, _), (.huggingFace, _):
+      // These receive no vocabulary hints, so only LLM polishing reads the list.
       KeytermPolicy(maximumCount: .max, characterLimit: .max)
     }
   }
@@ -132,6 +135,50 @@ enum GeminiTranscriptionContract {
       "input": [["type": "audio", "data": audio.base64EncodedString(), "mime_type": "audio/wav"]],
       "generation_config": ["transcription_config": config],
       "store": false,
+    ])
+  }
+}
+
+/// Builds OpenAI's multipart fields for its fixed model; `languages[]` and `keywords[]` are specific to GPT Transcribe, so the model is not editable.
+enum OpenAITranscriptionContract {
+  static let modelID = "gpt-transcribe"
+
+  static func uploadFields(settings: DictationSettings) throws -> [(String, String)] {
+    try settings.validateLocalConfiguration()
+    let keywords = try TranscriptionContract.validatedKeyterms(
+      settings.keytermList,
+      provider: .openAI,
+      mode: .upload
+    )
+    let language = settings.language.trimmingCharacters(in: .whitespacesAndNewlines)
+    var fields: [(String, String)] = [("model", modelID)]
+    if !language.isEmpty {
+      fields.append(("languages[]", language))
+    }
+    fields += keywords.map { ("keywords[]", $0) }
+    return fields
+  }
+}
+
+/// Builds Vercel AI Gateway's transcription request, which names the model in a header and carries base64 audio in JSON because the gateway accepts no file uploads.
+enum VercelTranscriptionContract {
+  static let endpoint = URL(string: "https://ai-gateway.vercel.sh/v4/ai/transcription-model")!
+
+  /// The gateway versions its transcription route through the two protocol headers.
+  static func headers(settings: DictationSettings) throws -> [String: String] {
+    try settings.validateLocalConfiguration()
+    return [
+      "ai-gateway-protocol-version": "0.0.1",
+      "ai-transcription-model-specification-version": "4",
+      "ai-model-id": settings.vercelModel.trimmingCharacters(in: .whitespacesAndNewlines),
+      "Content-Type": "application/json",
+    ]
+  }
+
+  static func requestBody(audio: Data) throws -> Data {
+    try JSONSerialization.data(withJSONObject: [
+      "audio": audio.base64EncodedString(),
+      "mediaType": "audio/wav",
     ])
   }
 }

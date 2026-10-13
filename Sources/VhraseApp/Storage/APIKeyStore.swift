@@ -7,6 +7,8 @@ enum SecretKey: String, CaseIterable {
   case xaiAPIKey = "XAI_API_KEY"
   case elevenLabsAPIKey = "ELEVENLABS_API_KEY"
   case geminiAPIKey = "GEMINI_API_KEY"
+  case openAIAPIKey = "OPENAI_API_KEY"
+  case vercelAPIKey = "AI_GATEWAY_API_KEY"
   case llmAPIKey = "LLM_API_KEY"
 
   var title: String {
@@ -17,6 +19,10 @@ enum SecretKey: String, CaseIterable {
       "ElevenLabs API key"
     case .geminiAPIKey:
       "Gemini API key"
+    case .openAIAPIKey:
+      "OpenAI API key"
+    case .vercelAPIKey:
+      "Vercel AI Gateway key"
     case .llmAPIKey:
       "LLM API key"
     }
@@ -28,7 +34,9 @@ enum SecretKey: String, CaseIterable {
     case .xai: self = .xaiAPIKey
     case .elevenLabs: self = .elevenLabsAPIKey
     case .gemini: self = .geminiAPIKey
-    case .parakeet: return nil
+    case .openAI: self = .openAIAPIKey
+    case .vercel: self = .vercelAPIKey
+    case .parakeet, .huggingFace: return nil
     }
   }
 }

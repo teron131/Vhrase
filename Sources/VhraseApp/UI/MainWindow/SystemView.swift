@@ -9,6 +9,7 @@ struct SystemView: View {
   @State private var isOpenCCInstallConfirmationPresented = false
   @State private var credentialFocusMonitor = CredentialFocusMonitor()
   @FocusState private var focusedSecretField: SecretKey?
+  @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system
   private var presentation: DictationPresentation { appState.presentation }
 
   var body: some View {
@@ -43,16 +44,37 @@ struct SystemView: View {
     return mainWindowPage(spacing: 26) {
       pageHeader(
         "System",
-        description: "Manage provider credentials, macOS access, and optional capabilities."
+        description:
+          "Manage provider credentials, macOS access, optional capabilities, and appearance."
       )
 
       if let primary = diagnostics.first {
         setupOverviewCard(primary)
       }
 
-      keysCard
+      // First among the settings so the theme buttons show without scrolling.
+      appearanceCard
+      transcriptionKeysCard
+      llmCard
+      credentialNotices
       permissionsCard
       diagnosticsFullCard(diagnostics)
+    }
+  }
+
+  private var appearanceCard: some View {
+    settingsGroup("Appearance") {
+      settingsRow(
+        "Theme",
+        detail: "Follow macOS, or keep Vhrase light or dark. The recorder pill stays dark."
+      ) {
+        PillPicker(
+          title: "Theme", selection: $appearance, options: AppearancePreference.allCases,
+          label: \.title, systemImage: \.systemImage)
+      }
+    }
+    .onChange(of: appearance) { _, choice in
+      choice.apply()
     }
   }
 
@@ -88,15 +110,26 @@ struct SystemView: View {
     .surface()
   }
 
-  private var keysCard: some View {
+  /// Cloud providers' keys in the pickers' order; each one authenticates only that provider's transcription.
+  private var transcriptionKeysCard: some View {
     settingsGroup(
-      "Provider credentials",
+      "Transcription",
       footer:
-        "Secrets stay in your login Keychain and save automatically without password dialogs. An uppercase _KEY name is saved as an environment reference that survives rebuilds without Keychain access. LLM_BASE_URL overrides the saved endpoint when present. Unsaved secrets remain in memory for this session."
+        "Each key works only for that provider's speech-to-text; none of them is used for the LLM below. Secrets stay in your login Keychain and save automatically without password dialogs, and unsaved ones remain in memory for this session."
     ) {
-      keyField(.xaiAPIKey)
-      keyField(.elevenLabsAPIKey)
-      keyField(.geminiAPIKey)
+      ForEach(ProviderLocation.cloud.providers.compactMap { SecretKey($0) }, id: \.self) { key in
+        keyField(key)
+      }
+    }
+  }
+
+  /// The language model's own credential and endpoint, kept apart so a transcription key is never mistaken for it.
+  private var llmCard: some View {
+    settingsGroup(
+      "LLM",
+      footer:
+        "Transcript cleanup and polishing use this key with any OpenAI-compatible API. It is separate from the transcription keys above, so to use the same account for both, enter its key here too. An uppercase _KEY name is saved as an environment reference that survives rebuilds without Keychain access. LLM_BASE_URL overrides the saved endpoint when present."
+    ) {
       keyField(.llmAPIKey)
       configurationField(
         "LLM base URL",
@@ -112,7 +145,8 @@ struct SystemView: View {
 
       settingsRow(
         "Model access",
-        detail: "Sends only a tiny “Reply with OK” request using the configured model."
+        detail: "Sends only a tiny “Reply with OK” request using the configured model.",
+        icon: { llmIcon }
       ) {
         Button {
           appState.checkLLMModelAccess()
@@ -130,31 +164,38 @@ struct SystemView: View {
         .buttonStyle(.bordered)
         .disabled(appState.isCheckingLLMModelAccess || appState.effectiveAPIKey(.llmAPIKey).isEmpty)
       }
+    }
+  }
 
-      if !appState.unsavedAPIKeys.isEmpty {
-        HStack {
-          Label("Unsaved credential changes", systemImage: "exclamationmark.circle")
-            .foregroundStyle(VhraseTheme.statusWarning)
-          Spacer()
-          Button("Retry saving") { appState.retrySavingAPIKeys() }
-            .controlSize(.small)
+  /// Saving and reading problems can concern a key in either group, so they follow both instead of sitting inside one.
+  @ViewBuilder private var credentialNotices: some View {
+    if !appState.unsavedAPIKeys.isEmpty || !appState.keychainReadNotice.isEmpty {
+      settingsGroup {
+        if !appState.unsavedAPIKeys.isEmpty {
+          HStack {
+            Label("Unsaved credential changes", systemImage: "exclamationmark.circle")
+              .foregroundStyle(VhraseTheme.statusWarning)
+            Spacer()
+            Button("Retry saving") { appState.retrySavingAPIKeys() }
+              .controlSize(.small)
+          }
+          .font(.callout)
+          .settingsRowStyle()
         }
-        .font(.callout)
-        .settingsRowStyle()
-      }
 
-      if !appState.keychainReadNotice.isEmpty {
-        VStack(alignment: .leading, spacing: 8) {
-          Label("Saved credentials need Keychain access", systemImage: "lock")
-            .font(.callout.weight(.medium))
-          Text(appState.keychainReadNotice)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-          Button("Retry reading saved keys") { appState.retryLoadingAPIKeys() }
-            .controlSize(.small)
+        if !appState.keychainReadNotice.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            Label("Saved credentials need Keychain access", systemImage: "lock")
+              .font(.callout.weight(.medium))
+            Text(appState.keychainReadNotice)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+            Button("Retry reading saved keys") { appState.retryLoadingAPIKeys() }
+              .controlSize(.small)
+          }
+          .settingsRowStyle()
         }
-        .settingsRowStyle()
       }
     }
   }
@@ -164,7 +205,7 @@ struct SystemView: View {
       get: { appState.apiKeyField(key) },
       set: { appState.updateAPIKey(key, value: $0) }
     )
-    return settingsRow(key.title) {
+    return settingsRow(key.title, icon: { keyIcon(key) }) {
       HStack(spacing: 12) {
         Group {
           if showsCredentialReference(text.wrappedValue) {
@@ -189,6 +230,23 @@ struct SystemView: View {
     }
   }
 
+  /// Shows whose key a row holds: the speech provider's own mark, or a brain for the language model's key, which no speech provider uses.
+  @ViewBuilder private func keyIcon(_ key: SecretKey) -> some View {
+    if let provider = STTProvider.allCases.first(where: { SecretKey($0) == key }),
+      let icon = ProviderPicker.icon(for: provider)
+    {
+      Image(nsImage: icon)
+    } else {
+      llmIcon
+    }
+  }
+
+  /// The language model's mark, shared by its key, its endpoint, and its check the way a speech provider's rows share its logo.
+  private var llmIcon: some View {
+    Image(systemName: "brain")
+      .foregroundStyle(.secondary)
+  }
+
   private func showsCredentialReference(_ value: String) -> Bool {
     !value.isEmpty
       && value.utf8.allSatisfy { byte in
@@ -201,7 +259,11 @@ struct SystemView: View {
     text: Binding<String>,
     environmentName: String?
   ) -> some View {
-    settingsRow(title, detail: environmentName.map { "Loaded from \($0)" }) {
+    settingsRow(
+      title,
+      detail: environmentName.map { "Loaded from \($0)" } ?? "Any OpenAI-compatible API endpoint.",
+      icon: { llmIcon }
+    ) {
       HStack(spacing: 12) {
         TextField(title, text: text)
           .textFieldStyle(.roundedBorder)
@@ -267,10 +329,10 @@ struct SystemView: View {
               .controlSize(.small)
               .accessibilityLabel("Installing OpenCC")
           }
-          if diagnostic.id == .localModel, appState.parakeetModel.isDownloading {
+          if diagnostic.id == .localModel, appState.selectedLocalModelStore?.isDownloading == true {
             ProgressView()
               .controlSize(.small)
-              .accessibilityLabel("Downloading the Parakeet model")
+              .accessibilityLabel("Downloading the \(appState.settings.provider.title) model")
           }
           if let actionTitle = setupDiagnosticActionTitle(diagnostic) {
             Button(actionTitle) {
@@ -336,7 +398,11 @@ struct SystemView: View {
     case .openCC:
       appState.openCCInstallationState.failureMessage
     case .localModel:
-      if case .failed(let message) = appState.parakeetModel.state { message } else { nil }
+      if case .failed(let message) = appState.selectedLocalModelStore?.state {
+        message
+      } else {
+        nil
+      }
     default:
       nil
     }
@@ -345,7 +411,7 @@ struct SystemView: View {
   private func isDiagnosticActionRunning(_ diagnostic: SetupDiagnostic) -> Bool {
     switch diagnostic.id {
     case .openCC: appState.openCCInstallationState == .installing
-    case .localModel: appState.parakeetModel.isDownloading
+    case .localModel: appState.selectedLocalModelStore?.isDownloading == true
     default: false
     }
   }
@@ -357,13 +423,13 @@ struct SystemView: View {
     case .providerKey, .adjustmentKey:
       "Add Key"
     case .localModel:
-      switch appState.parakeetModel.state {
-      case .downloading(let fraction, let isCompiling):
-        ParakeetModelStore.State.progressTitle(fraction: fraction, isCompiling: isCompiling)
+      switch appState.selectedLocalModelStore?.state {
+      case .downloading(let fraction, let isIndeterminate):
+        OnDeviceModelStore.State.progressTitle(fraction: fraction, isIndeterminate: isIndeterminate)
       case .failed:
         "Retry Download"
-      case .missing, .installed:
-        "Download \(ParakeetModelStore.downloadSizeLabel)"
+      case .missing, .installed, nil:
+        appState.selectedLocalModelStore?.downloadTitle
       }
     case .microphonePermission:
       "Request Access"
@@ -400,7 +466,7 @@ struct SystemView: View {
     case .providerKey:
       focusedSecretField = SecretKey(appState.settings.provider)
     case .localModel:
-      appState.parakeetModel.download()
+      appState.selectedLocalModelStore?.download()
     case .adjustmentKey:
       focusedSecretField = .llmAPIKey
     case .microphonePermission:

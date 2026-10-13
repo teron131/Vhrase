@@ -12,7 +12,8 @@ struct RecorderWaveform: View {
   private static let barWidth: CGFloat = 4
   private static let spacing: CGFloat = 3
   private static let slotWidth = barWidth + spacing
-  private static let height: CGFloat = 34
+  /// Half the pill's height, so the tallest bar keeps a quarter of the pill clear above and below it.
+  private static let height: CGFloat = 26
   /// How often a 100 ms audio chunk replaces the level.
   private static let chunkInterval = 0.1
   /// Two chunks per bar, which moves the stream at 35 points per second.

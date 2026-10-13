@@ -16,22 +16,53 @@ Its shared vocabulary maps to repeated `keyterm` values; filler retention maps t
 
 References: [Gemini transcription](https://ai.google.dev/gemini-api/docs/transcribe), [Grok speech to text](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text).
 
+## OpenAI and Vercel AI Gateway transcription
+
+`OpenAITranscriptionContract` builds `POST https://api.openai.com/v1/audio/transcriptions` as a multipart upload with bearer auth and the fixed `gpt-transcribe` model.
+Shared vocabulary maps to repeated `keywords[]` fields and the Listen language code to one `languages[]` field; both are specific to `gpt-transcribe`, which rejects the singular `language` field alongside `languages`, so the model is not editable.
+OpenAI documents no keyword count or length limit but rejects a request whose keyword contains `<` or `>`, which Vhrase checks before recording; uploads are limited to 25 MB, about 13 minutes of Vhrase's 16 kHz mono WAV.
+
+`VercelTranscriptionContract` builds `POST https://ai-gateway.vercel.sh/v4/ai/transcription-model` with bearer auth, the protocol headers `ai-gateway-protocol-version: 0.0.1` and `ai-transcription-model-specification-version: 4`, and the model in `ai-model-id`.
+The gateway accepts no file upload, so the body is JSON with base64 `audio` and `mediaType: "audio/wav"`, and the response carries the transcript in `text`.
+`vercelModel` defaults to `spacexai/grok-stt` and accepts any transcription model in the gateway's catalog; Vhrase sends no provider options, so vocabulary and language hints do not reach the model.
+Both adapters use a 60-second timeout and no client retry.
+
+References: [OpenAI speech to text](https://developers.openai.com/api/docs/guides/speech-to-text), [Vercel AI Gateway speech to text](https://vercel.com/docs/ai-gateway/modalities/speech-to-text).
+
 ## Parakeet on-device transcription
 
 `ParakeetRecognizer` runs FluidAudio 0.17.1's `AsrManager` with `AsrModelVersion.v3`, NVIDIA Parakeet TDT 0.6B v3 converted to Core ML by FluidInference.
-`ParakeetModelStore` calls `AsrModels.download(to:force:version:)` only when the user asks; FluidAudio lists `FluidInference/parakeet-tdt-0.6b-v3-coreml` on Hugging Face, downloads the preprocessor, int8 encoder, decoder, `JointDecisionv3`, and vocabulary (about 480 MB), and compiles them with Core ML.
+`OnDeviceModelStore` owns the setup state both on-device providers share, and `ParakeetModel` calls `AsrModels.download(to:force:version:)` only when the user asks; FluidAudio lists `FluidInference/parakeet-tdt-0.6b-v3-coreml` on Hugging Face, downloads the preprocessor, int8 encoder, decoder, `JointDecisionv3`, and vocabulary (about 480 MB), and compiles them with Core ML.
 FluidAudio reads that repository's `main` branch rather than a pinned commit; it ships fixes under new file names instead of replacing published files, and it sends a Hugging Face token only from `HF_TOKEN`-style environment variables.
 Vhrase writes a completion marker after the download finishes, so an interrupted folder is replaced rather than loaded.
 Recognition uses `AsrModels.loadLocal(from:)`, which reads only the downloaded folder and fails instead of downloading, and passes the recorded WAV to `AsrManager.transcribe(_:decoderState:)` without a language hint.
-`ParakeetModelStore.prepare()` performs the same local load in the background when Parakeet becomes the selected provider, because Core ML compiles the model once per app and again after macOS updates.
+`OnDeviceModelStore.prepare()` performs the same local load in the background when Parakeet becomes the selected provider, because Core ML compiles the model once per app and again after macOS updates.
 Task cancellation stops at FluidAudio's chunk boundaries and surfaces as `CancellationError`.
 
 References: [FluidAudio](https://github.com/FluidInference/FluidAudio), [Parakeet TDT 0.6B v3 Core ML](https://huggingface.co/FluidInference/parakeet-tdt-0.6b-v3-coreml), [NVIDIA Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3).
 
+## Hugging Face on-device transcription
+
+`HuggingFaceRecognizer` runs models through `Transcription/OnDevice/HuggingFaceRuntime/asr.py`, a Python script that builds the `transformers` `automatic-speech-recognition` pipeline the way youtube-toolkit's local route does: the first available of an Nvidia GPU, the Apple GPU, and the CPU, at half precision on a GPU and full precision on the CPU.
+`HuggingFaceRuntime` starts the script with `uv run --script`, so uv builds the environment from the script's inline dependencies (`torch`, `transformers`, `librosa`, `numpy`, `huggingface-hub`) pinned by `asr.py.lock`, and reuses it afterwards; the app links no Python and no Swift package for this.
+The script and its lockfile ship in the SwiftPM resource bundle, and uv is looked up in `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, and `~/.cargo/bin`, because an app launched from Finder inherits no shell path.
+Before each start Vhrase copies both files to `Models/huggingface/runtime` when they differ and runs them from there, because uv keys an environment to the script's path: run from inside the app bundle, every rebuilt or moved app built a new 1 GB environment, which took 45 to 60 seconds even from uv's own cache.
+
+The helper's Hub cache is `HF_HUB_CACHE=~/Library/Application Support/Vhrase/Models/huggingface/hub`, separate from `~/.cache/huggingface/hub`, with `HF_HUB_DISABLE_SHARED_BLOBS=1` so each model's files stay inside its own `models--owner--name` folder and deleting that folder frees them.
+`HuggingFaceModelReference` validates the `huggingFaceModel` setting against the Hub's naming rules before it becomes that folder name; `trust_remote_code` stays off, so a model that needs its own Python code fails to load instead of running it.
+`asr.py download MODEL` builds the pipeline, which lets `transformers` fetch exactly the files it needs, reports progress as cached bytes over an estimate from the repository's file list, transcribes one second of silence, and ends with an `installed` or `error` JSON line; Vhrase then writes the completion marker, and a failed or cancelled download removes the model's folder.
+`asr.py serve` runs with `HF_HUB_OFFLINE=1`, keeps the last requested model loaded, and answers one JSON request per line for `load` and `transcribe`; it exits when its standard input closes, which is how Vhrase stops it and how it notices the app is gone.
+Recordings longer than 28 seconds are cut at the quietest point before each limit and transcribed piece by piece, as in youtube-toolkit, because the pipeline's own chunking repeats text for Parakeet and Whisper refuses longer audio without it.
+The Listen language code is passed as `generate_kwargs.language` only to multilingual Whisper models; no vocabulary reaches any model.
+Cancelling a request or exceeding the ten-minute request limit terminates uv, which forwards the signal to Python; the recognizer then starts a fresh server on the next request.
+Whisper's temperature fallback is not enabled: in `transformers` 5.19 it raised an internal error on a degenerate clip and did not stop silence from returning “Thank you.”.
+
+References: [transformers ASR pipeline](https://huggingface.co/docs/transformers/main_classes/pipelines#transformers.AutomaticSpeechRecognitionPipeline), [uv scripts](https://docs.astral.sh/uv/guides/scripts/), [OpenAI Whisper large-v3-turbo](https://huggingface.co/openai/whisper-large-v3-turbo).
+
 ## Credentials
 
 Vhrase stores API keys as macOS Keychain generic-password items under service `Vhrase`, with the environment-variable name as the account name.
-A saved Keychain credential takes precedence. A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, or `LLM_API_KEY` launch-environment value is used next, and a direct literal export from `~/.zshrc` fills any remaining key.
+A saved Keychain credential takes precedence. A nonempty `XAI_API_KEY`, `ELEVENLABS_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `AI_GATEWAY_API_KEY`, or `LLM_API_KEY` launch-environment value is used next, and a direct literal export from `~/.zshrc` fills any remaining key.
 Development launches additionally resolve ignored `.env` fallbacks in memory without reading or modifying Keychain.
 Credential fields always edit the saved Keychain value; clearing one reveals the environment fallback when it exists.
 

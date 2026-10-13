@@ -1,39 +1,71 @@
-// Exercises Vhrase's on-device Parakeet path on WAV recordings: recognition, finalization into history, silence, and cancellation.
+// Exercises Vhrase's on-device Parakeet or Hugging Face path on WAV recordings: model setup, recognition, finalization into history, silence, and cancellation.
 
 import AVFoundation
 import Foundation
 
 @main
-struct ParakeetSTTSmoke {
+struct OnDeviceSTTSmoke {
   @MainActor
   static func main() async throws {
+    // Progress lines must survive a failing run when output is redirected to a file.
+    setvbuf(stdout, nil, _IOLBF, 0)
     var arguments = Array(CommandLine.arguments.dropFirst())
-    let allowsDownload = arguments.first == "--download"
-    if allowsDownload { arguments.removeFirst() }
+    var settings = DictationSettings.defaults
+    settings.provider = .parakeet
+    settings.adjustWithLLM = false
+    var allowsDownload = false
+    // Options come first; `--hugging-face` takes an optional model ID, and `--language` a Whisper language code or `auto`.
+    while let option = arguments.first, option.hasPrefix("--") {
+      arguments.removeFirst()
+      switch option {
+      case "--download":
+        allowsDownload = true
+      case "--hugging-face":
+        settings.provider = .huggingFace
+        if let model = arguments.first, !model.hasPrefix("--"), !model.hasSuffix(".wav") {
+          settings.huggingFaceModel = arguments.removeFirst()
+        }
+      case "--language":
+        guard !arguments.isEmpty else { throw SmokeFailure("--language needs a code or auto.") }
+        let language = arguments.removeFirst()
+        settings.language = language == "auto" ? "" : language
+      default:
+        throw SmokeFailure("Unknown option \(option).")
+      }
+    }
     guard !arguments.isEmpty, arguments.count.isMultiple(of: 2) else {
       print(
-        "Usage: parakeet-stt-smoke [--download] recording.wav \"expected phrase\" [recording.wav \"expected phrase\" ...]"
+        "Usage: on-device-stt-smoke [--hugging-face [model]] [--language code|auto] [--download] recording.wav \"expected phrase\" [recording.wav \"expected phrase\" ...]"
       )
       return
     }
+    try settings.validateLocalConfiguration()
+    let title = settings.provider.title
     let samples = stride(from: 0, to: arguments.count, by: 2).map {
       (audio: URL(fileURLWithPath: arguments[$0]), expected: arguments[$0 + 1])
     }
 
-    let store = ParakeetModelStore()
+    // The same stores AppState builds, so a model downloaded here is the one the app finds.
+    let store =
+      settings.provider == .huggingFace
+      ? OnDeviceModelStore(
+        model: HuggingFaceModel(
+          id: settings.huggingFaceModel, recognizer: HuggingFaceRecognizer()))
+      : OnDeviceModelStore(model: ParakeetModel())
     if !store.isInstalled {
       guard allowsDownload else {
-        throw SmokeFailure("The Parakeet model is not downloaded; rerun with --download.")
+        throw SmokeFailure("The \(title) model is not downloaded; rerun with --download.")
       }
       try await download(store)
     }
-    let recognizer = store.recognizer
-    var settings = DictationSettings.defaults
-    settings.provider = .parakeet
-    settings.adjustWithLLM = false
+    let loadStarted = ContinuousClock.now
+    try await store.model.load()
+    print(
+      "model loaded in \(String(format: "%.2f", loadStarted.duration(to: .now) / .seconds(1)))s")
+    let recognizer = store.model.recognizer
 
     // The same recognition, finalization, and history calls AppState makes after a recording stops.
-    let suite = "Vhrase.ParakeetSmoke"
+    let suite = "Vhrase.OnDeviceSmoke"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let historyStore = TranscriptHistoryStore(defaults: defaults)
@@ -69,30 +101,37 @@ struct ParakeetSTTSmoke {
     let saved = historyStore.load()
     guard saved.count == samples.count,
       saved.allSatisfy({
-        $0.provider == "Parakeet" && $0.transcriptionMode == "After stop" && $0.cleanup == .raw
+        $0.provider == title && $0.transcriptionMode == "After stop" && $0.cleanup == .raw
       })
     else {
-      throw SmokeFailure("History did not retain the Parakeet transcripts and their metadata.")
+      throw SmokeFailure("History did not retain the \(title) transcripts and their metadata.")
     }
-    print("history ok: \(saved.count) Parakeet entries, mode After stop, cleanup Raw")
+    print("history ok: \(saved.count) \(title) entries, mode After stop, cleanup Raw")
 
     let workDirectory = FileManager.default.temporaryDirectory
-      .appendingPathComponent("parakeet-stt-smoke-\(UUID().uuidString)", isDirectory: true)
+      .appendingPathComponent("on-device-stt-smoke-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: workDirectory) }
 
     let silence = workDirectory.appendingPathComponent("silence.wav")
     try writeRecording([Float](repeating: 0, count: 48_000), to: silence)
     let silent = try await recognizer.transcribe(fileURL: silence, settings: settings)
-    do {
-      _ = try await TranscriptFinalizer(settings: settings, llmAPIKey: "")
-        .finalize(silent, adjustment: .provider, targetApp: nil)
-      throw SmokeFailure("Three seconds of silence produced text: \(silent.text)")
-    } catch let error as NSError where error.domain == "Vhrase.Transcript" {
-      print("silence ok: no transcript, so nothing would be delivered")
+    if settings.provider == .huggingFace {
+      // Whisper models word silence, so the app's recording-level gate, not the recognizer, refuses a recording without speech.
+      print(
+        "silence: \(settings.huggingFaceModel) returned “\(silent.text)”; the app's level gate stops such recordings"
+      )
+    } else {
+      do {
+        _ = try await TranscriptFinalizer(settings: settings, llmAPIKey: "")
+          .finalize(silent, adjustment: .provider, targetApp: nil)
+        throw SmokeFailure("Three seconds of silence produced text: \(silent.text)")
+      } catch let error as NSError where error.domain == "Vhrase.Transcript" {
+        print("silence ok: no transcript, so nothing would be delivered")
+      }
     }
 
-    // Repeating a fixture gives FluidAudio several chunk boundaries at which cancellation can land.
+    // Repeating a fixture gives the runtime several chunk boundaries at which cancellation can land.
     let long = workDirectory.appendingPathComponent("long.wav")
     let repeated = try readRecording(samples[0].audio)
     try writeRecording(
@@ -118,7 +157,7 @@ struct ParakeetSTTSmoke {
   }
 
   @MainActor
-  private static func download(_ store: ParakeetModelStore) async throws {
+  private static func download(_ store: OnDeviceModelStore) async throws {
     store.download()
     var lastReport = ""
     while store.isDownloading {

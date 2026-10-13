@@ -1,5 +1,5 @@
 // swift-tools-version: 6.2
-// Builds the native menu-bar executable, ships its provider marks as SwiftPM resources, and compiles FluidAudio in for on-device Parakeet recognition.
+// Builds the native menu-bar executable, ships its provider marks and Hugging Face helper script as SwiftPM resources, and compiles FluidAudio in for on-device Parakeet recognition.
 
 import PackageDescription
 
@@ -28,7 +28,11 @@ let package = Package(
       ],
       path: "Sources/VhraseApp",
       resources: [
-        .copy("UI/Resources/ProviderIcons")
+        .copy("UI/Resources/ProviderIcons"),
+        // The Python script and its uv lockfile that run Hugging Face models; uv builds the environment on the user's Mac.
+        // Each file is named so that nothing else left in that folder, such as an editor's cache, is packaged with them.
+        .copy("Transcription/OnDevice/HuggingFaceRuntime/asr.py"),
+        .copy("Transcription/OnDevice/HuggingFaceRuntime/asr.py.lock"),
       ]
     )
   ]

@@ -145,8 +145,12 @@ struct CaptureView: View {
     switch appState.settings.provider {
     case .gemini:
       "Audio is sent directly to Google after you stop. Interaction storage is disabled. Live Gemini transcription is not enabled in this version."
-    case .parakeet:
-      "No audio leaves this Mac. Realtime streaming and vocabulary hints are not available for Parakeet."
+    case .openAI:
+      "Audio is sent directly to OpenAI after you stop."
+    case .vercel:
+      "Audio is sent to Vercel AI Gateway after you stop, which forwards it to the model's provider. Vocabulary and language hints are not forwarded."
+    case .parakeet, .huggingFace:
+      "No audio leaves this Mac. Realtime streaming and vocabulary hints are not available for \(appState.settings.provider.title)."
     case .xai, .elevenLabs:
       nil
     }
@@ -156,7 +160,31 @@ struct CaptureView: View {
   private var providerSpecificControls: some View {
     switch appState.settings.provider {
     case .parakeet:
-      ParakeetModelControls(appState: appState, model: appState.parakeetModel)
+      OnDeviceModelControls(appState: appState, store: appState.parakeetModelStore)
+    case .huggingFace:
+      OnDeviceModelControls(appState: appState, store: appState.huggingFaceModelStore)
+    case .openAI:
+      settingsRow(
+        "Model",
+        detail: "OpenAI's recorded-speech model. Vocabulary is sent as keyword hints."
+      ) {
+        Text(OpenAITranscriptionContract.modelID)
+          .font(.callout.monospaced())
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+      }
+    case .vercel:
+      settingsRow(
+        "Model",
+        detail:
+          "Any transcription model in the gateway's catalog, such as \(DictationSettings.defaultVercelModel), openai/gpt-transcribe, or google/gemini-3.5-transcribe."
+      ) {
+        TextField("Model", text: appState.settingsBinding(\.vercelModel))
+          .textFieldStyle(.roundedBorder)
+          .labelsHidden()
+          .font(.callout.monospaced())
+          .frame(width: 260)
+      }
     case .gemini:
       settingsToggle(
         "Smart transcription",
@@ -418,26 +446,23 @@ struct CaptureView: View {
               .frame(width: 220)
           }
         case .parakeet:
-          settingsRow(
-            "Language",
-            detail:
-              "Parakeet detects the spoken language automatically among its 25 European languages, so no code is needed."
-          ) {
-            Text("Automatic")
-              .foregroundStyle(.secondary)
-          }
-        case .xai, .elevenLabs:
-          settingsRow(
-            "Language",
-            detail: appState.settings.provider == .xai
-              ? "Grok detects spoken language automatically. This code enables number and currency formatting when that option is on, such as en."
-              : "Use a language code such as en, yue, or zh. Leave blank for automatic detection."
-          ) {
-            TextField("Language", text: appState.settingsBinding(\.language))
-              .textFieldStyle(.roundedBorder)
-              .labelsHidden()
-              .frame(width: 220)
-          }
+          automaticLanguageRow(
+            "Parakeet detects the spoken language automatically among its 25 European languages, so no code is needed."
+          )
+        case .vercel:
+          automaticLanguageRow(
+            "The gateway forwards no language hint, so the model detects the spoken language.")
+        case .xai:
+          languageCodeRow(
+            "Grok detects spoken language automatically. This code enables number and currency formatting when that option is on, such as en."
+          )
+        case .huggingFace:
+          languageCodeRow(
+            "Whisper models take a language code such as en, yue, or zh; leave blank to detect it. Other models detect the language themselves."
+          )
+        case .elevenLabs, .openAI:
+          languageCodeRow(
+            "Use a language code such as en, yue, or zh. Leave blank for automatic detection.")
         }
       }
 
@@ -492,6 +517,24 @@ struct CaptureView: View {
     }
   }
 
+  /// The Listen row for a provider that takes no language code.
+  private func automaticLanguageRow(_ detail: String) -> some View {
+    settingsRow("Language", detail: detail) {
+      Text("Automatic")
+        .foregroundStyle(.secondary)
+    }
+  }
+
+  /// The Listen row for a provider that reads the shared language code.
+  private func languageCodeRow(_ detail: String) -> some View {
+    settingsRow("Language", detail: detail) {
+      TextField("Language", text: appState.settingsBinding(\.language))
+        .textFieldStyle(.roundedBorder)
+        .labelsHidden()
+        .frame(width: 220)
+    }
+  }
+
   /// Refreshes attached microphones without replacing a saved choice when its device is disconnected.
   private func refreshInputDevices() {
     do {
@@ -522,7 +565,7 @@ struct CaptureView: View {
         title: "Transcribe",
         detail:
           "\(appState.settings.provider.title) · \(appState.settings.transcriptionModeTitle)",
-        badge: keytermCount == 0 || appState.settings.provider == .parakeet
+        badge: keytermCount == 0 || !appState.settings.provider.takesVocabularyHints
           ? nil
           : "\(keytermCount) preferred terms"
       ),
