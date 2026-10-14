@@ -62,8 +62,7 @@ struct RecordButtonStateCheck {
           state: .granted
         )
       ],
-      liveTranscript: "",
-      recordingElapsedSeconds: 0
+      liveTranscript: ""
     )
   }
 }

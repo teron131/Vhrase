@@ -19,6 +19,7 @@ final class AudioRecorder {
   static var startup: CheckedContinuation<Void, Never>?
   static var lastURL: URL?
   static var cancellations = 0
+  let recordedSeconds = 0.0
 
   func start(
     settings: DictationSettings,

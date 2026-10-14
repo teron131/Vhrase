@@ -21,9 +21,6 @@ enum OpenCCInstallationState: Equatable {
 
 @MainActor
 final class AppState: ObservableObject {
-  private static let developmentEnvironmentFileArgument = "--development-environment-file"
-  /// Enough level samples for Dictate's full-width signal line; smaller surfaces read their own suffix.
-  private static let recordingWaveformHistoryLimit = 96
   private static let workflowOutcomeDisplayDuration = Duration.seconds(4)
 
   @Published private(set) var status: AppStatus = .idle {
@@ -45,27 +42,23 @@ final class AppState: ObservableObject {
     }
   }
   @Published private(set) var settings: DictationSettings
-  /// Editable credential values: saved secrets, this session's edits, or the LLM environment reference, never environment fallbacks.
-  @Published private var apiKeyFields: [SecretKey: String] = [:]
-  @Published private(set) var unsavedAPIKeys: Set<SecretKey> = []
-  @Published private(set) var keychainReadNotice = ""
+  let credentials = Credentials()
   @Published private(set) var lastTranscript = ""
   @Published private(set) var lastRecognizedTranscript = ""
   @Published private(set) var lastTranscriptionSeconds: Double?
   @Published private(set) var liveTranscript = ""
-  @Published private(set) var recordingLevel = 0.0
-  @Published private(set) var recordingWaveformHistory: [Double] = []
+  /// The active recording's level and elapsed time, published apart from this object so they never re-evaluate every view.
+  let recordingMeter = RecordingMeter()
   let audioInputPreview = AudioInputPreview()
   let transcriptionTest = TranscriptionTest()
   let parakeetModelStore = OnDeviceModelStore(model: ParakeetModel())
   /// Follows the Hugging Face model named in settings; one recognizer serves every model so only one stays in memory.
   let huggingFaceModelStore: OnDeviceModelStore
   private let huggingFaceRecognizer = HuggingFaceRecognizer()
-  @Published private(set) var recordingElapsedSeconds = 0
   @Published private(set) var permissions: [PermissionSnapshot] = []
   @Published private(set) var history: [TranscriptHistoryItem] = [] {
     didSet {
-      cachedHistoryIndex = nil
+      historyIndexIsCurrent = false
     }
   }
   @Published private(set) var activityDays: [DictationActivityDay] = []
@@ -82,20 +75,20 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Reuses normalized transcripts across History renders and searches until the saved history changes.
+  /// Reuses normalized transcripts across History renders and searches; after a history edit, only the changed transcript is indexed again.
   var historyIndex: HistorySearch.Index {
-    if let cachedHistoryIndex {
+    if let cachedHistoryIndex, historyIndexIsCurrent {
       return cachedHistoryIndex
     }
-    let index = HistorySearch.Index(history)
+    let index = HistorySearch.Index(history, reusing: cachedHistoryIndex)
     cachedHistoryIndex = index
+    historyIndexIsCurrent = true
     return index
   }
 
   private let settingsStore = SettingsStore()
   private let historyStore = TranscriptHistoryStore()
   private let activityStore = DictationActivityStore()
-  private let apiKeys: APIKeyStore
   private let customizationTransfer = CustomizationTransfer()
   private let inserter = TextInsertion()
   private let focusedTextService = FocusedTextService()
@@ -105,67 +98,31 @@ final class AppState: ObservableObject {
   private let hotkeyManager = GlobalHotkeyManager()
   private let fnHotkeyManager = FnHotkeyManager()
   private let escapeKeyMonitor = EscapeKeyMonitor()
-  private var recorder: AudioRecorder?
+  /// The active dictation's capture and recognition; its identity tells late continuations whether they still own the workflow.
+  private var recording: TranscriptionRecording?
   private var childStateObservations: [AnyCancellable] = []
   private let logger = Logger(subsystem: "local.codex.Vhrase", category: "Dictation")
   private var recordingSequence = 0
-  private var recordingWaveformTick = 0
-  private var realtimeSession: RealtimeTranscriptionSession?
   private var recordingTask: Task<Void, Never>?
   private var processingTask: Task<Void, Never>?
-  private var recordingTimer: Timer?
   private var workflowOutcomeDismissTask: Task<Void, Never>?
-  private var recordingID: UUID?
   private var recordingTargetApp: FrontmostApp?
   private var recordingConfiguration: RecordingConfiguration?
-  private var recordingSpeechPresence: SpeechPresenceGate?
-  private var processingAudioURL: URL?
   private var isShortcutCaptureActive = false
   private var shortcutGesture = ShortcutGestureInterpreter()
   private var textPolishTask: Task<Void, Never>?
   private var textPolishID: UUID?
   private var activeWorkflow = ActiveWorkflow.dictation
-  private var apiKeySaveTask: Task<Void, Never>?
-  private var pendingAPIKeySaves: Set<SecretKey> = []
-  private var editedAPIKeys: Set<SecretKey> = []
-  private var shouldLoadSavedAPIKeysAfterLaunch = false
   private var cachedHistoryIndex: HistorySearch.Index?
+  private var historyIndexIsCurrent = false
   private let ownsInstance: Bool
 
   init(ownsInstance: Bool) {
     self.ownsInstance = ownsInstance
-    let developmentEnvironmentFileURL = Self.developmentEnvironmentFileURL(
-      arguments: CommandLine.arguments
-    )
-    var credentialNotices: [String] = []
-    var environment = ProcessInfo.processInfo.environment
-    do {
-      environment = try APIKeyStore.zshrcEnvironment(baseEnvironment: environment)
-    } catch {
-      credentialNotices.append(
-        "Could not read API keys from ~/.zshrc: \(error.localizedDescription)"
-      )
-    }
-    if let developmentEnvironmentFileURL {
-      do {
-        environment = try APIKeyStore.developmentEnvironment(
-          fileURL: developmentEnvironmentFileURL,
-          baseEnvironment: environment
-        )
-      } catch {
-        credentialNotices.append(
-          "Could not read development credentials: \(error.localizedDescription)"
-        )
-      }
-    }
-    let apiKeys = APIKeyStore(environment: environment)
-    self.apiKeys = apiKeys
     let settings = settingsStore.load()
     self.settings = settings
     huggingFaceModelStore = OnDeviceModelStore(
       model: HuggingFaceModel(id: settings.huggingFaceModel, recognizer: huggingFaceRecognizer))
-    apiKeyFields = [.llmAPIKey: apiKeys.savedLLMCredentialReference()]
-    shouldLoadSavedAPIKeysAfterLaunch = developmentEnvironmentFileURL == nil
     history = historyStore.load()
     activityDays = activityStore.load()
     savesTranscriptHistory = historyStore.savesHistory
@@ -173,9 +130,13 @@ final class AppState: ObservableObject {
     if ownsInstance {
       AudioRecorder.removeAbandonedRecordings()
     }
-    customizationNotice = credentialNotices.joined(separator: " ")
+    customizationNotice = credentials.environmentNotice
+    credentials.onNotice = { [weak self] notice in
+      self?.customizationNotice = notice
+    }
     // Readiness and recording availability depend on child workflows, so their changes refresh AppState observers.
     childStateObservations = [
+      credentials.objectWillChange,
       parakeetModelStore.objectWillChange,
       huggingFaceModelStore.objectWillChange,
       transcriptionTest.objectWillChange,
@@ -191,83 +152,8 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Loads Keychain credentials after the menu-bar lifecycle is established without blocking AppKit launch.
-  func loadSavedAPIKeysAfterLaunch() {
-    guard shouldLoadSavedAPIKeysAfterLaunch else {
-      return
-    }
-    shouldLoadSavedAPIKeysAfterLaunch = false
-
-    let apiKeys = apiKeys
-    let keys = SecretKey.allCases.filter { key in
-      !editedAPIKeys.contains(key)
-        && !(key == .llmAPIKey
-          && APIKeyStore.isCredentialEnvironmentVariableName(apiKeyField(.llmAPIKey)))
-    }
-    Task {
-      let loaded = await Task.detached {
-        var values: [SecretKey: String] = [:]
-        var notices: [String] = []
-
-        for key in keys {
-          do {
-            values[key] = try apiKeys.savedValue(for: key)
-          } catch {
-            notices.append(error.localizedDescription)
-          }
-        }
-        return (values: values, notices: notices)
-      }.value
-
-      for key in keys where !editedAPIKeys.contains(key) {
-        guard let value = loaded.values[key] else { continue }
-        apiKeyFields[key] = value
-      }
-
-      let keychainNotice = loaded.notices.joined(separator: " ")
-      keychainReadNotice = keychainNotice
-      if !keychainNotice.isEmpty {
-        customizationNotice = [customizationNotice, keychainNotice]
-          .filter { !$0.isEmpty }
-          .joined(separator: " ")
-      }
-    }
-  }
-
-  /// Retries inaccessible saved keys without a password dialog or overwriting credentials edited during this session.
-  func retryLoadingAPIKeys() {
-    shouldLoadSavedAPIKeysAfterLaunch = true
-    loadSavedAPIKeysAfterLaunch()
-  }
-
-  /// Reads the development environment path paired with the launch-only argument.
-  private static func developmentEnvironmentFileURL(arguments: [String]) -> URL? {
-    guard let argumentIndex = arguments.firstIndex(of: developmentEnvironmentFileArgument) else {
-      return nil
-    }
-    let pathIndex = arguments.index(after: argumentIndex)
-    guard arguments.indices.contains(pathIndex) else {
-      return nil
-    }
-    return URL(fileURLWithPath: arguments[pathIndex])
-  }
-
-  /// Returns the credential field shown for editing, which excludes environment fallbacks.
-  func apiKeyField(_ key: SecretKey) -> String {
-    apiKeyFields[key, default: ""]
-  }
-
-  /// Resolves the credential a request will use: the edited or saved field first, then its environment fallback.
-  func effectiveAPIKey(_ key: SecretKey) -> String {
-    apiKeys.effectiveValue(for: key, savedValue: apiKeyField(key))
-  }
-
   var effectiveLLMBaseURL: String {
-    apiKeys.effectiveLLMBaseURL(savedValue: settings.adjustmentBaseURL)
-  }
-
-  var usesEnvironmentLLMBaseURL: Bool {
-    apiKeys.usesEnvironmentLLMBaseURL
+    credentials.effectiveLLMBaseURL(savedValue: settings.adjustmentBaseURL)
   }
 
   /// Dictation and setup recording share capture and recognition resources, so neither starts while the other is active.
@@ -283,13 +169,8 @@ final class AppState: ObservableObject {
       providerReadiness: selectedProviderReadiness,
       permissions: permissions,
       liveTranscript: liveTranscript,
-      recordingElapsedSeconds: recordingElapsedSeconds,
       completion: lastCompletion
     )
-  }
-
-  func usesEnvironmentFallback(for key: SecretKey) -> Bool {
-    apiKeys.usesEnvironmentFallback(for: key, savedValue: apiKeyField(key))
   }
 
   var isRecording: Bool {
@@ -310,7 +191,7 @@ final class AppState: ObservableObject {
     SetupDiagnostics(
       settings: settings,
       providerReadiness: selectedProviderReadiness,
-      hasLLMKey: !effectiveAPIKey(.llmAPIKey).isEmpty,
+      hasLLMKey: !credentials.effectiveValue(.llmAPIKey).isEmpty,
       permissions: permissions,
       chineseConversionIsAvailable: ChineseTextConverter.isAvailable
     ).build()
@@ -529,77 +410,6 @@ final class AppState: ObservableObject {
     )
   }
 
-  /// Saves only explicitly edited credentials so an unrelated field cannot erase an unread Keychain item.
-  private func saveAPIKeys(_ keys: Set<SecretKey>) {
-    guard !keys.isEmpty else {
-      return
-    }
-    var failures: [String] = []
-    for key in keys {
-      let value = apiKeyField(key)
-      if key == .llmAPIKey,
-        APIKeyStore.isCredentialEnvironmentVariableName(value)
-      {
-        apiKeys.saveLLMCredentialReference(value)
-        unsavedAPIKeys.remove(key)
-        continue
-      }
-      if key == .llmAPIKey {
-        apiKeys.saveLLMCredentialReference("")
-      }
-      do {
-        try apiKeys.save(value, for: key)
-        unsavedAPIKeys.remove(key)
-      } catch {
-        unsavedAPIKeys.insert(key)
-        failures.append(error.localizedDescription)
-      }
-    }
-    customizationNotice =
-      failures.isEmpty
-      ? "Credential changes saved. Secrets use macOS Keychain; environment references use local preferences."
-      : failures.joined(separator: " ") + " Unsaved changes apply only for this session."
-  }
-
-  /// Retries explicit credential edits without opening a system authentication dialog.
-  func retrySavingAPIKeys() {
-    saveAPIKeys(unsavedAPIKeys)
-  }
-
-  /// Updates one editable credential and debounces its Keychain write for 500 milliseconds.
-  func updateAPIKey(_ key: SecretKey, value: String) {
-    guard value != apiKeyField(key) else {
-      return
-    }
-
-    apiKeyFields[key] = value
-
-    pendingAPIKeySaves.insert(key)
-    editedAPIKeys.insert(key)
-    unsavedAPIKeys.insert(key)
-    apiKeySaveTask?.cancel()
-    apiKeySaveTask = Task { @MainActor [weak self] in
-      do {
-        try await Task.sleep(nanoseconds: 500_000_000)
-      } catch {
-        return
-      }
-      guard !Task.isCancelled else {
-        return
-      }
-      self?.savePendingAPIKeys()
-    }
-  }
-
-  /// Flushes credentials edited on a disappearing configuration surface.
-  func flushPendingAPIKeySave() {
-    guard apiKeySaveTask != nil || !pendingAPIKeySaves.isEmpty else {
-      return
-    }
-    apiKeySaveTask?.cancel()
-    savePendingAPIKeys()
-  }
-
   func updateSettings(_ update: (inout DictationSettings) -> Void) {
     guard !transcriptionTest.state.isActive else { return }
     let previousSettings = settings
@@ -748,7 +558,7 @@ final class AppState: ObservableObject {
     workflowOutcomeDismissTask = nil
     audioInputPreview.stop()
     transcriptionTest.cancel()
-    flushPendingAPIKeySave()
+    credentials.flushPendingSave()
     parakeetModelStore.cancelDownload()
     huggingFaceModelStore.cancelDownload()
     huggingFaceModelStore.cancelPreparation()
@@ -759,10 +569,6 @@ final class AppState: ObservableObject {
     textPolishTask = nil
     releaseRecording()
     HuggingFaceRuntime.stopAll()
-    if let processingAudioURL {
-      try? FileManager.default.removeItem(at: processingAudioURL)
-      self.processingAudioURL = nil
-    }
     AudioRecorder.removeAbandonedRecordings()
   }
 
@@ -811,7 +617,7 @@ final class AppState: ObservableObject {
     guard !isCheckingLLMModelAccess else {
       return
     }
-    let apiKey = effectiveAPIKey(.llmAPIKey)
+    let apiKey = credentials.effectiveValue(.llmAPIKey)
     guard !apiKey.isEmpty else {
       customizationNotice = "Add LLM API key before checking model access."
       return
@@ -848,89 +654,61 @@ final class AppState: ObservableObject {
     logger.notice(
       "Begin attempt=\(self.recordingSequence) provider=\(self.settings.provider.rawValue, privacy: .public) mode=\(self.settings.transcriptionMode.rawValue, privacy: .public)"
     )
-    let id = UUID()
-    let recorder = AudioRecorder()
-    recordingID = id
-    self.recorder = recorder
+    let configuration = currentRecordingConfiguration()
+    let recording = TranscriptionRecording(
+      settings: configuration.settings,
+      apiKey: configuration.providerAPIKey,
+      client: transcriptionClient(
+        provider: configuration.settings.provider, apiKey: configuration.providerAPIKey)
+    )
+    self.recording = recording
+    recordingConfiguration = configuration
     status = .preparing
     recordingTask = Task { [weak self] in
-      await self?.startRecording(
-        id: id,
-        recorder: recorder
-      )
+      await self?.startRecording(recording, configuration: configuration)
     }
   }
 
   private func startRecording(
-    id: UUID,
-    recorder: AudioRecorder
+    _ recording: TranscriptionRecording,
+    configuration: RecordingConfiguration
   ) async {
-    let configuration = currentRecordingConfiguration()
-    recordingConfiguration = configuration
+    // A recording cancelled before its startup ran has nothing to prepare, and must not reset a newer one's live state.
+    guard self.recording === recording else {
+      return
+    }
     recordingTargetApp = appContext.targetApp()
     targetAppLabel = recordingTargetApp?.name ?? ""
     resetLiveRecordingState()
-    let speechPresence = SpeechPresenceGate()
-    recordingSpeechPresence = speechPresence
-    var session: RealtimeTranscriptionSession?
     do {
       try validateRecordingPermissions()
       try validateSelectedProvider(
         settings: configuration.settings, apiKey: configuration.providerAPIKey)
       // Loading overlaps the user's speech when the model was released while idle.
       warmUpSelectedLocalModel()
-      let startedSession = try startRealtimeSessionIfNeeded(
-        configuration: configuration,
-        recordingID: id
-      )
-      session = startedSession
-      try ensureCurrentRecording(id)
-      realtimeSession = startedSession
-      try await recorder.start(settings: configuration.settings) { chunk in
-        speechPresence.observe(level: chunk.level)
-        startedSession?.sendAudioChunk(chunk.data)
-        Task { @MainActor in
-          guard self.recordingID == id else {
-            return
+      try await recording.start(
+        onLevel: { [weak self, weak recording] level in
+          Task { @MainActor in
+            guard let self, let recording, self.recording === recording else { return }
+            self.recordingMeter.record(level)
           }
-          self.recordingLevel = chunk.level
-          self.recordingWaveformTick += 1
-          if self.recordingWaveformTick >= 3 {
-            self.recordingWaveformTick = 0
-            self.recordingWaveformHistory.append(chunk.level)
-            let limit = Self.recordingWaveformHistoryLimit
-            if self.recordingWaveformHistory.count > limit {
-              self.recordingWaveformHistory.removeFirst(
-                self.recordingWaveformHistory.count - limit
-              )
-            }
-          }
-        }
-      } onFailure: { [weak self] error in
-        guard let self, self.recordingID == id else { return }
-        self.cancelRecording()
-        self.status = .failed(error.localizedDescription)
-      }
-      try ensureCurrentRecording(id)
+        },
+        onPartialTranscript: partialTranscriptHandler(for: recording),
+        onFailure: { [weak self, weak recording] error in
+          guard let self, let recording, self.recording === recording else { return }
+          self.cancelRecording()
+          self.status = .failed(error.localizedDescription)
+        })
+      try ensureCurrentRecording(recording)
       recordingTask = nil
-      startRecordingTimer()
+      recordingMeter.startClock()
       status = .recording
     } catch is CancellationError {
-      session?.cancel()
-      recorder.cancel()
-      finishRecordingStartup(
-        id: id,
-        error: nil
-      )
+      finishRecordingStartup(recording, error: nil)
     } catch {
       let failure = error as NSError
       logger.error("Startup failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
-      session?.cancel()
-      recorder.cancel()
-      finishRecordingStartup(
-        id: id,
-        error: error
-      )
+      finishRecordingStartup(recording, error: error)
     }
   }
 
@@ -946,66 +724,37 @@ final class AppState: ObservableObject {
   }
 
   private func beginStopAndProcess() {
-    guard isRecording,
-      let id = recordingID,
-      let recorder
-    else {
+    guard isRecording, let recording, let configuration = recordingConfiguration else {
       return
     }
     status = .transcribing
     processingTask = Task {
-      await stopAndProcess(
-        id: id,
-        recorder: recorder
-      )
+      await stopAndProcess(recording, configuration: configuration)
     }
   }
 
   private func stopAndProcess(
-    id: UUID,
-    recorder: AudioRecorder
+    _ recording: TranscriptionRecording,
+    configuration: RecordingConfiguration
   ) async {
     let processingStarted = ContinuousClock.now
-    let session = realtimeSession
-    let configuration = recordingConfiguration ?? currentRecordingConfiguration()
     do {
-      try ensureCurrentRecording(id)
-      let fileURL = try await recorder.stop()
+      try await recording.stop()
       logger.notice("PCM capture ended; waiting for transcription")
-      processingAudioURL = fileURL
-      defer {
-        try? FileManager.default.removeItem(at: fileURL)
-        if processingAudioURL == fileURL {
-          processingAudioURL = nil
-        }
-      }
-      // Cancelling while capture drains may already have started a newer recording that owns these resources.
-      try ensureCurrentRecording(id)
-      stopRecordingTimer()
-      self.recorder = nil
-      realtimeSession = nil
-      guard recordingSpeechPresence?.hasLikelySpeech == true else {
-        throw RecordingContentError.noSpeechDetected
-      }
+      // Cancelling while capture drains may already have started a newer recording that owns the meter.
+      try ensureCurrentRecording(recording)
+      recordingMeter.reset()
       let transcriptionStarted = ContinuousClock.now
-      let result: TranscriptionResult
-      if let session {
-        result = try await session.finish()
-      } else {
-        result = try await transcriptionClient(
-          provider: configuration.settings.provider, apiKey: configuration.providerAPIKey
-        )
-        .transcribe(fileURL: fileURL, settings: configuration.settings)
-      }
+      let result = try await recording.transcribe()
       // A cancelled or superseded recording must not deliver or save a late transcript.
-      try ensureCurrentRecording(id)
+      try ensureCurrentRecording(recording)
 
       try await finalizeTranscript(
         result,
         adjustment: .provider,
         configuration: configuration,
         timing: DictationTiming(
-          recordingSeconds: recorder.recordedSeconds,
+          recordingSeconds: recording.recordedSeconds,
           transcriptionSeconds: transcriptionStarted.duration(to: .now) / .seconds(1),
           processingStarted: processingStarted
         )
@@ -1014,9 +763,7 @@ final class AppState: ObservableObject {
       let failure = error as NSError
       logger.error(
         "Processing failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
-      session?.cancel()
-      recorder.cancel()
-      guard recordingID == id else {
+      guard self.recording === recording else {
         return
       }
       releaseRecording()
@@ -1060,20 +807,6 @@ final class AppState: ObservableObject {
     } catch {
       transcriptionTest.reportFailure(error)
     }
-  }
-
-  private func startRealtimeSessionIfNeeded(
-    configuration: RecordingConfiguration,
-    recordingID: UUID
-  ) throws -> RealtimeTranscriptionSession? {
-    guard configuration.settings.transcriptionMode == .realtime else {
-      return nil
-    }
-    return try RealtimeTranscriptionSession.start(
-      settings: configuration.settings,
-      apiKey: configuration.providerAPIKey,
-      onPartialTranscript: partialTranscriptHandler(recordingID: recordingID)
-    )
   }
 
   private func runDemoDictationPipeline() async {
@@ -1137,12 +870,12 @@ final class AppState: ObservableObject {
     return RecordingConfiguration(
       settings: resolvedSettings,
       providerAPIKey: selectedProviderAPIKey,
-      llmAPIKey: effectiveAPIKey(.llmAPIKey)
+      llmAPIKey: credentials.effectiveValue(.llmAPIKey)
     )
   }
 
   private var selectedProviderAPIKey: String {
-    SecretKey(settings.provider).map(effectiveAPIKey) ?? ""
+    SecretKey(settings.provider).map(credentials.effectiveValue) ?? ""
   }
 
   private var selectedProviderReadiness: ProviderReadiness {
@@ -1155,14 +888,6 @@ final class AppState: ObservableObject {
     case .cloud: apiKey.isEmpty ? .missingAPIKey : .ready
     case .local: localModelStore(for: provider)?.isInstalled == true ? .ready : .missingLocalModel
     }
-  }
-
-  /// Completes the pending Keychain batch and clears its debounce state.
-  private func savePendingAPIKeys() {
-    apiKeySaveTask = nil
-    let keys = pendingAPIKeySaves
-    pendingAPIKeySaves.removeAll()
-    saveAPIKeys(keys)
   }
 
   /// Persists changed preferences and refreshes global listeners only when their key definition changed.
@@ -1191,19 +916,19 @@ final class AppState: ObservableObject {
   }
 
   /// Rejects stale continuations before they can mutate resources owned by a newer recording.
-  private func ensureCurrentRecording(_ id: UUID) throws {
+  private func ensureCurrentRecording(_ recording: TranscriptionRecording) throws {
     try Task.checkCancellation()
-    guard recordingID == id else {
+    guard self.recording === recording else {
       throw CancellationError()
     }
   }
 
-  /// Cleans up a startup failure only when this task still owns the active recording generation.
+  /// Cleans up a startup failure only when this task still owns the active recording.
   private func finishRecordingStartup(
-    id: UUID,
+    _ recording: TranscriptionRecording,
     error: Error?
   ) {
-    guard recordingID == id else {
+    guard self.recording === recording else {
       return
     }
     releaseRecording()
@@ -1218,11 +943,8 @@ final class AppState: ObservableObject {
   private func releaseRecording() {
     recordingTask?.cancel()
     recordingTask = nil
-    realtimeSession?.cancel()
-    realtimeSession = nil
-    recorder?.cancel()
-    recorder = nil
-    stopRecordingTimer()
+    recording?.cancel()
+    recordingMeter.reset()
     clearRecordingContext()
   }
 
@@ -1299,7 +1021,7 @@ final class AppState: ObservableObject {
         throw TextPolishError.missingModel
       }
       client = LLMAdjustmentClient(
-        apiKey: effectiveAPIKey(.llmAPIKey),
+        apiKey: credentials.effectiveValue(.llmAPIKey),
         baseURL: effectiveLLMBaseURL
       )
       try client.validateConfiguration()
@@ -1369,53 +1091,25 @@ final class AppState: ObservableObject {
     customizationNotice = "Text polishing cancelled."
   }
 
-  /// Prevents late provider callbacks from mutating a newer recording generation.
+  /// Prevents late provider callbacks from mutating a newer recording.
   private func partialTranscriptHandler(
-    recordingID: UUID
+    for recording: TranscriptionRecording
   ) -> @Sendable (String) -> Void {
-    { [weak self] text in
+    { [weak self, weak recording] text in
       Task { @MainActor in
-        guard self?.recordingID == recordingID else {
+        guard let self, let recording, self.recording === recording else {
           return
         }
-        self?.liveTranscript = text
+        self.liveTranscript = text
       }
     }
   }
 
   private func resetLiveRecordingState() {
     liveTranscript = ""
-    recordingLevel = 0
-    recordingWaveformHistory = []
-    recordingWaveformTick = 0
-    recordingElapsedSeconds = 0
+    recordingMeter.reset()
     lastCompletion = .transcript(.none)
     lastAdjustmentWarning = ""
-  }
-
-  private func startRecordingTimer() {
-    recordingTimer?.invalidate()
-    let startedAt = Date()
-    recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-      Task { @MainActor in
-        guard let self else {
-          return
-        }
-        let elapsedSeconds = Int(Date().timeIntervalSince(startedAt))
-        guard elapsedSeconds != self.recordingElapsedSeconds else {
-          return
-        }
-        self.recordingElapsedSeconds = elapsedSeconds
-      }
-    }
-  }
-
-  private func stopRecordingTimer() {
-    recordingTimer?.invalidate()
-    recordingTimer = nil
-    recordingLevel = 0
-    recordingWaveformHistory = []
-    recordingWaveformTick = 0
   }
 
   /// Publishes finalized text, returns it to the target app, and records history and activity with one processing measurement.
@@ -1526,9 +1220,8 @@ final class AppState: ObservableObject {
   }
 
   private func clearRecordingContext() {
-    recordingID = nil
+    recording = nil
     recordingConfiguration = nil
-    recordingSpeechPresence = nil
     recordingTargetApp = nil
     targetAppLabel = ""
   }

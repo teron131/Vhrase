@@ -46,10 +46,12 @@ struct HistoryCheck {
     itemWithoutNewFields.refinement = nil
     precondition(oldItem == itemWithoutNewFields)
 
-    let suiteName = "Vhrase.History.Check.\(UUID().uuidString)"
+    // A fixed suite keeps repeated runs from leaving one preferences file each in ~/Library/Preferences.
+    let suiteName = "Vhrase.HistoryCheck"
     guard let defaults = UserDefaults(suiteName: suiteName) else {
       preconditionFailure("Could not create isolated history defaults")
     }
+    defaults.removePersistentDomain(forName: suiteName)
     defer {
       defaults.removePersistentDomain(forName: suiteName)
     }

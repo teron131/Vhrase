@@ -11,6 +11,7 @@ struct SystemView: View {
   @FocusState private var focusedSecretField: SecretKey?
   @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system
   private var presentation: DictationPresentation { appState.presentation }
+  private var credentials: Credentials { appState.credentials }
 
   var body: some View {
     systemTab
@@ -136,62 +137,63 @@ struct SystemView: View {
         text: Binding(
           get: { appState.effectiveLLMBaseURL },
           set: { value in
-            guard !appState.usesEnvironmentLLMBaseURL else { return }
+            guard !credentials.usesEnvironmentLLMBaseURL else { return }
             appState.updateSettings { $0.adjustmentBaseURL = value }
           }
         ),
-        environmentName: appState.usesEnvironmentLLMBaseURL ? "LLM_BASE_URL" : nil
+        environmentName: credentials.usesEnvironmentLLMBaseURL ? "LLM_BASE_URL" : nil
       )
 
       settingsRow(
         "Model access",
         detail: "Sends only a tiny “Reply with OK” request using the configured model.",
-        icon: { llmIcon }
-      ) {
-        Button {
-          appState.checkLLMModelAccess()
-        } label: {
-          HStack(spacing: 6) {
-            if appState.isCheckingLLMModelAccess {
-              ProgressView()
-                .controlSize(.small)
-            } else {
-              Image(systemName: "checkmark.seal")
+        icon: { llmIcon },
+        control: {
+          Button {
+            appState.checkLLMModelAccess()
+          } label: {
+            HStack(spacing: 6) {
+              if appState.isCheckingLLMModelAccess {
+                ProgressView()
+                  .controlSize(.small)
+              } else {
+                Image(systemName: "checkmark.seal")
+              }
+              Text(appState.isCheckingLLMModelAccess ? "Checking model…" : "Check model access")
             }
-            Text(appState.isCheckingLLMModelAccess ? "Checking model…" : "Check model access")
           }
-        }
-        .buttonStyle(.bordered)
-        .disabled(appState.isCheckingLLMModelAccess || appState.effectiveAPIKey(.llmAPIKey).isEmpty)
-      }
+          .buttonStyle(.bordered)
+          .disabled(
+            appState.isCheckingLLMModelAccess || credentials.effectiveValue(.llmAPIKey).isEmpty)
+        })
     }
   }
 
   /// Saving and reading problems can concern a key in either group, so they follow both instead of sitting inside one.
   @ViewBuilder private var credentialNotices: some View {
-    if !appState.unsavedAPIKeys.isEmpty || !appState.keychainReadNotice.isEmpty {
+    if !credentials.unsavedKeys.isEmpty || !credentials.keychainReadNotice.isEmpty {
       settingsGroup {
-        if !appState.unsavedAPIKeys.isEmpty {
+        if !credentials.unsavedKeys.isEmpty {
           HStack {
             Label("Unsaved credential changes", systemImage: "exclamationmark.circle")
               .foregroundStyle(VhraseTheme.statusWarning)
             Spacer()
-            Button("Retry saving") { appState.retrySavingAPIKeys() }
+            Button("Retry saving") { credentials.retrySaving() }
               .controlSize(.small)
           }
           .font(.callout)
           .settingsRowStyle()
         }
 
-        if !appState.keychainReadNotice.isEmpty {
+        if !credentials.keychainReadNotice.isEmpty {
           VStack(alignment: .leading, spacing: 8) {
             Label("Saved credentials need Keychain access", systemImage: "lock")
               .font(.callout.weight(.medium))
-            Text(appState.keychainReadNotice)
+            Text(credentials.keychainReadNotice)
               .font(.caption)
               .foregroundStyle(.secondary)
               .fixedSize(horizontal: false, vertical: true)
-            Button("Retry reading saved keys") { appState.retryLoadingAPIKeys() }
+            Button("Retry reading saved keys") { credentials.retryLoading() }
               .controlSize(.small)
           }
           .settingsRowStyle()
@@ -202,32 +204,35 @@ struct SystemView: View {
 
   private func keyField(_ key: SecretKey) -> some View {
     let text = Binding(
-      get: { appState.apiKeyField(key) },
-      set: { appState.updateAPIKey(key, value: $0) }
+      get: { credentials.field(key) },
+      set: { credentials.update(key, value: $0) }
     )
-    return settingsRow(key.title, icon: { keyIcon(key) }) {
-      HStack(spacing: 12) {
-        Group {
-          if showsCredentialReference(text.wrappedValue) {
-            TextField(key.title, text: text)
-          } else {
-            SecureField(key.title, text: text)
+    return settingsRow(
+      key.title,
+      icon: { keyIcon(key) },
+      control: {
+        HStack(spacing: 12) {
+          Group {
+            if showsCredentialReference(text.wrappedValue) {
+              TextField(key.title, text: text)
+            } else {
+              SecureField(key.title, text: text)
+            }
           }
-        }
-        .textFieldStyle(.roundedBorder)
-        .labelsHidden()
-        .frame(width: 320)
-        .transaction { transaction in
-          transaction.animation = nil
-        }
-        .focused($focusedSecretField, equals: key)
-        .onSubmit {
-          finishAPIKeyEditing()
-        }
+          .textFieldStyle(.roundedBorder)
+          .labelsHidden()
+          .frame(width: 320)
+          .transaction { transaction in
+            transaction.animation = nil
+          }
+          .focused($focusedSecretField, equals: key)
+          .onSubmit {
+            finishAPIKeyEditing()
+          }
 
-        keyStatus(key)
-      }
-    }
+          keyStatus(key)
+        }
+      })
   }
 
   /// Shows whose key a row holds: the speech provider's own mark, or a brain for the language model's key, which no speech provider uses.
@@ -262,22 +267,22 @@ struct SystemView: View {
     settingsRow(
       title,
       detail: environmentName.map { "Loaded from \($0)" } ?? "Any OpenAI-compatible API endpoint.",
-      icon: { llmIcon }
-    ) {
-      HStack(spacing: 12) {
-        TextField(title, text: text)
-          .textFieldStyle(.roundedBorder)
-          .labelsHidden()
-          .frame(width: 320)
-          .disabled(environmentName != nil)
-        if environmentName != nil {
-          credentialState(
-            "Environment", systemImage: "checkmark.circle.fill", color: VhraseTheme.statusSuccess)
-        } else {
-          Color.clear.frame(width: 96, height: 1)
+      icon: { llmIcon },
+      control: {
+        HStack(spacing: 12) {
+          TextField(title, text: text)
+            .textFieldStyle(.roundedBorder)
+            .labelsHidden()
+            .frame(width: 320)
+            .disabled(environmentName != nil)
+          if environmentName != nil {
+            credentialState(
+              "Environment", systemImage: "checkmark.circle.fill", color: VhraseTheme.statusSuccess)
+          } else {
+            Color.clear.frame(width: 96, height: 1)
+          }
         }
-      }
-    }
+      })
   }
 
   private var permissionsCard: some View {
@@ -488,9 +493,9 @@ struct SystemView: View {
 
   /// Reports where the effective credential comes from beside the field that edits it.
   private func keyStatus(_ key: SecretKey) -> some View {
-    let isReady = !appState.effectiveAPIKey(key).isEmpty
+    let isReady = !credentials.effectiveValue(key).isEmpty
     return credentialState(
-      appState.usesEnvironmentFallback(for: key)
+      credentials.usesEnvironmentFallback(for: key)
         ? "Environment" : (isReady ? "Saved" : "Missing"),
       systemImage: isReady ? "checkmark.circle.fill" : "exclamationmark.circle.fill",
       color: isReady ? VhraseTheme.statusSuccess : VhraseTheme.statusWarning
@@ -537,7 +542,7 @@ struct SystemView: View {
   private func finishAPIKeyEditing() {
     focusedSecretField = nil
     credentialFocusMonitor.stop()
-    appState.flushPendingAPIKeySave()
+    credentials.flushPendingSave()
   }
 }
 

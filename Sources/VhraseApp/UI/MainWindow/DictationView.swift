@@ -46,7 +46,7 @@ struct DictationView: View {
     return HStack(alignment: .center, spacing: 14) {
       RecordHeroButton(
         presentation: presentation,
-        recordingLevel: appState.recordingLevel,
+        meter: appState.recordingMeter,
         style: .hero,
         action: handleRecordButton
       )
@@ -57,10 +57,9 @@ struct DictationView: View {
             .font(VhraseFont.statusTitle)
             .contentTransition(.interpolate)
           if appState.isRecording {
-            Text(presentation.elapsedTime)
+            RecordingElapsedTime(meter: appState.recordingMeter)
               .font(VhraseFont.timer)
               .opacity(0.85)
-              .contentTransition(.numericText())
           }
         }
         Text(statusDetail)
@@ -72,8 +71,9 @@ struct DictationView: View {
       .layoutPriority(1)
 
       // Rests as quiet dots and becomes the live microphone level while recording.
-      WaveformView(
-        history: appState.isRecording ? appState.recordingWaveformHistory : [],
+      RecordingWaveformView(
+        meter: appState.recordingMeter,
+        isLive: appState.isRecording,
         barCount: 32,
         tint: tint == nil ? VhraseTheme.inkSecondary : .white,
         height: 30

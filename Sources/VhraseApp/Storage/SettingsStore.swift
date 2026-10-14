@@ -113,63 +113,64 @@ final class SettingsStore {
     return settings
   }
 
+  /// Persists every preference, writing only the keys whose value changed so one edit does not resend them all.
   func save(_ settings: DictationSettings) {
-    defaults.set(settings.provider.rawValue, forKey: "provider")
-    defaults.set(settings.transcriptionMode.rawValue, forKey: "transcriptionMode")
-    defaults.set(settings.elevenLabsCommitStrategy.rawValue, forKey: "elevenLabsCommitStrategy")
-    defaults.set(settings.elevenLabsNoVerbatim, forKey: "elevenLabsNoVerbatim")
-    defaults.set(settings.elevenLabsVADSilenceThreshold, forKey: "elevenLabsVADSilenceThreshold")
-    defaults.set(settings.elevenLabsVADThreshold, forKey: "elevenLabsVADThreshold")
-    defaults.set(settings.elevenLabsMinSpeechDuration, forKey: "elevenLabsMinSpeechDuration")
-    defaults.set(settings.elevenLabsMinSilenceDuration, forKey: "elevenLabsMinSilenceDuration")
-    defaults.set(settings.language, forKey: "language")
-    defaults.set(settings.keyterms, forKey: "keyterms")
-    defaults.removeObject(forKey: "replacementRules")
-    defaults.set(settings.includeFillerWords, forKey: "includeFillerWords")
-    defaults.set(settings.xaiRealtimeEndpointing, forKey: "xaiRealtimeEndpointing")
-    defaults.set(settings.xaiSmartTurnEnabled, forKey: "xaiSmartTurnEnabled")
-    defaults.set(settings.xaiSmartTurnThreshold, forKey: "xaiSmartTurnThreshold")
-    defaults.set(settings.xaiSmartTurnTimeout, forKey: "xaiSmartTurnTimeout")
-    defaults.set(settings.keepTranscriptOnClipboard, forKey: "keepTranscriptOnClipboard")
-    defaults.set(settings.adjustWithLLM, forKey: "adjustWithLLM")
-    defaults.set(settings.useLocalAdjustmentFallback, forKey: "useLocalAdjustmentFallback")
-    defaults.set(settings.adjustmentBaseURL, forKey: "adjustmentBaseURL")
-    defaults.set(settings.adjustmentModel, forKey: "adjustmentModel")
-    defaults.set(settings.adjustmentPrompt, forKey: "adjustmentPrompt")
-    defaults.set(settings.polishPreferences.rewriteLevel.rawValue, forKey: "polishRewriteLevel")
-    defaults.set(settings.polishPreferences.numberStyle.rawValue, forKey: "polishNumberStyle")
-    defaults.set(settings.polishPreferences.ordinalStyle.rawValue, forKey: "polishOrdinalStyle")
-    defaults.set(settings.polishPreferences.moneyStyle.rawValue, forKey: "polishMoneyStyle")
-    defaults.set(settings.polishPreferences.unitStyle.rawValue, forKey: "polishUnitStyle")
-    defaults.set(
+    set(settings.provider.rawValue, forKey: "provider")
+    set(settings.transcriptionMode.rawValue, forKey: "transcriptionMode")
+    set(settings.elevenLabsCommitStrategy.rawValue, forKey: "elevenLabsCommitStrategy")
+    set(settings.elevenLabsNoVerbatim, forKey: "elevenLabsNoVerbatim")
+    set(settings.elevenLabsVADSilenceThreshold, forKey: "elevenLabsVADSilenceThreshold")
+    set(settings.elevenLabsVADThreshold, forKey: "elevenLabsVADThreshold")
+    set(settings.elevenLabsMinSpeechDuration, forKey: "elevenLabsMinSpeechDuration")
+    set(settings.elevenLabsMinSilenceDuration, forKey: "elevenLabsMinSilenceDuration")
+    set(settings.language, forKey: "language")
+    set(settings.keyterms, forKey: "keyterms")
+    remove("replacementRules")
+    set(settings.includeFillerWords, forKey: "includeFillerWords")
+    set(settings.xaiRealtimeEndpointing, forKey: "xaiRealtimeEndpointing")
+    set(settings.xaiSmartTurnEnabled, forKey: "xaiSmartTurnEnabled")
+    set(settings.xaiSmartTurnThreshold, forKey: "xaiSmartTurnThreshold")
+    set(settings.xaiSmartTurnTimeout, forKey: "xaiSmartTurnTimeout")
+    set(settings.keepTranscriptOnClipboard, forKey: "keepTranscriptOnClipboard")
+    set(settings.adjustWithLLM, forKey: "adjustWithLLM")
+    set(settings.useLocalAdjustmentFallback, forKey: "useLocalAdjustmentFallback")
+    set(settings.adjustmentBaseURL, forKey: "adjustmentBaseURL")
+    set(settings.adjustmentModel, forKey: "adjustmentModel")
+    set(settings.adjustmentPrompt, forKey: "adjustmentPrompt")
+    set(settings.polishPreferences.rewriteLevel.rawValue, forKey: "polishRewriteLevel")
+    set(settings.polishPreferences.numberStyle.rawValue, forKey: "polishNumberStyle")
+    set(settings.polishPreferences.ordinalStyle.rawValue, forKey: "polishOrdinalStyle")
+    set(settings.polishPreferences.moneyStyle.rawValue, forKey: "polishMoneyStyle")
+    set(settings.polishPreferences.unitStyle.rawValue, forKey: "polishUnitStyle")
+    set(
       settings.polishPreferences.contractionStyle.rawValue,
       forKey: "polishContractionStyle")
-    defaults.set(settings.polishPreferences.sentenceStyle.rawValue, forKey: "polishSentenceStyle")
-    defaults.set(
+    set(settings.polishPreferences.sentenceStyle.rawValue, forKey: "polishSentenceStyle")
+    set(
       settings.polishPreferences.structureStyle.rawValue,
       forKey: "polishStructureStyle")
-    defaults.set(
+    set(
       settings.polishPreferences.allowsLeadingConjunctions,
       forKey: "polishAllowsLeadingConjunctions")
-    defaults.set(
+    set(
       settings.polishPreferences.removesFillerWords,
       forKey: "polishRemovesFillerWords")
-    defaults.set(
+    set(
       settings.polishPreferences.resolvesSpokenCorrections,
       forKey: "polishResolvesSpokenCorrections")
-    defaults.set(settings.includeScreenshot, forKey: "includeScreenshot")
-    defaults.set(settings.hotkeyPreset.rawValue, forKey: "hotkeyPreset")
+    set(settings.includeScreenshot, forKey: "includeScreenshot")
+    set(settings.hotkeyPreset.rawValue, forKey: "hotkeyPreset")
     saveCustomHotkey(settings.customHotkey)
-    defaults.set(settings.geminiSmartTranscription, forKey: "geminiSmartTranscription")
-    defaults.set(settings.geminiLanguageHints, forKey: "geminiLanguageHints")
-    defaults.set(settings.xaiFormatText, forKey: "xaiFormatText")
-    defaults.set(settings.xaiVADThreshold, forKey: "xaiVADThreshold")
-    defaults.set(settings.automaticVolumeLeveling, forKey: "automaticVolumeLeveling")
-    defaults.set(settings.inputGainDB, forKey: "inputGainDB")
-    defaults.set(settings.noiseReductionDB, forKey: "noiseReductionDB")
-    defaults.set(settings.inputDeviceUID, forKey: "inputDeviceUID")
-    defaults.set(settings.vercelModel, forKey: "vercelModel")
-    defaults.set(settings.huggingFaceModel, forKey: "huggingFaceModel")
+    set(settings.geminiSmartTranscription, forKey: "geminiSmartTranscription")
+    set(settings.geminiLanguageHints, forKey: "geminiLanguageHints")
+    set(settings.xaiFormatText, forKey: "xaiFormatText")
+    set(settings.xaiVADThreshold, forKey: "xaiVADThreshold")
+    set(settings.automaticVolumeLeveling, forKey: "automaticVolumeLeveling")
+    set(settings.inputGainDB, forKey: "inputGainDB")
+    set(settings.noiseReductionDB, forKey: "noiseReductionDB")
+    set(settings.inputDeviceUID, forKey: "inputDeviceUID")
+    set(settings.vercelModel, forKey: "vercelModel")
+    set(settings.huggingFaceModel, forKey: "huggingFaceModel")
   }
 
   private func nonEmptyString(_ key: String, _ fallback: String) -> String {
@@ -237,14 +238,29 @@ final class SettingsStore {
 
   private func saveCustomHotkey(_ hotkey: CustomHotkey?) {
     guard let hotkey else {
-      defaults.removeObject(forKey: "customHotkeyKeyCode")
-      defaults.removeObject(forKey: "customHotkeyModifiers")
-      defaults.removeObject(forKey: "customHotkeyDisplay")
+      remove("customHotkeyKeyCode")
+      remove("customHotkeyModifiers")
+      remove("customHotkeyDisplay")
       return
     }
 
-    defaults.set(Int(hotkey.keyCode), forKey: "customHotkeyKeyCode")
-    defaults.set(Int(hotkey.modifiers), forKey: "customHotkeyModifiers")
-    defaults.set(hotkey.display, forKey: "customHotkeyDisplay")
+    set(Int(hotkey.keyCode), forKey: "customHotkeyKeyCode")
+    set(Int(hotkey.modifiers), forKey: "customHotkeyModifiers")
+    set(hotkey.display, forKey: "customHotkeyDisplay")
+  }
+
+  /// Each write is a message to the preferences daemon, so an unchanged value is left alone.
+  private func set<Value: Equatable>(_ value: Value, forKey key: String) {
+    guard defaults.object(forKey: key) as? Value != value else {
+      return
+    }
+    defaults.set(value, forKey: key)
+  }
+
+  private func remove(_ key: String) {
+    guard defaults.object(forKey: key) != nil else {
+      return
+    }
+    defaults.removeObject(forKey: key)
   }
 }

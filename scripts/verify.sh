@@ -193,7 +193,7 @@ run_compiled_check scripts/checks/hugging-face-process-check.swift \
   Sources/VhraseApp/Transcription/OnDevice/HuggingFaceProcess.swift
 run_compiled_check scripts/checks/transcription-test-check.swift \
   Sources/VhraseApp/App/TranscriptionTest.swift \
-  Sources/VhraseApp/Transcription/Audio/SpeechPresenceGate.swift
+  Sources/VhraseApp/Transcription/TranscriptionRecording.swift
 
 echo "==> Checking the Hugging Face helper without model dependencies"
 UV_CACHE_DIR="$ROOT/.cache/uv" uv run --offline --no-project --python 3.13 \
