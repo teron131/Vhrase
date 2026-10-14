@@ -22,7 +22,7 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
     NSApplication.shared.setActivationPolicy(.accessory)
     AppearancePreference.saved.apply()
     if singleInstanceGuard.ownsInstance {
-      appState.loadSavedAPIKeysAfterLaunch()
+      appState.credentials.loadSavedAfterLaunch()
     } else {
       singleInstanceGuard.handOffDuplicateLaunch()
     }

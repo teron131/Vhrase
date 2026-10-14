@@ -56,8 +56,7 @@ struct ReadinessSummaryCheck {
           requestedBefore: accessibilityRequestedBefore
         ),
       ],
-      liveTranscript: "",
-      recordingElapsedSeconds: 0
+      liveTranscript: ""
     )
   }
 }

@@ -14,7 +14,8 @@ final class RecorderHUDPanelController: NSWindowController {
 
   init(appState: AppState) {
     self.appState = appState
-    let hostingView = NSHostingView(rootView: RecorderHUDView(appState: appState))
+    let hostingView = NSHostingView(
+      rootView: RecorderHUDView(appState: appState, meter: appState.recordingMeter))
     // The controller owns panel size and origin as the SwiftUI content changes between workflow states.
     hostingView.sizingOptions = []
 

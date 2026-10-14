@@ -22,8 +22,10 @@ struct VocabularyMigrationCheck {
       precondition(DictationSettings.migratingVocabulary("", replacementRules: rule) == target)
     }
 
-    let suite = "Vhrase.VocabularyMigrationCheck.\(UUID().uuidString)"
+    // A fixed suite keeps repeated runs from leaving one preferences file each in ~/Library/Preferences.
+    let suite = "Vhrase.VocabularyMigrationCheck"
     let defaults = UserDefaults(suiteName: suite)!
+    defaults.removePersistentDomain(forName: suite)
     defer { defaults.removePersistentDomain(forName: suite) }
     defaults.set("OpenAI", forKey: "keyterms")
     defaults.set(rules, forKey: "replacementRules")

@@ -9,6 +9,8 @@ struct RecorderHUDView: View {
   static let size = CGSize(width: 184, height: 52)
 
   @ObservedObject var appState: AppState
+  /// The pill is small enough to follow the meter itself for its waveform and elapsed time.
+  @ObservedObject var meter: RecordingMeter
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var showsControls = false
 
@@ -52,14 +54,14 @@ struct RecorderHUDView: View {
     switch appState.status {
     case .recording:
       ZStack {
-        RecorderWaveform(level: appState.recordingLevel)
+        RecorderWaveform(level: meter.level)
           .overlay { waveformScrim }
           .contentShape(Rectangle())
           .onTapGesture { showsControls = true }
           .accessibilityElement(children: .ignore)
           .accessibilityHidden(false)
           .accessibilityLabel("Recording")
-          .accessibilityValue(appState.presentation.elapsedTime)
+          .accessibilityValue(meter.elapsedTime)
           .accessibilityAction(named: "Finish recording") { appState.toggleRecording() }
           .accessibilityAction(named: "Cancel recording") { appState.cancelRecording() }
 
@@ -77,7 +79,7 @@ struct RecorderHUDView: View {
         .padding(.horizontal, 12)
       }
       .help(
-        "Recording · \(appState.presentation.elapsedTime). Hover or click the waveform for controls."
+        "Recording · \(meter.elapsedTime). Hover or click the waveform for controls."
       )
     case .preparing:
       ZStack {

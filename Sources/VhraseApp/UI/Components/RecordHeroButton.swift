@@ -16,7 +16,8 @@ enum RecordHeroButtonStyle {
 
 struct RecordHeroButton: View {
   let presentation: DictationPresentation
-  let recordingLevel: Double
+  /// Observed here so the level ring follows the microphone without re-evaluating the surface around the button.
+  @ObservedObject var meter: RecordingMeter
   let style: RecordHeroButtonStyle
   let action: () -> Void
 
@@ -74,7 +75,7 @@ struct RecordHeroButton: View {
     )
     .animation(
       VhraseMotion.respectingReduceMotion(VhraseMotion.levelEase, reduceMotion: reduceMotion),
-      value: recordingLevel
+      value: meter.level
     )
     .animation(
       VhraseMotion.respectingReduceMotion(VhraseMotion.bounce, reduceMotion: reduceMotion),
@@ -95,7 +96,7 @@ struct RecordHeroButton: View {
   }
 
   private var normalizedLevel: CGFloat {
-    min(max(CGFloat(recordingLevel), 0), 1)
+    min(max(CGFloat(meter.level), 0), 1)
   }
 
   private var buttonScale: CGFloat {

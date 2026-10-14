@@ -25,57 +25,38 @@ final class TranscriptionTest: ObservableObject {
 
   @Published private(set) var state: State = .idle
   @Published private(set) var partialTranscript = ""
-  private var id: UUID?
-  private var recorder: AudioRecorder?
-  private var session: RealtimeTranscriptionSession?
+  private var recording: TranscriptionRecording?
   private var operation: Task<Void, Never>?
   private var countdown: Task<Void, Never>?
-  private var audioURL: URL?
-  private var settings: DictationSettings?
-  private var client: SpeechToTextClient?
-  private var speechPresence: SpeechPresenceGate?
 
   /// Snapshots recognition configuration for one test; realtime uses the same provider transport as dictation.
   func start(settings: DictationSettings, apiKey: String, client: SpeechToTextClient) {
     guard !state.isActive else { return }
-    let id = UUID()
-    let recorder = AudioRecorder()
-    let speechPresence = SpeechPresenceGate()
-    self.id = id
-    self.recorder = recorder
-    self.settings = settings
-    self.client = client
-    self.speechPresence = speechPresence
+    let recording = TranscriptionRecording(settings: settings, apiKey: apiKey, client: client)
+    self.recording = recording
     partialTranscript = ""
     state = .starting
     operation = Task {
       do {
-        try ensureCurrent(id)
-        let session =
-          try settings.transcriptionMode == .realtime
-          ? RealtimeTranscriptionSession.start(settings: settings, apiKey: apiKey) {
-            [weak self] text in
+        try await recording.start(
+          onPartialTranscript: { [weak self, weak recording] text in
             Task { @MainActor in
-              guard let self, self.id == id else { return }
+              guard let self, let recording, self.recording === recording else { return }
               self.partialTranscript = text
             }
-          } : nil
-        self.session = session
-        try await recorder.start(settings: settings) { chunk in
-          speechPresence.observe(level: chunk.level)
-          session?.sendAudioChunk(chunk.data)
-        } onFailure: { [weak self] error in
-          guard let self, self.id == id else { return }
-          self.fail(error)
-        }
-        try ensureCurrent(id)
+          },
+          onFailure: { [weak self, weak recording] error in
+            guard let self, let recording, self.recording === recording else { return }
+            self.fail(error)
+          })
+        try ensureCurrent(recording)
         operation = nil
         state = .recording(secondsRemaining: Self.recordingSeconds)
         countdown = Task {
           do {
             for remaining in (0..<Self.recordingSeconds).reversed() {
               try await Task.sleep(for: .seconds(1))
-              try ensureCurrent(id)
+              try ensureCurrent(recording)
               if remaining == 0 {
                 stopAndTranscribe()
               } else {
@@ -85,8 +66,7 @@ final class TranscriptionTest: ObservableObject {
           } catch {}
         }
       } catch {
-        recorder.cancel()
-        guard self.id == id else { return }
+        guard self.recording === recording else { return }
         fail(error)
       }
     }
@@ -94,38 +74,22 @@ final class TranscriptionTest: ObservableObject {
 
   /// Ends capture early or at five seconds, then returns only the provider's recognized text.
   func stopAndTranscribe() {
-    guard case .recording = state, let id, let recorder, let settings, let client else { return }
+    guard case .recording = state, let recording else { return }
     countdown?.cancel()
     countdown = nil
     state = .transcribing
-    let session = session
     operation = Task {
       do {
-        try ensureCurrent(id)
-        let url = try await recorder.stop()
-        defer { try? FileManager.default.removeItem(at: url) }
-        try ensureCurrent(id)
-        audioURL = url
-        self.recorder = nil
-        guard speechPresence?.hasLikelySpeech == true else {
-          throw RecordingContentError.noSpeechDetected
-        }
-        let result: TranscriptionResult
-        if let session {
-          result = try await session.finish()
-        } else {
-          result = try await client.transcribe(fileURL: url, settings: settings)
-        }
-        try ensureCurrent(id)
-        let text = result.text
+        try await recording.stop()
+        try ensureCurrent(recording)
+        let text = try await recording.transcribe().text
+        try ensureCurrent(recording)
         release()
         state =
           text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
           ? .failed("No speech was recognized. Try another short phrase.") : .completed(text)
       } catch {
-        session?.cancel()
-        recorder.cancel()
-        guard self.id == id else { return }
+        guard self.recording === recording else { return }
         fail(error)
       }
     }
@@ -148,26 +112,18 @@ final class TranscriptionTest: ObservableObject {
     state = .failed(error.localizedDescription)
   }
 
-  private func ensureCurrent(_ id: UUID) throws {
+  private func ensureCurrent(_ recording: TranscriptionRecording) throws {
     try Task.checkCancellation()
-    guard self.id == id else { throw CancellationError() }
+    guard self.recording === recording else { throw CancellationError() }
   }
 
   private func release() {
-    id = nil
     operation?.cancel()
     operation = nil
     countdown?.cancel()
     countdown = nil
-    recorder?.cancel()
-    recorder = nil
-    session?.cancel()
-    session = nil
-    if let audioURL { try? FileManager.default.removeItem(at: audioURL) }
-    audioURL = nil
-    settings = nil
-    client = nil
-    speechPresence = nil
+    recording?.cancel()
+    recording = nil
     partialTranscript = ""
   }
 }

@@ -118,10 +118,12 @@ struct APIKeyResolutionCheck {
     )
     precondition(store.usesEnvironmentLLMBaseURL)
 
-    let referenceSuite = "Vhrase.APIKeyResolutionCheck.\(UUID().uuidString)"
+    // A fixed suite keeps repeated runs from leaving one preferences file each in ~/Library/Preferences.
+    let referenceSuite = "Vhrase.APIKeyResolutionCheck"
     guard let referenceDefaults = UserDefaults(suiteName: referenceSuite) else {
       preconditionFailure("Could not create credential-reference defaults")
     }
+    referenceDefaults.removePersistentDomain(forName: referenceSuite)
     defer {
       referenceDefaults.removePersistentDomain(forName: referenceSuite)
     }

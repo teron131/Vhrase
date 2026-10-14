@@ -61,7 +61,7 @@ struct MenuPopoverView: View {
     return HStack(spacing: 8) {
       RecordHeroButton(
         presentation: presentation,
-        recordingLevel: appState.recordingLevel,
+        meter: appState.recordingMeter,
         style: .compact,
         action: handleRecordButton
       )
@@ -124,10 +124,9 @@ struct MenuPopoverView: View {
         Spacer()
 
         if appState.isRecording {
-          Text(presentation.elapsedTime)
+          RecordingElapsedTime(meter: appState.recordingMeter)
             .font(.caption.monospacedDigit())
             .foregroundStyle(.secondary)
-            .contentTransition(.numericText())
         }
 
         if !appState.targetAppLabel.isEmpty {
@@ -139,11 +138,7 @@ struct MenuPopoverView: View {
       }
 
       if appState.isRecording {
-        WaveformView(
-          history: appState.recordingWaveformHistory,
-          barCount: 16,
-          height: 28
-        )
+        RecordingWaveformView(meter: appState.recordingMeter, barCount: 16, height: 28)
       }
 
       Text(liveTranscriptText)

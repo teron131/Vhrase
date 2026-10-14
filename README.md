@@ -34,10 +34,11 @@ Normal Finder and menu-bar launches prefer saved Keychain credentials before usi
 
 `Sources/VhraseApp` is grouped by ownership:
 
-- `App`: scene composition, process launch/termination, and dictation workflow orchestration.
+- `App`: scene composition, process launch/termination, dictation workflow orchestration, and the session's credentials.
 - `Domain`: validated settings, shortcuts, workflow status, and transcript contracts.
 - `UI`: main window, menu-bar pop-up, and recorder HUD surfaces; each main-window destination owns its controls and temporary editing lifecycle.
-- `Transcription/Audio`: microphone capture and PCM conversion.
+- `Transcription`: provider request contracts and the recording that carries one capture through to recognized text.
+- `Transcription/Audio`: microphone capture, PCM conversion, and live level metering.
 - `Transcription/Upload`: cloud upload provider adapters.
 - `Transcription/Realtime`: WebSocket sessions and ordered transcript accumulation.
 - `Transcription/OnDevice`: on-device model setup shared by Parakeet (FluidAudio) and Hugging Face models (a Python helper started through `uv`), and each one's recognition.

@@ -66,9 +66,20 @@ struct HistorySearch {
     private var lastSearch: (query: Query, items: [TranscriptHistoryItem])?
     private var lastCounts: (day: CalendarDay, today: Int, week: Int)?
 
-    init(_ items: [TranscriptHistoryItem]) {
-      documents = items.map(SearchDocument.init)
-      wordCount = items.reduce(0) { $0 + $1.wordCount }
+    /// Builds the snapshot for `items`, taking each unchanged transcript's normalized text, term counts, and word count from `previous`.
+    ///
+    /// An edit adds or removes one transcript, so only that one is tokenized instead of the whole archive.
+    init(_ items: [TranscriptHistoryItem], reusing previous: Index? = nil) {
+      let reusable = Dictionary(
+        (previous?.documents ?? []).map { ($0.item.id, $0) },
+        uniquingKeysWith: { first, _ in first })
+      documents = items.map { item in
+        if let document = reusable[item.id], document.item == item {
+          return document
+        }
+        return SearchDocument(item: item)
+      }
+      wordCount = documents.reduce(0) { $0 + $1.wordCount }
       providers = Array(Set(items.map(\.provider))).sorted {
         $0.localizedStandardCompare($1) == .orderedAscending
       }
@@ -226,9 +237,11 @@ struct HistorySearch {
     let textTermCounts: [String: Int]
     let metadataTermCounts: [String: Int]
     let length: Int
+    let wordCount: Int
 
     init(item: TranscriptHistoryItem) {
       self.item = item
+      wordCount = item.wordCount
       text = normalize(item.text)
       metadata = normalize(
         [item.provider, item.transcriptionMode, item.cleanup.title, item.targetAppName]

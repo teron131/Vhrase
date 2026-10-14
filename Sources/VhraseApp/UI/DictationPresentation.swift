@@ -10,7 +10,6 @@ struct DictationPresentation {
   let providerReadiness: ProviderReadiness
   let permissions: [PermissionSnapshot]
   let liveTranscript: String
-  let recordingElapsedSeconds: Int
   let completion: WorkflowCompletion
   let transcriptionConfigurationIssue: String?
 
@@ -21,7 +20,6 @@ struct DictationPresentation {
     providerReadiness: ProviderReadiness,
     permissions: [PermissionSnapshot],
     liveTranscript: String,
-    recordingElapsedSeconds: Int,
     completion: WorkflowCompletion = .transcript(.none)
   ) {
     self.status = status
@@ -29,7 +27,6 @@ struct DictationPresentation {
     self.providerReadiness = providerReadiness
     self.permissions = permissions
     self.liveTranscript = liveTranscript
-    self.recordingElapsedSeconds = recordingElapsedSeconds
     self.completion = completion
     transcriptionConfigurationIssue = TranscriptionContract.configurationIssue(in: settings)
   }
@@ -57,12 +54,6 @@ struct DictationPresentation {
 
   var workflowControlsAreDisabled: Bool {
     !status.canStartRecording
-  }
-
-  var elapsedTime: String {
-    let minutes = recordingElapsedSeconds / 60
-    let seconds = recordingElapsedSeconds % 60
-    return String(format: "%d:%02d", minutes, seconds)
   }
 
   var compactWorkflowSummary: String {
