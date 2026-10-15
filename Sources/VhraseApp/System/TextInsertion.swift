@@ -27,6 +27,11 @@ struct TextInsertionContext: Equatable {
 
 @MainActor
 struct TextInsertion {
+  /// How long finalized text stays on the clipboard after Command-V before the previous clipboard returns.
+  /// The target app reads the clipboard only when it handles the shortcut, and that read leaves no trace Vhrase can observe, so a busy or just-activated app that handles it late pastes whatever is on the clipboard by then.
+  /// At 150 ms that was occasionally the restored clipboard instead of the transcript; a second leaves a wide margin while a copy the user makes in the meantime still wins.
+  private static let clipboardRestoreDelay: Duration = .seconds(1)
+
   private let pasteboard: any TextPasteboard
   private let restoreDelay: Duration
   private let postPasteShortcut: () throws -> Void
@@ -34,7 +39,7 @@ struct TextInsertion {
   init() {
     self.init(
       pasteboard: NSPasteboard.general,
-      restoreDelay: .milliseconds(150),
+      restoreDelay: Self.clipboardRestoreDelay,
       postPasteShortcut: Self.postPasteShortcutEvent
     )
   }
