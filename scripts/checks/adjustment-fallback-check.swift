@@ -53,7 +53,7 @@ struct AdjustmentFallbackCheck {
       rawTranscript: "raw",
       includeScreenshot: true,
       useLocalFallback: false,
-      screenshotDataURLProvider: {
+      screenshotDataURLProvider: { _, _ in
         screenshotProbe.recordCall()
         return nil
       }
@@ -226,9 +226,11 @@ struct AdjustmentFallbackCheck {
     includeScreenshot: Bool = false,
     useLocalFallback: Bool = false,
     chineseTextConverter: ChineseTextConverter? = nil,
-    screenshotDataURLProvider: @escaping @Sendable () -> String? = {
-      "data:image/png;base64,abc"
-    }
+    screenshotDataURLProvider:
+      @escaping @Sendable (FrontmostApp?, ScreenshotResolution) -> String? = {
+        _, _ in
+        "data:image/jpeg;base64,abc"
+      }
   ) async throws -> FinalizedTranscript {
     var settings = DictationSettings.defaults
     settings.adjustWithLLM = adjustWithLLM

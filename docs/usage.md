@@ -151,7 +151,8 @@ Shared vocabulary supplies recognition hints and context-sensitive spelling refe
 OpenCC `s2hk` normalization runs after optional LLM cleanup.
 Install `opencc` to normalize Chinese output to Hong Kong Traditional Chinese; when it is unavailable, Vhrase preserves the transcript and shows a warning.
 LLM cleanup uses the configured OpenAI-compatible endpoint and can include the recorded target-app identity as context.
-Screenshot context is off by default; enabling it captures only the main display, sends that image to the configured cleanup endpoint for the current transcript, and removes the disposable local capture immediately after it is read.
+Screenshot context is off by default; enabling it captures the display showing the app you are dictating into (the main display when that app has no visible window), sends that image to the configured cleanup endpoint for the current transcript, and removes the disposable local capture immediately after it is read.
+Screenshot size in Refinement trades speed for legibility: smaller images reach the model sooner, while small text and unusual names blur, noticeably from about 1280 pixels down; the preview beside the slider simulates the effect on standard macOS text.
 If the LLM call fails, Vhrase uses deterministic local cleanup when that fallback is enabled; otherwise it preserves the raw transcript.
 
 Keyterms are validated against the selected provider and transport before recording can start.

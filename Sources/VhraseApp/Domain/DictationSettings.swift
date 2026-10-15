@@ -125,6 +125,25 @@ enum ElevenLabsCommitStrategy: String, CaseIterable, Codable, Identifiable, Send
   }
 }
 
+/// Longest side of the screenshot sent with LLM polishing, chosen locally because gateways such as Vercel AI Gateway drop OpenAI's `image_url` detail hint.
+/// Smaller images reach the model sooner but blur small text; 1600 keeps 13 pt Retina text near its on-screen size, and from about 1280 down unusual names misread more often.
+enum ScreenshotResolution: String, CaseIterable, Codable, Identifiable, Sendable {
+  case pixels1024 = "1024"
+  case pixels1280 = "1280"
+  case pixels1440 = "1440"
+  case pixels1600 = "1600"
+  case pixels1920 = "1920"
+  case pixels2560 = "2560"
+  case original
+
+  var id: String { rawValue }
+
+  /// The capture's longest side after downsizing, or `nil` to keep the capture's own size.
+  var maxPixelSize: Int? { Int(rawValue) }
+
+  var title: String { maxPixelSize.map(String.init) ?? "Original" }
+}
+
 struct DictationSettings: Codable, Equatable, Sendable {
   var provider: STTProvider
   var transcriptionMode: TranscriptionMode
@@ -149,6 +168,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var adjustmentPrompt: String
   var polishPreferences: PolishPreferences = .defaults
   var includeScreenshot: Bool
+  var screenshotResolution: ScreenshotResolution = .pixels1600
   var hotkeyPreset: HotkeyPreset
   var customHotkey: CustomHotkey?
   var geminiSmartTranscription: Bool = true
@@ -345,6 +365,7 @@ extension DictationSettings {
     case adjustmentPrompt
     case polishPreferences
     case includeScreenshot
+    case screenshotResolution
     case hotkeyPreset
     case customHotkey
     case geminiSmartTranscription
@@ -397,6 +418,9 @@ extension DictationSettings {
       try values.decodeIfPresent(
         PolishPreferences.self, forKey: .polishPreferences) ?? .defaults
     includeScreenshot = try values.decode(Bool.self, forKey: .includeScreenshot)
+    screenshotResolution =
+      try values.decodeIfPresent(ScreenshotResolution.self, forKey: .screenshotResolution)
+      ?? .pixels1600
     hotkeyPreset = try values.decode(HotkeyPreset.self, forKey: .hotkeyPreset)
     customHotkey = try values.decodeIfPresent(CustomHotkey.self, forKey: .customHotkey)
     geminiSmartTranscription = try values.decode(Bool.self, forKey: .geminiSmartTranscription)

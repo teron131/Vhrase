@@ -1031,14 +1031,19 @@ final class AppState: ObservableObject {
     }
 
     let id = UUID()
-    let includeScreenshot = settings.includeScreenshot
+    let screenshotResolution = settings.includeScreenshot ? settings.screenshotResolution : nil
     textPolishID = id
     status = .adjusting
     customizationNotice = "Polishing text in \(target.app.name)…"
     textPolishTask = Task { [weak self] in
       guard let self else { return }
       let screenshotDataURL: String? =
-        if includeScreenshot { await ScreenContext().mainDisplayPNGDataURL() } else { nil }
+        if let screenshotResolution {
+          await ScreenContext().displayJPEGDataURL(
+            showing: target.app, resolution: screenshotResolution)
+        } else {
+          nil
+        }
       do {
         let replacement = try await client.polish(
           text: target.text,

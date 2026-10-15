@@ -78,6 +78,10 @@ struct OutputView: View {
         isOn: appState.settingsBinding(\.includeScreenshot)
       )
 
+      if appState.settings.includeScreenshot {
+        screenshotResolutionRow
+      }
+
       if appState.settings.adjustWithLLM {
         settingsToggle(
           "Use local cleanup if the LLM fails",
@@ -86,6 +90,29 @@ struct OutputView: View {
         )
       }
     }
+  }
+
+  /// Trades reading accuracy for speed, with a simulation of what each size does to small screen text.
+  private var screenshotResolutionRow: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      VStack(alignment: .leading, spacing: 2) {
+        Text("Screenshot size")
+        Text(
+          "Longest side of the screenshot. Smaller images reach the model sooner, but small text and unusual names blur."
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+      }
+      StepSlider(
+        title: "Screenshot size",
+        options: ScreenshotResolution.allCases,
+        selection: appState.settingsBinding(\.screenshotResolution),
+        label: \.title
+      )
+      ScreenshotSizePreview(resolution: appState.settings.screenshotResolution)
+    }
+    .settingsRowStyle()
   }
 
   private var instructionsEditor: some View {

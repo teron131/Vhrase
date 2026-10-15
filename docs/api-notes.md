@@ -83,7 +83,8 @@ ElevenLabs charges a 20% premium when keyterm prompting is used, so Vhrase surfa
 LLM adjustment uses `POST {adjustmentBaseURL}/chat/completions`.
 The default base URL is `https://ai-gateway.vercel.sh/v1`, and the saved LLM API key uses the `LLM_API_KEY` Keychain account.
 Every LLM completion request fixes `reasoning_effort` to `low`, including the model-access check.
-Screenshot context is off by default and, when explicitly enabled, captures only the main display into a disposable cache directory, sends it as base64 PNG OpenAI-compatible `image_url` content to the configured adjustment endpoint, and removes the complete capture directory immediately afterward.
+Screenshot context is off by default and, when explicitly enabled, captures the display under the target app's frontmost on-screen window, or the main display when no such window is found, into a disposable cache directory, downsizes its longest side to the chosen Screenshot size (1024 to 2560 pixels, 1600 by default, or the original capture), sends it as base64 JPEG OpenAI-compatible `image_url` content to the configured adjustment endpoint, and removes the complete capture directory immediately afterward.
+The request still asks for `high` detail, but Vercel AI Gateway does not forward that hint, and OpenAI then reads an image at its original size; the local downsizing is what bounds the cost, to about 2,000 prompt tokens for a 16:10 display instead of about 9,000 for a 3420×2214 Retina capture.
 The shared vocabulary is included in the LLM prompt as reference spellings to use only when supported by the source context; Vhrase does not force vocabulary terms into the text or apply literal replacement rules.
 
 Automatic transcript cleanup and double-tap editor polishing share `PolishPreferences.systemInstruction`.

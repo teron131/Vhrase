@@ -117,7 +117,7 @@ struct CustomizationTransfer {
       changes.append("Send transcripts to the configured LLM for cleanup.")
     }
     if !current.includeScreenshot, imported.includeScreenshot {
-      changes.append("Include a main-display screenshot in LLM cleanup requests.")
+      changes.append("Include a screenshot of the target app's display in LLM cleanup requests.")
     }
     if !current.keepTranscriptOnClipboard, imported.keepTranscriptOnClipboard {
       changes.append("Keep finalized text on the clipboard after insertion.")
