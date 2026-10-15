@@ -6,6 +6,7 @@ import Foundation
 /// Remembers the last non-Vhrase app so menu and window actions retain a safe insertion target.
 @MainActor
 final class AppContext {
+  private static let activationSettleDelay: Duration = .milliseconds(150)
   private let ownBundleIdentifier = Bundle.main.bundleIdentifier
   private var lastTargetApp: FrontmostApp?
 
@@ -43,6 +44,7 @@ final class AppContext {
   }
 
   /// Activates the recorded target and confirms focus before Vhrase emits a paste shortcut.
+  /// After switching apps it also waits briefly, because frontmost status flips before the app's window becomes key and a shortcut sent in that gap is dropped.
   func activate(_ target: FrontmostApp) async -> Bool {
     guard !target.bundleIdentifier.isEmpty,
       let application =
@@ -53,7 +55,9 @@ final class AppContext {
       return false
     }
 
-    if NSWorkspace.shared.frontmostApplication?.bundleIdentifier != target.bundleIdentifier {
+    let wasFrontmost =
+      NSWorkspace.shared.frontmostApplication?.bundleIdentifier == target.bundleIdentifier
+    if !wasFrontmost {
       guard application.activate(options: [.activateAllWindows]) else {
         return false
       }
@@ -62,6 +66,9 @@ final class AppContext {
     for _ in 0..<10 {
       if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == target.bundleIdentifier {
         lastTargetApp = target
+        if !wasFrontmost {
+          try? await Task.sleep(for: Self.activationSettleDelay)
+        }
         return true
       }
       try? await Task.sleep(for: .milliseconds(50))
