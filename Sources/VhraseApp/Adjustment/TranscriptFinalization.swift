@@ -7,15 +7,16 @@ import Foundation
 struct TranscriptFinalizer {
   let settings: DictationSettings
   let llmAPIKey: String
-  let screenshotDataURLProvider: @Sendable () async -> String?
+  let screenshotDataURLProvider: @Sendable (FrontmostApp?, ScreenshotResolution) async -> String?
   let chineseTextConverter: ChineseTextConverter
 
   init(
     settings: DictationSettings,
     llmAPIKey: String,
-    screenshotDataURLProvider: @escaping @Sendable () async -> String? = {
-      await ScreenContext().mainDisplayPNGDataURL()
-    },
+    screenshotDataURLProvider:
+      @escaping @Sendable (FrontmostApp?, ScreenshotResolution) async -> String? = {
+        await ScreenContext().displayJPEGDataURL(showing: $0, resolution: $1)
+      },
     chineseTextConverter: ChineseTextConverter = ChineseTextConverter()
   ) {
     self.settings = settings
@@ -46,7 +47,7 @@ struct TranscriptFinalizer {
             baseURL: settings.adjustmentBaseURL
           )
           try client.validateConfiguration()
-          let screenshot = await screenshotDataURL()
+          let screenshot = await screenshotDataURL(showing: targetApp)
           if settings.includeScreenshot, screenshot == nil {
             warnings.append("Screenshot context unavailable.")
           }
@@ -89,11 +90,11 @@ struct TranscriptFinalizer {
     )
   }
 
-  private func screenshotDataURL() async -> String? {
+  private func screenshotDataURL(showing targetApp: FrontmostApp?) async -> String? {
     guard settings.includeScreenshot else {
       return nil
     }
-    return await screenshotDataURLProvider()
+    return await screenshotDataURLProvider(targetApp, settings.screenshotResolution)
   }
 
   private func fallbackTranscript(

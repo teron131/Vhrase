@@ -107,9 +107,12 @@ struct PolishPreferencesEditor: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
         }
-        PolishPresetSlider(
+        StepSlider(
+          title: "Writing style preset",
+          options: PolishPreset.allCases,
           selection: Binding(get: { selectedPreset ?? lastPreset }, set: { applyPreset($0) }),
-          isCustom: selectedPreset == nil
+          isCustom: selectedPreset == nil,
+          label: \.title
         )
         .padding(.top, 4)
       }
@@ -211,87 +214,6 @@ struct PolishPreferencesEditor: View {
   private func compactExample(_ text: String) -> String {
     text.replacingOccurrences(of: "\n\n", with: " ↵ ")
       .replacingOccurrences(of: "\n", with: " ")
-  }
-}
-
-/// Places track, ticks, thumb, labels, and drag snapping on the same five coordinates.
-private struct PolishPresetSlider: View {
-  @Binding var selection: PolishPreset
-  let isCustom: Bool
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  private var lastIndex: Int { PolishPreset.allCases.count - 1 }
-
-  var body: some View {
-    GeometryReader { geometry in
-      let step = geometry.size.width / CGFloat(PolishPreset.allCases.count)
-      let start = step / 2
-      let filled = step * CGFloat(selection.rawValue)
-      ZStack(alignment: .topLeading) {
-        Capsule()
-          .fill(VhraseTheme.field)
-          .frame(width: step * CGFloat(lastIndex) + 10, height: 10)
-          .position(x: geometry.size.width / 2, y: 14)
-        Capsule()
-          .fill(VhraseTheme.accent)
-          .frame(width: filled + 10, height: 10)
-          .position(x: start + filled / 2, y: 14)
-        ForEach(PolishPreset.allCases) { preset in
-          let x = start + step * CGFloat(preset.rawValue)
-          let isChosen = !isCustom && selection == preset
-          Circle()
-            .fill(
-              preset.rawValue <= selection.rawValue ? Color.white.opacity(0.85) : Color.secondary
-            )
-            .frame(width: 4, height: 4)
-            .position(x: x, y: 14)
-          Button {
-            selection = preset
-          } label: {
-            Text(preset.title)
-              .font(VhraseFont.pill)
-              .foregroundStyle(isChosen ? Color.white : Color.secondary)
-              .padding(.horizontal, 10)
-              .padding(.vertical, 3)
-              .background {
-                if isChosen {
-                  Capsule().fill(VhraseTheme.accent)
-                }
-              }
-              .contentShape(Capsule())
-          }
-          .buttonStyle(PressableButtonStyle(pressedScale: 0.94))
-          .frame(width: step)
-          .position(x: x, y: 46)
-        }
-        Circle()
-          .fill(.white)
-          .overlay { Circle().strokeBorder(VhraseTheme.accent, lineWidth: 3) }
-          .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
-          .frame(width: 26, height: 26)
-          .position(x: start + filled, y: 14)
-        Rectangle()
-          .fill(Color.clear)
-          .frame(height: 30)
-          .contentShape(Rectangle())
-          .gesture(
-            DragGesture(minimumDistance: 0).onChanged { value in
-              let index = min(lastIndex, max(0, Int(((value.location.x - start) / step).rounded())))
-              selection = PolishPreset.allCases[index]
-            })
-      }
-      .animation(
-        VhraseMotion.respectingReduceMotion(VhraseMotion.bounce, reduceMotion: reduceMotion),
-        value: selection
-      )
-    }
-    .frame(height: 62)
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel("Writing style preset")
-    .accessibilityValue(isCustom ? "Custom" : selection.title)
-    .accessibilityAdjustableAction { direction in
-      let delta = direction == .increment ? 1 : -1
-      selection = PolishPreset.allCases[min(lastIndex, max(0, selection.rawValue + delta))]
-    }
   }
 }
 

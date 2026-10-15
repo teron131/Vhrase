@@ -93,6 +93,8 @@ final class SettingsStore {
         "polishResolvesSpokenCorrections",
         fallback.polishPreferences.resolvesSpokenCorrections)
     )
+    settings.screenshotResolution = enumValue(
+      "screenshotResolution", fallback.screenshotResolution)
     settings.geminiSmartTranscription = bool(
       "geminiSmartTranscription", fallback.geminiSmartTranscription)
     settings.geminiLanguageHints = storedString("geminiLanguageHints", fallback.geminiLanguageHints)
@@ -159,6 +161,7 @@ final class SettingsStore {
       settings.polishPreferences.resolvesSpokenCorrections,
       forKey: "polishResolvesSpokenCorrections")
     set(settings.includeScreenshot, forKey: "includeScreenshot")
+    set(settings.screenshotResolution.rawValue, forKey: "screenshotResolution")
     set(settings.hotkeyPreset.rawValue, forKey: "hotkeyPreset")
     saveCustomHotkey(settings.customHotkey)
     set(settings.geminiSmartTranscription, forKey: "geminiSmartTranscription")
