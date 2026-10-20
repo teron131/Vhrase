@@ -40,7 +40,6 @@ struct DictationView: View {
     }
   }
 
-  /// Puts the record control, live signal, and provider on one bar whose fill announces the workflow state.
   private var micBar: some View {
     let tint = presentation.micBarTint
     return HStack(alignment: .center, spacing: 14) {
@@ -103,7 +102,6 @@ struct DictationView: View {
     )
   }
 
-  /// Names the provider and mode on the bar and switches either without leaving Dictation.
   private func providerChip(onTint: Bool) -> some View {
     Menu {
       Picker("Provider", selection: appState.settingsBinding(\.provider)) {
@@ -138,7 +136,6 @@ struct DictationView: View {
     .accessibilityLabel("Transcription provider and mode")
   }
 
-  /// The parrot repeats what you said: the transcript sits in a speech bubble pointing back at the mark.
   private var speechBubble: some View {
     let bubble = UnevenRoundedRectangle(
       topLeadingRadius: 22, bottomLeadingRadius: 6, bottomTrailingRadius: 22,
@@ -394,7 +391,6 @@ struct DictationView: View {
     }
   }
 
-  /// How to start with the shortcut, naming only the presses that are on.
   private var startHint: String {
     let settings = appState.settings
     guard settings.hotkeyPreset != .disabled else {
@@ -408,7 +404,6 @@ struct DictationView: View {
     }
   }
 
-  /// How to finish the recording in progress, matching the presses that are on.
   private var finishHint: String {
     let settings = appState.settings
     guard settings.hotkeyPreset != .disabled else {

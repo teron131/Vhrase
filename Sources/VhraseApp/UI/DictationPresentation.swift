@@ -3,7 +3,6 @@
 import Foundation
 import SwiftUI
 
-/// Owns reusable display policy shared by Vhrase's compact and full-window UI surfaces.
 struct DictationPresentation {
   let status: AppStatus
   let settings: DictationSettings
@@ -40,14 +39,13 @@ struct DictationPresentation {
       && transcriptionConfigurationIssue == nil
   }
 
-  /// Reports whether the selected shortcut can receive global key events with the current permissions.
   var selectedShortcutReady: Bool {
     settings.hotkeyPreset != .fn
       || permissionIsReady(.inputMonitoring)
       || permissionIsReady(.accessibility)
   }
 
-  /// Offers the Accessibility action that lets finalized text return to the originating app.
+  /// `nil` once Accessibility is granted.
   var insertionPermissionActionTitle: String? {
     guard let snapshot = permissionSnapshot(.accessibility), !snapshot.state.isReady else {
       return nil
@@ -107,7 +105,7 @@ struct DictationPresentation {
     }
   }
 
-  /// Fills the mic bar: orange when ready, red while the microphone is live, violet while Vhrase works, and neutral until setup is complete.
+  /// `nil` leaves the bar neutral while setup is unfinished.
   var micBarTint: Color? {
     switch status {
     case .preparing, .recording:
@@ -276,7 +274,6 @@ struct DictationPresentation {
     permissions.first { $0.permission == permission }
   }
 
-  /// Summarizes a saved transcript's source and cleanup without depending on the current workflow.
   static func historyMetadata(
     _ item: TranscriptHistoryItem,
     relativeTo date: Date? = Date()
@@ -310,7 +307,6 @@ struct DictationPresentation {
       ? "Recording audio for on-device transcription…" : "Recording audio for upload transcription…"
   }
 
-  /// Marks the missing credential or model with the icon its setup action uses.
   private var providerSetupSystemImage: String? {
     switch providerReadiness {
     case .ready: nil

@@ -14,7 +14,6 @@ final class LLMAdjustmentClient: Sendable {
     self.baseURL = baseURL
   }
 
-  /// Returns both sides of a successful cleanup together with the exact instruction context needed to evaluate prompt changes.
   func adjust(
     transcript: String,
     screenshotDataURL: String?,
@@ -47,7 +46,6 @@ final class LLMAdjustmentClient: Sendable {
     )
   }
 
-  /// Polishes existing editor text with the same final-writing contract used for automatic transcripts.
   func polish(
     text: String,
     screenshotDataURL: String?,
@@ -71,7 +69,7 @@ final class LLMAdjustmentClient: Sendable {
     )
   }
 
-  /// Sends a minimal completion probe through the configured model and the same route used by cleanup.
+  /// Sends a minimal real completion, because a model listing cannot show whether this key may call this model.
   func checkModel(_ model: String) async throws {
     _ = try await Self.send(
       Self.modelCheckRequest(
@@ -137,7 +135,7 @@ final class LLMAdjustmentClient: Sendable {
       in: await Self.send(request, errorDomain: "Vhrase.LLMModelsHTTP"))
   }
 
-  /// Validates credentials and destination before callers capture or attach sensitive context.
+  /// Call before capturing screen context, so nothing sensitive is gathered for a request that cannot be sent.
   func validateConfiguration() throws {
     guard !apiKey.isEmpty else {
       throw NSError(
@@ -170,7 +168,6 @@ final class LLMAdjustmentClient: Sendable {
       from: await Self.send(request, errorDomain: "Vhrase.AdjustmentChatHTTP"))
   }
 
-  /// Encodes the behavior contract as a system message while keeping editable source material in the user message.
   static func requestBody(
     systemInstruction: String,
     userText: String,
@@ -221,7 +218,6 @@ final class LLMAdjustmentClient: Sendable {
     return try JSONEncoder().encode(payload)
   }
 
-  /// Builds an authenticated chat-completions POST that cannot escape the validated base URL.
   private static func chatCompletionsRequest(
     apiKey: String,
     baseURL: String,
@@ -237,7 +233,7 @@ final class LLMAdjustmentClient: Sendable {
     return request
   }
 
-  /// Returns the response body, surfacing the endpoint's own error text for unsuccessful HTTP statuses.
+  /// Throws the endpoint's own error text for a non-2xx status.
   private static func send(_ request: URLRequest, errorDomain: String) async throws -> Data {
     let (data, response) = try await URLSession.shared.data(for: request)
     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {

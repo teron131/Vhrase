@@ -135,7 +135,6 @@ struct AdjustmentFallbackCheck {
     precondition(content?.first?["image_url"] == nil)
   }
 
-  /// Protects remote transport and URL composition policy without making a network request.
   private static func validateEndpointPolicy() throws {
     for baseURL in [
       "https://ai-gateway.vercel.sh/v1",

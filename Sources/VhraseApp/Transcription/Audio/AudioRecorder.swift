@@ -4,7 +4,6 @@
 import Foundation
 import OSLog
 
-/// Records microphone audio while keeping CoreAudio tap work off the main actor.
 @MainActor
 final class AudioRecorder {
   private(set) var recordedSeconds = 0.0
@@ -50,7 +49,6 @@ final class AudioRecorder {
     try tapProcessor?.updateProcessing(settings: settings)
   }
 
-  /// Installs one input backend after permission checks and discards its recording if startup fails.
   private func startCapture(
     settings: DictationSettings, savesAudio: Bool, onAudioChunk: AudioChunkHandler?,
     onFailure: @escaping @MainActor (Error) -> Void
@@ -240,7 +238,6 @@ final class AudioRecorder {
     outputURL = nil
   }
 
-  /// Ends monitoring and requests hardware stop; the callback gate then drains or discards remaining PCM work.
   private func stopInput() {
     stopMonitoring()
     if let deviceCapture {
@@ -369,7 +366,7 @@ final class AudioCaptureState: @unchecked Sendable {
     }
   }
 
-  /// Counts even zero-valued PCM as healthy delivery, so a quiet room cannot trigger the stall timeout.
+  /// Returns `true` for the first chunk. Even zero-valued PCM counts as healthy delivery, so a quiet room cannot trigger the stall timeout.
   @discardableResult
   func recordChunk(at time: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Bool {
     condition.withLock {
@@ -431,7 +428,6 @@ final class AudioCaptureState: @unchecked Sendable {
   }
 }
 
-/// Shares PCM processing and optional file writing across engine taps and explicit-device capture callbacks.
 private final class AudioTapProcessor: @unchecked Sendable {
   private let logger = Logger(subsystem: "local.codex.Vhrase", category: "AudioRecorder")
   private let file: AVAudioFile?

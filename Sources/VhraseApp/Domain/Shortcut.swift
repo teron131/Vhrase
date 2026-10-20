@@ -61,7 +61,6 @@ struct ShortcutGestureInterpreter {
   static let holdThreshold: TimeInterval = 0.35
   static let doubleTapInterval: TimeInterval = 0.28
 
-  /// Names the presses that are on, such as "Tap to toggle · hold to talk · double-tap to polish".
   static func summary(_ gestures: ShortcutGestures) -> String {
     let text = [
       gestures.tapToToggle ? "tap to toggle" : nil,

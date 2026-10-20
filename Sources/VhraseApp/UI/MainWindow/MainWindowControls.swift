@@ -3,12 +3,11 @@
 import AppKit
 import SwiftUI
 
-/// Bounds every destination to one readable column so labels, controls, and transcripts share an edge.
 private let mainWindowContentWidth: CGFloat = 860
 
 extension View {
 
-  /// Typographic section header; icons stay out of section titles to keep hierarchy editorial.
+  /// Icons stay out of section titles to keep the hierarchy editorial.
   func sectionHeader(
     _ title: String,
     description: String? = nil
@@ -24,12 +23,10 @@ extension View {
     }
   }
 
-  /// Opens each destination with its name and one sentence of purpose.
   func pageHeader(_ title: String, description: String) -> some View {
     pageHeader(title, description: description) { EmptyView() }
   }
 
-  /// Opens a destination whose page-wide actions share the title row instead of floating inside a section.
   func pageHeader<Accessory: View>(
     _ title: String,
     description: String,
@@ -51,7 +48,6 @@ extension View {
     }
   }
 
-  /// Places one page's sections in the shared scrolling column on the window canvas.
   func mainWindowPage<Content: View>(
     spacing: CGFloat = 28,
     @ViewBuilder content: () -> Content
@@ -77,7 +73,6 @@ extension View {
     settingsGroup(title, footer: footer, content: content) { EmptyView() }
   }
 
-  /// Groups related settings whose group-wide action, such as a refresh, sits on the heading row.
   func settingsGroup<Content: View, Accessory: View>(
     _ title: String?,
     footer: String? = nil,
@@ -111,7 +106,6 @@ extension View {
     }
   }
 
-  /// Gives custom content the padding and leading separator of a settings row.
   func settingsRowStyle() -> some View {
     padding(.horizontal, 14)
       .padding(.vertical, 10)
@@ -124,7 +118,6 @@ extension View {
       }
   }
 
-  /// Lays out one setting with its explanation leading and its control on the group's shared trailing edge.
   func settingsRow<Control: View>(
     _ title: String,
     detail: String? = nil,
@@ -176,7 +169,6 @@ extension View {
     }
   }
 
-  /// Pairs a slider with its current value so every tuning row reads the same way.
   func settingsSlider(
     _ title: String,
     detail: String? = nil,
@@ -200,7 +192,6 @@ extension View {
     }
   }
 
-  /// Pairs a stepper with its current value and unit, keeping the number in the shared trailing column.
   func settingsStepper<Value: Strideable & Comparable>(
     _ title: String,
     detail: String? = nil,

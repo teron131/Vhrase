@@ -4,7 +4,6 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// Owns the non-activating panel so recorder feedback never steals focus from the target app.
 @MainActor
 final class RecorderHUDPanelController: NSWindowController {
   private weak var appState: AppState?

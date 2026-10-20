@@ -24,7 +24,6 @@ enum VhraseTheme {
   static let groupCornerRadius: CGFloat = 16
   static let fieldCornerRadius: CGFloat = 10
 
-  /// Maps a setup diagnostic's severity to its semantic status color across all surfaces.
   static func diagnosticColor(_ severity: SetupDiagnosticSeverity) -> Color {
     switch severity {
     case .ready:

@@ -3,7 +3,6 @@
 import Charts
 import SwiftUI
 
-/// Every activity total can be charted, so choosing a total and choosing the plotted series are one action.
 enum ActivityMetric: String, CaseIterable, Identifiable {
   case dictations = "Dictations"
   case words = "Words"
@@ -130,7 +129,6 @@ struct DictationActivityChart: View {
     .onChange(of: metric) { _, _ in hoveredDate = nil }
   }
 
-  /// Presents one period total as a tile; the selected total fills with the accent and is the series drawn below.
   private func metricTab(_ item: ActivityMetric, totals: DictationActivityDay) -> some View {
     let isSelected = metric == item
     return Button {
@@ -259,7 +257,7 @@ struct DictationActivityChart: View {
     }
   }
 
-  /// Lists every total for one period, so the quiet days the line flattens can still be read; the charted total carries the legend swatch.
+  /// Lists every total, so the quiet days the line flattens can still be read; the charted total carries the legend swatch.
   private func breakdown(_ day: DictationActivityDay) -> some View {
     VStack(alignment: .leading, spacing: 8) {
       Text(dateLabel(day.date))

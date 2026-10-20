@@ -110,7 +110,6 @@ struct RecordHeroButton: View {
     presentation.micBarTint == nil ? VhraseTheme.field : .white
   }
 
-  /// Restarts only the motion relevant to the newly entered workflow state.
   private func updateMotion() {
     isPulsing = false
     ringRotation = 0

@@ -8,7 +8,6 @@ enum AppearancePreference: String, CaseIterable, Identifiable {
   case light
   case dark
 
-  /// The defaults key shared by the read at launch and the picker in the sidebar's corner.
   static let storageKey = "appearance"
 
   /// The saved choice, read at launch before any view exists to hold it.
@@ -26,7 +25,6 @@ enum AppearancePreference: String, CaseIterable, Identifiable {
     }
   }
 
-  /// The familiar display, sun, and moon marks for the three choices.
   var systemImage: String {
     switch self {
     case .system: "display"

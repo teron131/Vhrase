@@ -20,7 +20,6 @@ actor ParakeetRecognizer: SpeechToTextClient {
     self.directory = directory
   }
 
-  /// Loads the model ahead of transcription, typically while the user is still speaking.
   func load() async throws {
     idleUnloadTask?.cancel()
     activeOperations += 1
@@ -31,7 +30,7 @@ actor ParakeetRecognizer: SpeechToTextClient {
     _ = try await loadedManager()
   }
 
-  /// Transcribes a finished recording; Parakeet has no per-request settings, and cancellation stops at FluidAudio's next chunk boundary without returning text.
+  /// Parakeet takes no per-request settings; cancellation stops at FluidAudio's next chunk boundary without returning text.
   func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult {
     idleUnloadTask?.cancel()
     activeOperations += 1
@@ -60,7 +59,6 @@ actor ParakeetRecognizer: SpeechToTextClient {
     )
   }
 
-  /// Releases the loaded model, for example before its files are removed.
   func unload() async {
     idleUnloadTask?.cancel()
     idleUnloadTask = nil

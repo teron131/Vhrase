@@ -75,7 +75,6 @@ struct TranscriptionView: View {
     }
   }
 
-  /// Describes the chosen provider in its own location's row and what choosing the other location means.
   private func providerDetail(for location: ProviderLocation) -> String {
     if provider.location == location {
       return provider.detail
@@ -101,7 +100,6 @@ struct TranscriptionView: View {
     }
   }
 
-  /// The language the selected provider expects, in that provider's own terms, since each one reads it differently.
   @ViewBuilder private var languageRow: some View {
     switch provider {
     case .gemini:
@@ -136,7 +134,6 @@ struct TranscriptionView: View {
     }
   }
 
-  /// The language row for a provider that takes no language code.
   private func automaticLanguageRow(_ detail: String) -> some View {
     settingsRow("Language", detail: detail) {
       Text("Automatic")
@@ -144,7 +141,6 @@ struct TranscriptionView: View {
     }
   }
 
-  /// The language row for a provider that reads the shared language code.
   private func languageCodeRow(_ detail: String) -> some View {
     settingsRow("Language", detail: detail) {
       TextField("Language", text: appState.settingsBinding(\.language))
@@ -154,7 +150,6 @@ struct TranscriptionView: View {
     }
   }
 
-  /// What the selected provider needs before it can run: its key, which System stores, or its on-device model.
   @ViewBuilder private var providerSetup: some View {
     switch provider {
     case .parakeet:

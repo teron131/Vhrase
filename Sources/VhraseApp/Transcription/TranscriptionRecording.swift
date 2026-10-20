@@ -2,10 +2,7 @@
 
 import Foundation
 
-/// Records once and returns what the selected provider recognized.
-///
-/// Realtime modes stream audio to an open provider session while capturing; after-stop modes hand the finished audio file to the client.
-/// A step that fails releases the microphone, the session, and the temporary audio before throwing, so callers only decide what to show.
+/// Realtime modes stream audio to an open provider session while capturing; after-stop modes hand the finished audio file to the client. A step that fails releases the microphone, the session, and the temporary audio before throwing, so callers only decide what to show.
 @MainActor
 final class TranscriptionRecording {
   private let settings: DictationSettings
@@ -28,10 +25,7 @@ final class TranscriptionRecording {
     recorder.recordedSeconds
   }
 
-  /// Opens the provider's realtime session when the mode streams, then starts the microphone.
-  ///
-  /// `onLevel` receives each 100 ms chunk's processed level on the audio thread.
-  /// `onFailure` reports capture that broke after startup; the recording has released its resources by then.
+  /// `onLevel` receives each 100 ms chunk's processed level on the audio thread. `onFailure` reports capture that broke after startup, once the recording has released its resources.
   func start(
     onLevel: (@Sendable (Double) -> Void)? = nil,
     onPartialTranscript: @escaping @Sendable (String) -> Void,

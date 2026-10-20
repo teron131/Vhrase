@@ -23,7 +23,6 @@ struct OnDeviceModelControls: View {
     store.model.title
   }
 
-  /// Hugging Face is the provider whose model the user chooses; Parakeet has one fixed model.
   private var showsHuggingFace: Bool {
     store === appState.huggingFaceModelStore
   }
@@ -45,7 +44,7 @@ struct OnDeviceModelControls: View {
     }
   }
 
-  /// Offers the built-in turbo model or any model ID the transformers pipeline accepts; a download in flight belongs to the current ID, so the choice waits for it.
+  /// A download in flight belongs to the current ID, so the choice waits for it.
   @ViewBuilder private var huggingFaceModelRows: some View {
     let usesCustomModel =
       editsHuggingFaceModelID
@@ -115,7 +114,6 @@ struct OnDeviceModelControls: View {
     }
   }
 
-  /// Hugging Face models also need their Python environment, which uv builds once and every model shares.
   private var runtimeNote: String {
     showsHuggingFace ? ", plus about 1 GB of Python runtime that uv builds the first time" : ""
   }

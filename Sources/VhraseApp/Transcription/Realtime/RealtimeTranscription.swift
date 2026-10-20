@@ -2,7 +2,6 @@
 
 import Foundation
 
-/// Owns one realtime WebSocket: buffers audio until the provider is ready, sends the provider's finishing message once, and resolves one transcript.
 final class RealtimeTranscriptionSession: @unchecked Sendable {
   /// Providers with a realtime transport; each differs only in its ready event, audio framing, and finish handshake.
   enum Provider {
@@ -27,7 +26,6 @@ final class RealtimeTranscriptionSession: @unchecked Sendable {
   private var didSendFinish = false
   private var isTerminal = false
 
-  /// Opens the selected provider's WebSocket with validated query parameters; only xAI and ElevenLabs have a realtime transport.
   static func start(
     settings: DictationSettings,
     apiKey: String,
@@ -291,7 +289,7 @@ final class RealtimeTranscriptionSession: @unchecked Sendable {
   }
 }
 
-/// Bounds audio captured while a provider WebSocket is waiting for its ready event.
+/// Holds audio captured before the provider is ready; `append` throws once it is full rather than dropping speech.
 struct PreReadyAudioQueue {
   static let maximumBufferedSeconds = 15
   static let maximumBufferedByteCount = maximumBufferedSeconds * 16_000 * MemoryLayout<Int16>.size

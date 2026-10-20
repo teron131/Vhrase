@@ -4,7 +4,6 @@ import Foundation
 
 struct HuggingFaceModel: OnDeviceModel {
   let title = STTProvider.huggingFace.title
-  /// The model as named in settings: a Hugging Face model ID.
   let id: String
   private let huggingFace: HuggingFaceRecognizer
 
@@ -41,7 +40,7 @@ struct HuggingFaceModel: OnDeviceModel {
     return FileManager.default.fileExists(atPath: marker.path)
   }
 
-  /// Runs the helper's download, which builds the Python environment on first use, fetches the files transformers needs, and transcribes a second of silence to prove the model runs on this Mac.
+  /// The first download also builds the Python environment; the helper proves the model runs by transcribing a second of silence.
   func download(
     progress: @escaping @Sendable (_ fraction: Double, _ isIndeterminate: Bool) -> Void
   ) async throws {

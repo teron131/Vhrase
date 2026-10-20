@@ -66,9 +66,7 @@ struct HistorySearch {
     let topDestination: String?
     private var lastSearch: (query: Query, items: [TranscriptHistoryItem])?
 
-    /// Builds the snapshot for `items`, taking each unchanged transcript's normalized text, term counts, and word count from `previous`.
-    ///
-    /// An edit adds or removes one transcript, so only that one is tokenized instead of the whole archive.
+    /// Takes each unchanged transcript's derived text, term counts, and word count from `previous`, so after a history edit only the changed transcript is tokenized.
     init(_ items: [TranscriptHistoryItem], reusing previous: Index? = nil) {
       let reusable = Dictionary(
         (previous?.documents ?? []).map { ($0.item.id, $0) },
@@ -126,7 +124,7 @@ struct HistorySearch {
     let day: CalendarDay
   }
 
-  /// Filters the complete archive first, then applies BM25-style local ranking without a network request.
+  /// Filters the whole archive, then ranks the matches BM25-style.
   private static func rank(
     _ documents: [SearchDocument], query: Query
   ) -> [TranscriptHistoryItem] {

@@ -2,10 +2,7 @@
 
 import SwiftUI
 
-/// Adds one bar per step on the right and glides older bars left at a constant speed, so speech streams across the pill.
-/// Bars grow in over the rightmost slot and shrink away over the leftmost, so nothing pops at either end.
-/// Bar height is proportional to level relative to the loudest recent bar, so speech stands tall on a quiet microphone; the Listen preview remains the absolute meter.
-/// Sound far below that level counts as background and stays a dot, and a stream with only background rests as a still row of dots.
+/// Bars grow in over the rightmost slot and shrink away over the leftmost, so nothing pops at either end. Bar height is relative to the loudest recent bar, so speech stands tall on a quiet microphone, while the Listen preview remains the absolute meter; sound far below that level counts as background and stays a dot.
 struct RecorderWaveform: View {
   /// Bars at full size between the two edge slots; with them the waveform spans most of the recorder pill.
   private static let barCount = 21
@@ -14,7 +11,6 @@ struct RecorderWaveform: View {
   private static let slotWidth = barWidth + spacing
   /// Half the pill's height, so the tallest bar keeps a quarter of the pill clear above and below it.
   private static let height: CGFloat = 26
-  /// How often a 100 ms audio chunk replaces the level.
   private static let chunkInterval = 0.1
   /// Two chunks per bar, which moves the stream at 35 points per second.
   private static let stepInterval = 2 * chunkInterval
@@ -56,7 +52,6 @@ struct RecorderWaveform: View {
     }
   }
 
-  /// Rests as a dot and grows to the full waveform height at the loudest recent level, shrinking and fading while it crosses an edge slot.
   private func bar(level: Double, slot: Double) -> some View {
     // Full between the edge slots, falling to nothing at the outer end of either one.
     let presence = min(1, max(0, min(slot, Double(Self.barCount + 1) - slot)))

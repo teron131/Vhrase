@@ -124,7 +124,6 @@ final class SettingsStore {
     return settings
   }
 
-  /// Persists every preference, writing only the keys whose value changed so one edit does not resend them all.
   func save(_ settings: DictationSettings) {
     set(settings.provider.rawValue, forKey: "provider")
     set(settings.transcriptionMode.rawValue, forKey: "transcriptionMode")

@@ -3,7 +3,6 @@
 import AppKit
 import SwiftUI
 
-/// Keeps active dictation to a waveform or progress indicator, revealing controls only when approached.
 struct RecorderHUDView: View {
   /// One capsule size for every workflow state, so the panel never resizes or shifts between states.
   static let size = CGSize(width: 184, height: 52)
@@ -180,7 +179,6 @@ struct RecorderHUDView: View {
       .help(title)
   }
 
-  /// Keeps failure feedback on the same baseline as every other state while retaining immediate recovery.
   private func failureContent(_ message: String) -> some View {
     HStack(spacing: 8) {
       Image(systemName: "exclamationmark.circle")

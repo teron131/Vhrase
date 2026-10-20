@@ -2,7 +2,6 @@
 
 import Foundation
 
-/// Prepares final transcript text before AppState records history, insertion, and published UI state.
 @MainActor
 struct TranscriptFinalizer {
   let settings: DictationSettings

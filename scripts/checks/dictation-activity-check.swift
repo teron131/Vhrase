@@ -50,7 +50,6 @@ struct DictationActivityCheck {
     )
   }
 
-  /// Days saved before polishing was priced still load, and a polish adds to its day's cost without counting a dictation.
   private static func verifyPolishingCost() {
     let legacy = Data(
       #"[{"date":0,"dictations":1,"words":10,"recordingSeconds":5,"processingSeconds":1,"estimatedCostUSD":0.01}]"#
@@ -80,7 +79,6 @@ struct DictationActivityCheck {
     precondition(abs(reloaded[0].transcriptionCostUSD - transcription) < 1e-12)
   }
 
-  /// Covers unsorted days, duplicate periods, future entries, leap day, and a week crossing a daylight-saving boundary.
   private static func verifyCalendarBuckets() {
     let calendar = Calendar.current
     func date(_ year: Int, _ month: Int, _ day: Int, hour: Int = 0) -> Date {

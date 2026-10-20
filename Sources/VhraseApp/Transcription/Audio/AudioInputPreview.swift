@@ -86,7 +86,6 @@ final class AudioInputPreview: NSObject, ObservableObject, AVAudioPlayerDelegate
     }
   }
 
-  /// Ignores stale capture callbacks and updates only the active preview or explicitly requested test clip.
   private func receive(_ chunk: AudioChunk, sessionID id: UUID) {
     guard sessionID == id else { return }
     // Smooth only the display; captured samples and playback retain their original timing and level.
@@ -113,7 +112,7 @@ final class AudioInputPreview: NSObject, ObservableObject, AVAudioPlayerDelegate
     }
   }
 
-  /// Releases capture and playback, invalidates queued updates, and discards any in-memory test clip.
+  /// Also discards any recorded test clip.
   func stop() {
     stopCapture()
     discardTest()

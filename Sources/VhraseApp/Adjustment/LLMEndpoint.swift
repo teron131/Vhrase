@@ -3,7 +3,6 @@
 import Darwin
 import Foundation
 
-/// Validates a user-configurable LLM base URL once and safely derives API endpoint URLs from it.
 struct LLMEndpoint {
   private let baseURL: URL
 
@@ -11,7 +10,6 @@ struct LLMEndpoint {
     self.baseURL = try Self.validatedBaseURL(baseURL)
   }
 
-  /// Returns a canonical HTTP(S) base URL after enforcing transport, authority, host, port, and path policy.
   static func validatedBaseURL(_ rawValue: String) throws -> URL {
     let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !value.isEmpty,
@@ -98,7 +96,6 @@ struct LLMEndpoint {
     }
   }
 
-  /// Rejects repeated separators, traversal, and encoded separators while preserving ordinary gateway prefixes such as `/v1`.
   private static func canonicalBasePath(_ path: String) throws -> String {
     guard path.isEmpty || path.hasPrefix("/") else {
       throw invalidBaseURL("LLM base URL path is invalid.")

@@ -295,7 +295,6 @@ struct PolishPreferences: Codable, Equatable, Sendable {
   var removesFillerWords: Bool
   var resolvesSpokenCorrections: Bool
 
-  /// The default corrects explicit speech artifacts while preserving the speaker's wording and structure.
   static let defaults = PolishPreferences(
     rewriteLevel: .minimal,
     numberStyle: .adaptive,
@@ -336,7 +335,6 @@ struct PolishPreferences: Codable, Equatable, Sendable {
     self.resolvesSpokenCorrections = resolvesSpokenCorrections
   }
 
-  /// Supplies conservative defaults for preferences absent from older customization exports.
   init(from decoder: Decoder) throws {
     let values = try decoder.container(keyedBy: CodingKeys.self)
     rewriteLevel = try values.decode(PolishRewriteLevel.self, forKey: .rewriteLevel)

@@ -15,7 +15,6 @@ struct ParakeetModel: OnDeviceModel {
   let requiredFreeBytes: Int64? = 1_200_000_000
   let loadingNote = "The first time after a download or macOS update takes about 15 seconds."
   private let directory: URL
-  /// Runs the downloaded model; it reads only these files and never downloads.
   private let parakeet: ParakeetRecognizer
 
   init(directory: URL = ParakeetModel.defaultDirectory) {

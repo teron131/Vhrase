@@ -28,7 +28,6 @@ enum SecretKey: String, CaseIterable {
     }
   }
 
-  /// Names the credential each cloud transcription provider authenticates with; on-device recognition has none.
   init?(_ provider: STTProvider) {
     switch provider {
     case .xai: self = .xaiAPIKey
@@ -41,7 +40,6 @@ enum SecretKey: String, CaseIterable {
   }
 }
 
-/// Persists secrets as generic-password items and resolves provider configuration without exposing environment values in editable state.
 final class APIKeyStore: Sendable {
   private static let supportedConfigurationKeys = Set(["LLM_BASE_URL"])
   private static let llmCredentialReferenceKey = "credentialReference.LLM_API_KEY"
@@ -138,7 +136,6 @@ final class APIKeyStore: Sendable {
     environment[key.rawValue] ?? ""
   }
 
-  /// Resolves the non-secret LLM endpoint from the environment before the saved UI setting.
   func effectiveLLMBaseURL(savedValue: String) -> String {
     llmBaseURLFromEnvironment.isEmpty ? savedValue : llmBaseURLFromEnvironment
   }
@@ -208,7 +205,6 @@ final class APIKeyStore: Sendable {
       && !environment[savedValue, default: ""].isEmpty
   }
 
-  /// Loads the nonsecret environment-variable name chosen for the LLM credential.
   func savedLLMCredentialReference() -> String {
     let value = defaults.string(forKey: Self.llmCredentialReferenceKey) ?? ""
     return Self.isCredentialEnvironmentVariableName(value) ? value : ""
@@ -243,7 +239,7 @@ final class APIKeyStore: Sendable {
     return defaults
   }
 
-  /// Saves or removes one credential and reports Keychain failures without including the secret value.
+  /// An empty value deletes the item; errors never include the secret.
   func save(_ value: String, for key: SecretKey) throws {
     if value.isEmpty {
       try removeValue(for: key)

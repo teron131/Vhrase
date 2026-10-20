@@ -4,7 +4,6 @@ import AppKit
 import SwiftUI
 
 extension View {
-  /// Gives each destination the same Escape policy while letting it release its own editing resources.
   func mainWindowEvents(
     appState: AppState,
     blocksEscape: Bool = false,
@@ -25,7 +24,6 @@ extension View {
   }
 }
 
-/// Scopes event monitors to the mounted destination so hidden windows and other app surfaces cannot consume Escape.
 @MainActor
 private struct MainWindowEvents: NSViewRepresentable {
   let onEscape: (NSWindow) -> Bool

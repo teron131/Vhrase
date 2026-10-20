@@ -2,7 +2,6 @@
 
 import SwiftUI
 
-/// Draws the active dictation's recent levels.
 struct RecordingWaveformView: View {
   @ObservedObject var meter: RecordingMeter
   /// False rests the line as quiet dots, for a surface that stays on screen between recordings.
@@ -17,7 +16,7 @@ struct RecordingWaveformView: View {
   }
 }
 
-/// Counts the active recording's minutes and seconds; callers set the font and color.
+/// Callers set the font and color.
 struct RecordingElapsedTime: View {
   @ObservedObject var meter: RecordingMeter
 

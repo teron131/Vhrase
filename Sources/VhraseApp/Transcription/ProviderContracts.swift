@@ -2,7 +2,6 @@
 
 import Foundation
 
-/// Recognizes a finished recording through a cloud request or an on-device runtime.
 protocol SpeechToTextClient: Sendable {
   func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult
 }
@@ -18,7 +17,6 @@ enum TranscriptionContract {
     )
   }
 
-  /// Describes the first limit that would block recording, or returns `nil` for usable settings.
   static func configurationIssue(in settings: DictationSettings) -> String? {
     do {
       try validate(settings: settings)
@@ -28,7 +26,6 @@ enum TranscriptionContract {
     }
   }
 
-  /// Describes the first vocabulary limit the selected provider and mode would reject, or returns `nil`.
   static func vocabularyIssue(in settings: DictationSettings) -> String? {
     do {
       _ = try validatedKeyterms(
@@ -269,7 +266,6 @@ private struct KeytermPolicy {
   var unsupportedCharacters: Set<Character> = []
 }
 
-/// Builds xAI request fields and query items from normalized Vhrase settings.
 enum XAITranscriptionContract {
   static func uploadFields(settings: DictationSettings) throws -> [(String, String)] {
     try settings.validateLocalConfiguration()

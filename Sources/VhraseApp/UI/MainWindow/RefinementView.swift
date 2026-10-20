@@ -26,7 +26,6 @@ struct RefinementView: View {
       isPresented: $isOpenCCInstallConfirmationPresented, appState: appState)
   }
 
-  /// When the LLM runs and what it may see; double-tap polishing follows the same settings.
   private var polishingGroup: some View {
     settingsGroup(
       "Polishing",
@@ -61,7 +60,6 @@ struct RefinementView: View {
     }
   }
 
-  /// Trades reading accuracy for speed, with a simulation of what each size does to small screen text.
   private var screenshotResolutionRow: some View {
     VStack(alignment: .leading, spacing: 10) {
       VStack(alignment: .leading, spacing: 2) {
@@ -84,7 +82,6 @@ struct RefinementView: View {
     .settingsRowStyle()
   }
 
-  /// The LLM's endpoint and model sit with the check that tries them; its key is a secret, so System keeps it.
   private var modelGroup: some View {
     let usesEnvironmentURL = credentials.usesEnvironmentLLMBaseURL
     let modelIsMissing =
@@ -158,7 +155,6 @@ struct RefinementView: View {
     }
   }
 
-  /// OpenCC's s2hk conversion runs on every final transcript after polishing, whether or not the LLM ran.
   private var chineseOutputGroup: some View {
     let state = appState.openCCInstallationState
     let isInstalled = ChineseTextConverter.isAvailable

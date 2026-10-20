@@ -57,7 +57,6 @@ struct SystemView: View {
     }
   }
 
-  /// Scrolls a requested key's field into view and focuses it once the page has laid it out.
   private func revealRequestedCredential(_ proxy: ScrollViewProxy) {
     guard let key = credentialRequest else { return }
     credentialRequest = nil
@@ -69,7 +68,6 @@ struct SystemView: View {
     }
   }
 
-  /// Leads with the most important unfinished step; the sidebar's route badges mark where the others live.
   private func setupOverviewCard(_ diagnostic: SetupDiagnostic, remaining: Int) -> some View {
     HStack(alignment: .center, spacing: 14) {
       Image(systemName: diagnostic.systemImage)
@@ -110,7 +108,6 @@ struct SystemView: View {
     .surface()
   }
 
-  /// Cloud providers' keys in the pickers' order; each one authenticates only that provider's transcription.
   private var transcriptionKeysCard: some View {
     settingsGroup(
       "Transcription keys",
@@ -123,7 +120,6 @@ struct SystemView: View {
     }
   }
 
-  /// The language model's own credential, kept apart so a transcription key is never mistaken for it; Refinement holds its endpoint and model.
   private var llmKeyCard: some View {
     settingsGroup(
       "LLM key",
@@ -203,7 +199,6 @@ struct SystemView: View {
     .id(key)
   }
 
-  /// Shows whose key a row holds: the speech provider's own mark, or a brain for the language model's key, which no speech provider uses.
   @ViewBuilder private func keyIcon(_ key: SecretKey) -> some View {
     if let provider = STTProvider.allCases.first(where: { SecretKey($0) == key }),
       let icon = ProviderPicker.icon(for: provider)
@@ -214,7 +209,6 @@ struct SystemView: View {
     }
   }
 
-  /// The language model's mark, shared by its key, its endpoint, and its check the way a speech provider's rows share its logo.
   private var llmIcon: some View {
     Image(systemName: "brain")
       .foregroundStyle(.secondary)
@@ -247,7 +241,6 @@ struct SystemView: View {
     }
   }
 
-  /// Every setting except API keys travels as one file; imports show sensitive changes for review before applying.
   private var customizationCard: some View {
     settingsGroup("Your settings") {
       settingsRow(
@@ -315,7 +308,6 @@ struct SystemView: View {
     }
   }
 
-  /// Reports a failed optional install or download beside the diagnostic that retries it.
   private func diagnosticFailureMessage(_ diagnostic: SetupDiagnostic) -> String? {
     switch diagnostic.id {
     case .openCC:
@@ -375,7 +367,6 @@ struct SystemView: View {
     }
   }
 
-  /// Routes the leading setup issue to the existing configuration or macOS permission action.
   private func handleSetupDiagnostic(_ diagnostic: SetupDiagnostic) {
     switch diagnostic.id {
     case .transcriptionConfiguration:
@@ -432,7 +423,6 @@ struct SystemView: View {
     .settingsRowStyle()
   }
 
-  /// Ends credential editing and commits any pending Keychain update.
   private func finishAPIKeyEditing() {
     focusedSecretField = nil
     credentialFocusMonitor.stop()
@@ -440,12 +430,11 @@ struct SystemView: View {
   }
 }
 
-/// Owns the AppKit event monitor used to dismiss credential focus.
 @MainActor
 final class CredentialFocusMonitor {
   private var eventMonitor: Any?
 
-  /// Starts one local monitor and reports clicks that land outside every text input.
+  /// Reports clicks that land outside every text input.
   func start(onOutsideClick: @escaping () -> Void) {
     guard eventMonitor == nil else {
       return
@@ -468,7 +457,6 @@ final class CredentialFocusMonitor {
     }
   }
 
-  /// Removes the local monitor when credential editing ends.
   func stop() {
     guard let eventMonitor else {
       return

@@ -17,7 +17,6 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
     super.init()
   }
 
-  /// Defers credential loading until AppKit has launched; duplicate processes never take over shortcuts.
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApplication.shared.setActivationPolicy(.accessory)
     AppearancePreference.saved.apply()
@@ -28,7 +27,6 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
     }
   }
 
-  /// Every normal quit route flushes pending credentials and releases microphone and workflow resources.
   func applicationWillTerminate(_ notification: Notification) {
     appState.prepareForTermination()
   }

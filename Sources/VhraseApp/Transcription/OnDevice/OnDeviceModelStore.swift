@@ -13,7 +13,6 @@ final class OnDeviceModelStore: ObservableObject {
     case installed
     case failed(String)
 
-    /// Words download progress identically wherever it appears.
     static func progressTitle(fraction: Double, isIndeterminate: Bool) -> String {
       isIndeterminate
         ? "Preparing for this Mac…"
@@ -49,7 +48,6 @@ final class OnDeviceModelStore: ObservableObject {
     preparationTask != nil
   }
 
-  /// Words the download action with the model's measured size when there is one.
   var downloadTitle: String {
     model.downloadSizeLabel.map { "Download \($0)" } ?? "Download"
   }
@@ -107,7 +105,6 @@ final class OnDeviceModelStore: ObservableObject {
     downloadTask?.cancel()
   }
 
-  /// Loads the installed model in the background so a dictation does not wait for it.
   func prepare() {
     guard isInstalled, !isPreparing else { return }
     let model = model

@@ -214,7 +214,6 @@ struct HistoryView: View {
     .surface(cornerRadius: VhraseTheme.fieldCornerRadius + 2)
   }
 
-  /// Sums up the archive in one sentence; dictation totals and trends live in Dictation's Activity.
   private var historySummary: String {
     let index = appState.historyIndex
     let count = appState.history.count
@@ -275,7 +274,6 @@ struct HistoryView: View {
   }
 }
 
-/// Shows each saved transcript as the user's words first, with when, how, and where beneath, expanding in place to the full text.
 private struct HistoryTranscriptRow: View {
   let item: TranscriptHistoryItem
   let metadata: String

@@ -17,7 +17,7 @@ enum VhraseMotion {
   }
 }
 
-/// Squishes a control while it is pressed so clicks feel physical; Reduce Motion keeps it still.
+/// Reduce Motion keeps the control still.
 struct PressableButtonStyle: ButtonStyle {
   var pressedScale: CGFloat = 0.93
 

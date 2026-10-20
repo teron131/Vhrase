@@ -26,7 +26,7 @@ struct DictationActivityDay: Codable {
     return Double(words) / recordingSeconds * 60
   }
 
-  /// Compares aggregate elapsed time with a fixed typing baseline, retaining slower attempts in the total.
+  /// Clamps the period's total rather than each dictation, so a dictation slower than typing still counts against the others.
   var savedSeconds: Double {
     max(0, Double(words) / Self.typingWordsPerMinute * 60 - recordingSeconds - processingSeconds)
   }

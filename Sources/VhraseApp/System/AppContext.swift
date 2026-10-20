@@ -3,7 +3,6 @@
 @preconcurrency import AppKit
 import Foundation
 
-/// Remembers the last non-Vhrase app so menu and window actions retain a safe insertion target.
 @MainActor
 final class AppContext {
   private static let activationSettleDelay: Duration = .milliseconds(150)
@@ -43,8 +42,7 @@ final class AppContext {
     return lastTargetApp
   }
 
-  /// Activates the recorded target and confirms focus before Vhrase emits a paste shortcut.
-  /// After switching apps it also waits briefly, because frontmost status flips before the app's window becomes key and a shortcut sent in that gap is dropped.
+  /// After a switch it waits briefly before returning, because frontmost status flips before the app's window becomes key and a shortcut sent in that gap is dropped.
   func activate(_ target: FrontmostApp) async -> Bool {
     guard !target.bundleIdentifier.isEmpty,
       let application =

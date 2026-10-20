@@ -4,7 +4,6 @@ import AppKit
 import SwiftUI
 
 struct ParrotMark: View {
-  /// Supplies a native image to the status item, preserving transparent cutouts and system contrast.
   /// In one color the visor merges with the head, so its scanline is cut out to keep the glasses readable.
   static let menuBarImage: NSImage = {
     let size = NSSize(width: 18, height: 18)
@@ -92,7 +91,6 @@ struct ParrotMark: View {
   }
 }
 
-/// Maps the approved 32-unit artwork into the available bounds, including zero-size layouts.
 private func artworkTransform(in rect: CGRect) -> CGAffineTransform {
   let scale = min(rect.width, rect.height) / 32
   return CGAffineTransform(
@@ -176,7 +174,6 @@ private struct ParrotBody: Shape {
   }
 }
 
-/// A wraparound visor at eye level: a strap at the back of the head widens into the lens, whose tip juts past the forehead.
 private struct ParrotVisor: Shape {
   func path(in rect: CGRect) -> Path {
     var path = Path()
@@ -232,7 +229,6 @@ private struct ParrotWing: Shape {
   }
 }
 
-/// The upper mandible and hook, closed along the feather line under the visor.
 private struct ParrotBill: Shape {
   func path(in rect: CGRect) -> Path {
     var path = Path()
@@ -262,7 +258,7 @@ private struct ParrotBill: Shape {
   }
 }
 
-/// Straight-edged plumage zones; the body's own lavender serves as the wing coverts, and the icon's scalloped feather tips are too small to see at in-app sizes.
+/// The body's own lavender serves as the wing coverts; the icon's scalloped feather tips are too small to see at in-app sizes.
 private struct ArtPolygon: Shape {
   let corners: [CGPoint]
 
