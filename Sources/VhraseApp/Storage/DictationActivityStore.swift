@@ -10,7 +10,14 @@ struct DictationActivityDay: Codable {
   var words = 0
   var recordingSeconds = 0.0
   var processingSeconds = 0.0
+  /// Transcription and LLM polishing together.
   var estimatedCostUSD = 0.0
+  /// The part of `estimatedCostUSD` spent on LLM polishing, automatic or double-tap.
+  var polishingCostUSD = 0.0
+
+  var transcriptionCostUSD: Double {
+    estimatedCostUSD - polishingCostUSD
+  }
 
   var dictatedWordsPerMinute: Double {
     guard words > 0, recordingSeconds > 0 else {
@@ -30,6 +37,21 @@ struct DictationActivityDay: Codable {
     recordingSeconds += other.recordingSeconds
     processingSeconds += other.processingSeconds
     estimatedCostUSD += other.estimatedCostUSD
+    polishingCostUSD += other.polishingCostUSD
+  }
+}
+
+extension DictationActivityDay {
+  /// Days saved before polishing was priced have no `polishingCostUSD`; their whole cost was transcription.
+  init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    date = try values.decode(Date.self, forKey: .date)
+    dictations = try values.decode(Int.self, forKey: .dictations)
+    words = try values.decode(Int.self, forKey: .words)
+    recordingSeconds = try values.decode(Double.self, forKey: .recordingSeconds)
+    processingSeconds = try values.decode(Double.self, forKey: .processingSeconds)
+    estimatedCostUSD = try values.decode(Double.self, forKey: .estimatedCostUSD)
+    polishingCostUSD = try values.decodeIfPresent(Double.self, forKey: .polishingCostUSD) ?? 0
   }
 }
 
@@ -58,14 +80,32 @@ final class DictationActivityStore {
   ) -> [DictationActivityDay] {
     let words = TranscriptHistoryItem.countWords(in: text)
 
-    let date = Calendar.current.startOfDay(for: now)
-    let entry = DictationActivityDay(
-      date: date, dictations: 1, words: words,
-      recordingSeconds: recordingSeconds, processingSeconds: processingSeconds,
-      estimatedCostUSD: recordingSeconds / 3_600 * hourlyRate(settings))
+    return merge(
+      DictationActivityDay(
+        date: Calendar.current.startOfDay(for: now), dictations: 1, words: words,
+        recordingSeconds: recordingSeconds, processingSeconds: processingSeconds,
+        estimatedCostUSD: recordingSeconds / 3_600 * hourlyRate(settings)),
+      into: days)
+  }
+
+  /// Adds one polish's estimated LLM cost to today without counting a dictation, since double-tap polishing rewrites text that was never dictated.
+  func recordPolishing(
+    costUSD: Double, days: [DictationActivityDay], now: Date = Date()
+  ) -> [DictationActivityDay] {
+    merge(
+      DictationActivityDay(
+        date: Calendar.current.startOfDay(for: now), estimatedCostUSD: costUSD,
+        polishingCostUSD: costUSD),
+      into: days)
+  }
+
+  private func merge(
+    _ entry: DictationActivityDay, into days: [DictationActivityDay]
+  ) -> [DictationActivityDay] {
     var updated = days
-    if let index = updated.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: date) }
-    ) {
+    if let index = updated.firstIndex(where: {
+      Calendar.current.isDate($0.date, inSameDayAs: entry.date)
+    }) {
       updated[index].add(entry)
     } else {
       updated.append(entry)

@@ -1,4 +1,4 @@
-// Verifies weighted activity metrics and calendar buckets shared by the summary and chart.
+// Verifies weighted activity metrics, polishing cost recording, and calendar buckets shared by the summary and chart.
 
 import Foundation
 
@@ -43,10 +43,41 @@ struct DictationActivityCheck {
     precondition(noDuration.dictatedWordsPerMinute == 0)
     precondition(noDuration.savedSeconds == 0)
 
+    verifyPolishingCost()
     verifyCalendarBuckets()
     print(
       "dictation activity metrics and calendar buckets ok (\(Calendar.current.timeZone.identifier))"
     )
+  }
+
+  /// Days saved before polishing was priced still load, and a polish adds to its day's cost without counting a dictation.
+  private static func verifyPolishingCost() {
+    let legacy = Data(
+      #"[{"date":0,"dictations":1,"words":10,"recordingSeconds":5,"processingSeconds":1,"estimatedCostUSD":0.01}]"#
+        .utf8)
+    let decoded = try! JSONDecoder().decode([DictationActivityDay].self, from: legacy)
+    precondition(decoded[0].estimatedCostUSD == 0.01 && decoded[0].polishingCostUSD == 0)
+
+    // A fixed suite keeps repeated runs from leaving one preferences file each.
+    let suite = "Vhrase.ActivityCheck"
+    let defaults = UserDefaults(suiteName: suite)!
+    defaults.removePersistentDomain(forName: suite)
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let store = DictationActivityStore(defaults: defaults)
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    var days = store.record(
+      text: "one two three", recordingSeconds: 60, processingSeconds: 2,
+      settings: .defaults, days: [], now: now)
+    let transcription = days[0].estimatedCostUSD
+    days = store.recordPolishing(costUSD: 0.0003, days: days, now: now.addingTimeInterval(60))
+    precondition(days.count == 1 && days[0].dictations == 1)
+    precondition(abs(days[0].estimatedCostUSD - (transcription + 0.0003)) < 1e-12)
+    precondition(days[0].polishingCostUSD == 0.0003)
+    days = store.recordPolishing(costUSD: 0.0002, days: days, now: now.addingTimeInterval(86_400))
+    precondition(days.count == 2 && days[1].dictations == 0 && days[1].polishingCostUSD == 0.0002)
+    let reloaded = store.load()
+    precondition(reloaded.map(\.polishingCostUSD) == [0.0003, 0.0002])
+    precondition(abs(reloaded[0].transcriptionCostUSD - transcription) < 1e-12)
   }
 
   /// Covers unsorted days, duplicate periods, future entries, leap day, and a week crossing a daylight-saving boundary.

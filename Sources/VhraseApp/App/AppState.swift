@@ -115,6 +115,8 @@ final class AppState: ObservableObject {
   private var activeWorkflow = ActiveWorkflow.dictation
   private var cachedHistoryIndex: HistorySearch.Index?
   private var historyIndexIsCurrent = false
+  /// List prices by endpoint and model, looked up once per session; a `nil` value records an endpoint that publishes none.
+  private var llmPrices: [String: LLMPrice?] = [:]
   private let ownsInstance: Bool
 
   init(ownsInstance: Bool) {
@@ -1017,6 +1019,7 @@ final class AppState: ObservableObject {
     let client: LLMAdjustmentClient
     let polishSettings = settings
     let model = polishSettings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
+    let baseURL = effectiveLLMBaseURL
     do {
       target = try focusedTextService.capture()
       guard !model.isEmpty else {
@@ -1024,7 +1027,7 @@ final class AppState: ObservableObject {
       }
       client = LLMAdjustmentClient(
         apiKey: credentials.effectiveValue(.llmAPIKey),
-        baseURL: effectiveLLMBaseURL
+        baseURL: baseURL
       )
       try client.validateConfiguration()
     } catch {
@@ -1047,7 +1050,7 @@ final class AppState: ObservableObject {
           nil
         }
       do {
-        let replacement = try await client.polish(
+        let polished = try await client.polish(
           text: target.text,
           screenshotDataURL: screenshotDataURL,
           settings: polishSettings,
@@ -1063,7 +1066,7 @@ final class AppState: ObservableObject {
         // Activation yields to Escape handling; a cancelled rewrite must not alter the editor's selection.
         try Task.checkCancellation()
         try target.prepareReplacement()
-        _ = try await self.inserter.paste(replacement, keepOnClipboard: false)
+        _ = try await self.inserter.paste(polished.text, keepOnClipboard: false)
         guard self.textPolishID == id else {
           return
         }
@@ -1072,6 +1075,7 @@ final class AppState: ObservableObject {
         self.lastCompletion = .textPolished
         self.customizationNotice = "Polished the focused text in \(target.app.name)."
         self.status = .completed
+        await self.recordPolishingCost(polished.usage, model: model, baseURL: baseURL)
       } catch is CancellationError {
         guard self.textPolishID == id else { return }
         self.textPolishTask = nil
@@ -1185,6 +1189,35 @@ final class AppState: ObservableObject {
     }
     clearRecordingContext()
     status = .completed
+    if let refinement = finalized.refinement {
+      await recordPolishingCost(
+        refinement.usage, model: refinement.model, baseURL: settings.adjustmentBaseURL)
+    }
+  }
+
+  /// Adds one polish to today's estimated cost at the model's list price, after the result is delivered so a first price lookup never delays it; a polish whose usage or price is unknown stays uncounted.
+  private func recordPolishingCost(_ usage: LLMUsage?, model: String, baseURL: String) async {
+    guard let usage else { return }
+    do {
+      guard let price = try await llmPrice(model: model, baseURL: baseURL) else { return }
+      activityDays = activityStore.recordPolishing(
+        costUSD: price.cost(of: usage), days: activityDays)
+    } catch {
+      logger.error("LLM price lookup failed: \(error.localizedDescription, privacy: .public)")
+    }
+  }
+
+  private func llmPrice(model: String, baseURL: String) async throws -> LLMPrice? {
+    let key = "\(baseURL) \(model)"
+    if let listed = llmPrices[key] {
+      return listed
+    }
+    let price = try await LLMAdjustmentClient(
+      apiKey: credentials.effectiveValue(.llmAPIKey), baseURL: baseURL
+    )
+    .listPrice(for: model)
+    llmPrices[key] = price
+    return price
   }
 
   /// Pastes into the recorded target when possible; otherwise leaves the text on the clipboard and explains why.

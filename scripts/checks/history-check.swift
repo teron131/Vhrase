@@ -20,7 +20,8 @@ struct HistoryCheck {
       output: "Hello from dictation.",
       model: "test/model",
       systemInstruction: "Polish the transcript.",
-      includedScreenshot: false
+      includedScreenshot: false,
+      usage: LLMUsage(inputTokens: 2_480, outputTokens: 120)
     )
 
     let data = try JSONEncoder().encode([item])
@@ -45,6 +46,14 @@ struct HistoryCheck {
     var itemWithoutNewFields = item
     itemWithoutNewFields.refinement = nil
     precondition(oldItem == itemWithoutNewFields)
+    var withoutUsage = try JSONSerialization.jsonObject(with: measuredData) as! [String: Any]
+    var savedRefinement = withoutUsage["refinement"] as! [String: Any]
+    savedRefinement.removeValue(forKey: "usage")
+    withoutUsage["refinement"] = savedRefinement
+    let unmeasured = try JSONDecoder().decode(
+      TranscriptHistoryItem.self, from: JSONSerialization.data(withJSONObject: withoutUsage))
+    precondition(unmeasured.refinement?.output == "Hello from dictation.")
+    precondition(unmeasured.refinement?.usage == nil)
 
     // A fixed suite keeps repeated runs from leaving one preferences file each in ~/Library/Preferences.
     let suiteName = "Vhrase.HistoryCheck"

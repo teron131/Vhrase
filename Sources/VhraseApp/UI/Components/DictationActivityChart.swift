@@ -13,13 +13,15 @@ enum ActivityMetric: String, CaseIterable, Identifiable {
 
   var id: Self { self }
 
-  var detail: String {
+  func detail(_ totals: DictationActivityDay) -> String {
     switch self {
     case .dictations: "completed"
     case .words: "dictated"
     case .rate: "while recording"
     case .saved: "vs. typing at 55 WPM"
-    case .cost: "transcription only"
+    case .cost:
+      totals.polishingCostUSD > 0
+        ? "incl. \(Self.cost(totals.polishingCostUSD)) polishing" : "transcription and polishing"
     }
   }
 
@@ -32,7 +34,7 @@ enum ActivityMetric: String, CaseIterable, Identifiable {
     case .saved:
       "Compared with typing at 55 words per minute, subtracting recording and all processing time. Language-aware word counts and time saved are estimates."
     case .cost:
-      "List-price estimate for completed dictations since tracking began. Excludes cleanup, failed requests, subscriptions, and free-tier credits. Gemini uses an approximate per-minute rate."
+      "List-price estimate since tracking began: transcription by recording length, and LLM polishing, automatic or double-tap, by the tokens each request used at the model's listed price without prompt-cache discounts. Excludes failed requests, subscriptions, and free-tier credits. Gemini uses an approximate per-minute rate."
     }
   }
 
@@ -63,7 +65,7 @@ enum ActivityMetric: String, CaseIterable, Identifiable {
     return "\(wholeSeconds / 3_600)h \(wholeSeconds % 3_600 / 60)m"
   }
 
-  private static func cost(_ dollars: Double) -> String {
+  fileprivate static func cost(_ dollars: Double) -> String {
     if dollars > 0 && dollars < 0.01 { return "<$0.01" }
     return dollars.formatted(.currency(code: "USD"))
   }
@@ -75,6 +77,13 @@ struct DictationActivityChart: View {
   let range: ActivityRange
   @Binding var metric: ActivityMetric
   @State private var hoveredDate: Date?
+
+  private static let fill = LinearGradient(
+    colors: [VhraseTheme.accent.opacity(0.28), VhraseTheme.accent.opacity(0.02)],
+    startPoint: .top, endPoint: .bottom)
+  /// Solid on purpose: any transparency mixes in the card and darkens the theme colors.
+  private static let transcriptionBand = VhraseTheme.accent
+  private static let polishingBand = VhraseTheme.statusProcessing
 
   var body: some View {
     let buckets = range.buckets(days: days, now: now)
@@ -89,10 +98,18 @@ struct DictationActivityChart: View {
 
       VStack(alignment: .leading, spacing: 12) {
         HStack(spacing: 8) {
-          SeriesSwatch()
+          if metric != .cost {
+            SeriesSwatch()
+          }
           Text("\(metric.rawValue) \(range.component == .day ? "per day" : "per month")")
             .font(VhraseFont.pill)
             .foregroundStyle(.secondary)
+          if metric == .cost {
+            Spacer(minLength: 12)
+            costPart(
+              "Transcription", amount: totals.transcriptionCostUSD, band: Self.transcriptionBand)
+            costPart("Polishing", amount: totals.polishingCostUSD, band: Self.polishingBand)
+          }
         }
         .frame(height: 18)
         .accessibilityElement(children: .combine)
@@ -120,12 +137,12 @@ struct DictationActivityChart: View {
       metric = item
     } label: {
       StatTile(
-        value: item.label(totals), title: item.rawValue, detail: item.detail,
+        value: item.label(totals), title: item.rawValue, detail: item.detail(totals),
         isSelected: isSelected)
     }
     .buttonStyle(PressableButtonStyle(pressedScale: 0.95))
     .help(item.explanation ?? "Chart \(item.rawValue.lowercased())")
-    .accessibilityLabel("\(item.rawValue), \(item.label(totals)) \(item.detail)")
+    .accessibilityLabel("\(item.rawValue), \(item.label(totals)) \(item.detail(totals))")
     .accessibilityAddTraits(isSelected ? .isSelected : [])
     .accessibilityHint("Shows this total in the chart")
   }
@@ -139,23 +156,34 @@ struct DictationActivityChart: View {
 
     return Chart {
       ForEach(buckets, id: \.date) { day in
-        AreaMark(x: .value("Date", day.date), y: .value(metric.rawValue, metric.value(day)))
-          .interpolationMethod(.monotone)
-          .foregroundStyle(
-            LinearGradient(
-              colors: [VhraseTheme.accent.opacity(0.28), VhraseTheme.accent.opacity(0.02)],
-              startPoint: .top, endPoint: .bottom)
+        if metric == .cost {
+          AreaMark(
+            x: .value("Date", day.date), yStart: .value("Cost", 0),
+            yEnd: .value("Cost", day.transcriptionCostUSD), series: .value("Part", "Transcription")
           )
-          .accessibilityHidden(true)
-        LineMark(x: .value("Date", day.date), y: .value(metric.rawValue, metric.value(day)))
           .interpolationMethod(.monotone)
-          .lineStyle(StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round))
-          .foregroundStyle(VhraseTheme.accent)
+          .foregroundStyle(Self.transcriptionBand)
+          .accessibilityHidden(true)
+          AreaMark(
+            x: .value("Date", day.date), yStart: .value("Cost", day.transcriptionCostUSD),
+            yEnd: .value("Cost", day.estimatedCostUSD), series: .value("Part", "Polishing")
+          )
+          .interpolationMethod(.monotone)
+          .foregroundStyle(Self.polishingBand)
           .accessibilityLabel(dateLabel(day.date))
           .accessibilityValue("\(metric.rawValue): \(metric.label(day))")
-        PointMark(x: .value("Date", day.date), y: .value(metric.rawValue, metric.value(day)))
-          .symbol { PointDot(diameter: 9) }
-          .accessibilityHidden(true)
+        } else {
+          AreaMark(x: .value("Date", day.date), y: .value(metric.rawValue, metric.value(day)))
+            .interpolationMethod(.monotone)
+            .foregroundStyle(Self.fill)
+            .accessibilityHidden(true)
+          LineMark(x: .value("Date", day.date), y: .value(metric.rawValue, metric.value(day)))
+            .interpolationMethod(.monotone)
+            .lineStyle(StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round))
+            .foregroundStyle(VhraseTheme.accent)
+            .accessibilityLabel(dateLabel(day.date))
+            .accessibilityValue("\(metric.rawValue): \(metric.label(day))")
+        }
       }
       if let selected, let index = buckets.firstIndex(where: { $0.date == selected.date }) {
         RuleMark(x: .value("Date", selected.date))
@@ -166,7 +194,7 @@ struct DictationActivityChart: View {
         PointMark(
           x: .value("Date", selected.date), y: .value(metric.rawValue, metric.value(selected))
         )
-        .symbol { PointDot(diameter: 14, isFilled: true) }
+        .symbol { HoverDot() }
         .annotation(
           position: index * 2 < buckets.count ? .trailing : .leading, spacing: 12,
           overflowResolution: .init(x: .fit(to: .plot), y: .fit(to: .plot))
@@ -241,7 +269,7 @@ struct DictationActivityChart: View {
         ForEach(ActivityMetric.allCases) { item in
           let isCharted = item == metric
           GridRow {
-            SeriesSwatch().opacity(isCharted ? 1 : 0)
+            SeriesSwatch().opacity(isCharted && metric != .cost ? 1 : 0)
             Text(item.rawValue)
               .foregroundStyle(isCharted ? .primary : .secondary)
             Text(item.label(day))
@@ -249,6 +277,10 @@ struct DictationActivityChart: View {
               .fontWeight(isCharted ? .bold : .medium)
               .foregroundStyle(isCharted ? VhraseTheme.accent : .primary)
               .gridColumnAlignment(.trailing)
+          }
+          if item == .cost, day.estimatedCostUSD > 0 {
+            costRow("Transcription", amount: day.transcriptionCostUSD, band: Self.transcriptionBand)
+            costRow("Polishing", amount: day.polishingCostUSD, band: Self.polishingBand)
           }
         }
       }
@@ -260,6 +292,28 @@ struct DictationActivityChart: View {
     .shadow(color: .black.opacity(0.22), radius: 12, y: 4)
   }
 
+  private func costRow(_ title: String, amount: Double, band: Color) -> some View {
+    GridRow {
+      BandSwatch(color: band)
+      Text(title)
+      Text(ActivityMetric.cost(amount))
+        .monospacedDigit()
+    }
+    .font(.caption)
+    .foregroundStyle(.secondary)
+  }
+
+  private func costPart(_ title: String, amount: Double, band: Color) -> some View {
+    HStack(spacing: 5) {
+      BandSwatch(color: band)
+      Text(title)
+        .foregroundStyle(.secondary)
+      Text(ActivityMetric.cost(amount))
+        .monospacedDigit()
+    }
+    .font(.caption)
+  }
+
   private func dateLabel(_ date: Date) -> String {
     range.component == .month
       ? date.formatted(.dateTime.month(.wide).year())
@@ -267,27 +321,29 @@ struct DictationActivityChart: View {
   }
 }
 
-/// The legend key for the plotted series: a stroke of the line with the point marker on it.
+private struct BandSwatch: View {
+  let color: Color
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+      .fill(color)
+      .frame(width: 10, height: 10)
+  }
+}
+
 private struct SeriesSwatch: View {
   var body: some View {
     Capsule()
       .fill(VhraseTheme.accent)
       .frame(width: 18, height: 3.5)
-      .overlay { PointDot(diameter: 9) }
   }
 }
 
-/// Marks one period's value: hollow on the line, filled for the hovered period.
-private struct PointDot: View {
-  let diameter: CGFloat
-  var isFilled = false
-
+private struct HoverDot: View {
   var body: some View {
     Circle()
-      .fill(isFilled ? VhraseTheme.accent : VhraseTheme.card)
-      .overlay {
-        Circle().strokeBorder(isFilled ? VhraseTheme.card : VhraseTheme.accent, lineWidth: 2.5)
-      }
-      .frame(width: diameter, height: diameter)
+      .fill(VhraseTheme.accent)
+      .overlay { Circle().strokeBorder(VhraseTheme.card, lineWidth: 2.5) }
+      .frame(width: 14, height: 14)
   }
 }

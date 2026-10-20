@@ -30,20 +30,20 @@ final class LLMAdjustmentClient: Sendable {
       Transcript:
       \(transcript)
       """
-    let output = try await adjustWithChatCompletions(
+    let response = try await adjustWithChatCompletions(
       systemInstruction: instruction,
       userText: userText,
       screenshotDataURL: screenshotDataURL,
       model: settings.adjustmentModel
     )
-    .trimmingCharacters(in: .whitespacesAndNewlines)
 
     return LLMRefinement(
       input: transcript,
-      output: output,
+      output: response.text.trimmingCharacters(in: .whitespacesAndNewlines),
       model: settings.adjustmentModel,
       systemInstruction: instruction,
-      includedScreenshot: screenshotDataURL != nil
+      includedScreenshot: screenshotDataURL != nil,
+      usage: response.usage
     )
   }
 
@@ -53,7 +53,7 @@ final class LLMAdjustmentClient: Sendable {
     screenshotDataURL: String?,
     settings: DictationSettings,
     app: FrontmostApp
-  ) async throws -> String {
+  ) async throws -> (text: String, usage: LLMUsage?) {
     try validateConfiguration()
 
     let userText = """
@@ -128,6 +128,15 @@ final class LLMAdjustmentClient: Sendable {
     )
   }
 
+  func listPrice(for model: String) async throws -> LLMPrice? {
+    var request = URLRequest(url: try LLMEndpoint(baseURL: baseURL).appending("models"))
+    request.timeoutInterval = 20
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    return try LLMPrice.listed(
+      for: model.trimmingCharacters(in: .whitespacesAndNewlines),
+      in: await Self.send(request, errorDomain: "Vhrase.LLMModelsHTTP"))
+  }
+
   /// Validates credentials and destination before callers capture or attach sensitive context.
   func validateConfiguration() throws {
     guard !apiKey.isEmpty else {
@@ -145,7 +154,7 @@ final class LLMAdjustmentClient: Sendable {
     userText: String,
     screenshotDataURL: String?,
     model: String
-  ) async throws -> String {
+  ) async throws -> (text: String, usage: LLMUsage?) {
     let request = try Self.chatCompletionsRequest(
       apiKey: apiKey,
       baseURL: baseURL,
@@ -157,7 +166,7 @@ final class LLMAdjustmentClient: Sendable {
         model: model
       )
     )
-    return try extractChatText(
+    return try chatResponse(
       from: await Self.send(request, errorDomain: "Vhrase.AdjustmentChatHTTP"))
   }
 
@@ -260,7 +269,7 @@ final class LLMAdjustmentClient: Sendable {
     return "Frontmost app: \(app.name) (\(bundle))"
   }
 
-  private func extractChatText(from data: Data) throws -> String {
+  private func chatResponse(from data: Data) throws -> (text: String, usage: LLMUsage?) {
     let object = try JSONSerialization.jsonObject(with: data)
     guard let dictionary = object as? [String: Any],
       let choices = dictionary["choices"] as? [[String: Any]]
@@ -276,11 +285,16 @@ final class LLMAdjustmentClient: Sendable {
     }
 
     let joined = texts.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-    if !joined.isEmpty {
-      return joined
+    guard !joined.isEmpty else {
+      throw parseError()
     }
-
-    throw parseError()
+    guard let usage = dictionary["usage"] as? [String: Any],
+      let input = usage["prompt_tokens"] as? Int,
+      let output = usage["completion_tokens"] as? Int
+    else {
+      return (joined, nil)
+    }
+    return (joined, LLMUsage(inputTokens: input, outputTokens: output))
   }
 
   private func parseError() -> NSError {
