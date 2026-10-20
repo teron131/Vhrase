@@ -1,10 +1,11 @@
-// Defines Vhrase's adaptive color, shape, and surface tokens; color encodes identity or workflow state, never decoration.
+// Defines Vhrase's color, shape, and surface tokens; color encodes identity or workflow state, never decoration.
 
 import AppKit
 import SwiftUI
 
 enum VhraseTheme {
-  static let accent = adaptiveColor(light: 0xE8431F, dark: 0xFF6242)
+  /// The accent and processing violet deliberately keep one color in both appearances, so the UI looks the same in light and dark.
+  static let accent = color(0xFF6242)
   static let canvas = adaptiveColor(light: 0xF7F4EF, dark: 0x161412)
   static let card = adaptiveColor(light: 0xFFFFFF, dark: 0x211E1B)
   static let field = Color.primary.opacity(0.055)
@@ -14,7 +15,7 @@ enum VhraseTheme {
   static let statusSuccess = adaptiveColor(light: 0x1F9D55, dark: 0x3ECF7A)
   static let statusWarning = adaptiveColor(light: 0xC77700, dark: 0xFFB224)
   static let statusFailure = adaptiveColor(light: 0xC62828, dark: 0xFF5147)
-  static let statusProcessing = adaptiveColor(light: 0x7A5CFF, dark: 0x9D86FF)
+  static let statusProcessing = color(0x9D86FF)
   static let recorderBackground = Color.black
   static let recorderBorder = Color.white.opacity(0.18)
 
@@ -31,6 +32,10 @@ enum VhraseTheme {
     case .attention:
       statusWarning
     }
+  }
+
+  private static func color(_ hex: UInt32) -> Color {
+    Color(nsColor: nsColor(hex: hex))
   }
 
   private static func adaptiveColor(light: UInt32, dark: UInt32) -> Color {

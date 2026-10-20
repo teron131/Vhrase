@@ -36,6 +36,14 @@ struct LLMRefinement: Codable, Equatable, Sendable {
   let model: String
   let systemInstruction: String
   let includedScreenshot: Bool
+  /// `nil` when the endpoint reported no usage, and for transcripts saved before Vhrase read it.
+  let usage: LLMUsage?
+}
+
+/// Prompt-cache hits are not broken out, because Vercel AI Gateway's chat endpoint omits them.
+struct LLMUsage: Codable, Equatable, Sendable {
+  let inputTokens: Int
+  let outputTokens: Int
 }
 
 enum TranscriptDelivery: Equatable, Sendable {

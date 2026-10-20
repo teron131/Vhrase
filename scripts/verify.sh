@@ -131,6 +131,7 @@ APP_FINALIZATION_CHECK_SOURCES=(
   Sources/VhraseApp/Adjustment/Local/LocalAdjustment.swift
   Sources/VhraseApp/Adjustment/LLMEndpoint.swift
   Sources/VhraseApp/Adjustment/LLMAdjustmentClient.swift
+  Sources/VhraseApp/Adjustment/LLMPrice.swift
   Sources/VhraseApp/Adjustment/TranscriptFinalization.swift
 )
 APP_FINALIZATION_CHECKS=(
