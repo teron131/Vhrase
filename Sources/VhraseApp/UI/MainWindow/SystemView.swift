@@ -1,15 +1,16 @@
-// Owns readiness actions, credential focus and persistence boundaries, and optional installation confirmation.
+// Owns setup readiness, the only editors for API keys with their focus and persistence boundaries, macOS access, and settings import and export.
 
 import AppKit
 import SwiftUI
 
 struct SystemView: View {
   @ObservedObject var appState: AppState
-  @Binding var selectedTab: MainWindowTab
+  let navigation: MainWindowNavigation
+  /// A key another page asked to edit; System focuses and reveals its field, then clears the request.
+  @Binding var credentialRequest: SecretKey?
   @State private var isOpenCCInstallConfirmationPresented = false
   @State private var credentialFocusMonitor = CredentialFocusMonitor()
   @FocusState private var focusedSecretField: SecretKey?
-  @AppStorage(AppearancePreference.storageKey) private var appearance = AppearancePreference.system
   private var presentation: DictationPresentation { appState.presentation }
   private var credentials: Credentials { appState.credentials }
 
@@ -19,17 +20,9 @@ struct SystemView: View {
         appState: appState, blocksEscape: isOpenCCInstallConfirmationPresented,
         onDeactivate: finishAPIKeyEditing
       )
-      .confirmationDialog(
-        "Install OpenCC?", isPresented: $isOpenCCInstallConfirmationPresented,
-        titleVisibility: .visible
-      ) {
-        Button("Install with Homebrew") { appState.installOpenCC() }
-        Button("Cancel", role: .cancel) {}
-      } message: {
-        Text(
-          "Vhrase will run “brew install opencc”. Homebrew may download OpenCC and its required packages."
-        )
-      }
+      .openCCInstallConfirmation(
+        isPresented: $isOpenCCInstallConfirmationPresented, appState: appState
+      )
       .onChange(of: focusedSecretField) { _, field in
         if field != nil {
           credentialFocusMonitor.start(onOutsideClick: finishAPIKeyEditing)
@@ -42,44 +35,42 @@ struct SystemView: View {
 
   private var systemTab: some View {
     let diagnostics = appState.setupDiagnostics
-    return mainWindowPage(spacing: 26) {
-      pageHeader(
-        "System",
-        description:
-          "Manage provider credentials, macOS access, optional capabilities, and appearance."
-      )
+    return ScrollViewReader { proxy in
+      mainWindowPage(spacing: 26) {
+        pageHeader(
+          "System",
+          description: "API keys, macOS access, and settings import and export."
+        )
 
-      if let primary = diagnostics.first {
-        setupOverviewCard(primary)
+        if let primary = diagnostics.first {
+          setupOverviewCard(primary, remaining: diagnostics.count - 1)
+        }
+
+        transcriptionKeysCard
+        llmKeyCard
+        credentialNotices
+        permissionsCard
+        customizationCard
       }
-
-      // First among the settings so the theme buttons show without scrolling.
-      appearanceCard
-      transcriptionKeysCard
-      llmCard
-      credentialNotices
-      permissionsCard
-      diagnosticsFullCard(diagnostics)
+      .onAppear { revealRequestedCredential(proxy) }
+      .onChange(of: credentialRequest) { _, _ in revealRequestedCredential(proxy) }
     }
   }
 
-  private var appearanceCard: some View {
-    settingsGroup("Appearance") {
-      settingsRow(
-        "Theme",
-        detail: "Follow macOS, or keep Vhrase light or dark. The recorder pill stays dark."
-      ) {
-        PillPicker(
-          title: "Theme", selection: $appearance, options: AppearancePreference.allCases,
-          label: \.title, systemImage: \.systemImage)
+  /// Scrolls a requested key's field into view and focuses it once the page has laid it out.
+  private func revealRequestedCredential(_ proxy: ScrollViewProxy) {
+    guard let key = credentialRequest else { return }
+    credentialRequest = nil
+    DispatchQueue.main.async {
+      withAnimation(VhraseMotion.settle) {
+        proxy.scrollTo(key, anchor: .center)
       }
-    }
-    .onChange(of: appearance) { _, choice in
-      choice.apply()
+      focusedSecretField = key
     }
   }
 
-  private func setupOverviewCard(_ diagnostic: SetupDiagnostic) -> some View {
+  /// Leads with the most important unfinished step; the sidebar's route badges mark where the others live.
+  private func setupOverviewCard(_ diagnostic: SetupDiagnostic, remaining: Int) -> some View {
     HStack(alignment: .center, spacing: 14) {
       Image(systemName: diagnostic.systemImage)
         .font(.system(size: 22, weight: .bold))
@@ -95,6 +86,14 @@ struct SystemView: View {
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
+        if remaining > 0, diagnostic.severity != .ready {
+          Text(
+            remaining == 1
+              ? "1 more step after this one." : "\(remaining) more steps after this one."
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        }
       }
 
       Spacer(minLength: 16)
@@ -114,9 +113,9 @@ struct SystemView: View {
   /// Cloud providers' keys in the pickers' order; each one authenticates only that provider's transcription.
   private var transcriptionKeysCard: some View {
     settingsGroup(
-      "Transcription",
+      "Transcription keys",
       footer:
-        "Each key works only for that provider's speech-to-text; none of them is used for the LLM below. Secrets stay in your login Keychain and save automatically without password dialogs, and unsaved ones remain in memory for this session."
+        "Each key only unlocks that provider's transcription, never the LLM below. Keys save automatically to your login Keychain."
     ) {
       ForEach(ProviderLocation.cloud.providers.compactMap { SecretKey($0) }, id: \.self) { key in
         keyField(key)
@@ -124,48 +123,14 @@ struct SystemView: View {
     }
   }
 
-  /// The language model's own credential and endpoint, kept apart so a transcription key is never mistaken for it.
-  private var llmCard: some View {
+  /// The language model's own credential, kept apart so a transcription key is never mistaken for it; Refinement holds its endpoint and model.
+  private var llmKeyCard: some View {
     settingsGroup(
-      "LLM",
+      "LLM key",
       footer:
-        "Transcript cleanup and polishing use this key with any OpenAI-compatible API. It is separate from the transcription keys above, so to use the same account for both, enter its key here too. An uppercase _KEY name is saved as an environment reference that survives rebuilds without Keychain access. LLM_BASE_URL overrides the saved endpoint when present."
+        "Refinement uses this key with its endpoint and model. To use one account for both, enter its key here too. Type a variable name ending in _KEY, such as AI_GATEWAY_API_KEY, to read the key from your environment instead."
     ) {
       keyField(.llmAPIKey)
-      configurationField(
-        "LLM base URL",
-        text: Binding(
-          get: { appState.effectiveLLMBaseURL },
-          set: { value in
-            guard !credentials.usesEnvironmentLLMBaseURL else { return }
-            appState.updateSettings { $0.adjustmentBaseURL = value }
-          }
-        ),
-        environmentName: credentials.usesEnvironmentLLMBaseURL ? "LLM_BASE_URL" : nil
-      )
-
-      settingsRow(
-        "Model access",
-        detail: "Sends only a tiny “Reply with OK” request using the configured model.",
-        icon: { llmIcon },
-        control: {
-          Button {
-            appState.checkLLMModelAccess()
-          } label: {
-            HStack(spacing: 6) {
-              if appState.isCheckingLLMModelAccess {
-                ProgressView()
-                  .controlSize(.small)
-              } else {
-                Image(systemName: "checkmark.seal")
-              }
-              Text(appState.isCheckingLLMModelAccess ? "Checking model…" : "Check model access")
-            }
-          }
-          .buttonStyle(.bordered)
-          .disabled(
-            appState.isCheckingLLMModelAccess || credentials.effectiveValue(.llmAPIKey).isEmpty)
-        })
     }
   }
 
@@ -230,9 +195,12 @@ struct SystemView: View {
             finishAPIKeyEditing()
           }
 
-          keyStatus(key)
+          CredentialStatusLabel(key: key, credentials: credentials)
+            .frame(width: 96, alignment: .leading)
         }
-      })
+      }
+    )
+    .id(key)
   }
 
   /// Shows whose key a row holds: the speech provider's own mark, or a brain for the language model's key, which no speech provider uses.
@@ -259,37 +227,11 @@ struct SystemView: View {
       }
   }
 
-  private func configurationField(
-    _ title: String,
-    text: Binding<String>,
-    environmentName: String?
-  ) -> some View {
-    settingsRow(
-      title,
-      detail: environmentName.map { "Loaded from \($0)" } ?? "Any OpenAI-compatible API endpoint.",
-      icon: { llmIcon },
-      control: {
-        HStack(spacing: 12) {
-          TextField(title, text: text)
-            .textFieldStyle(.roundedBorder)
-            .labelsHidden()
-            .frame(width: 320)
-            .disabled(environmentName != nil)
-          if environmentName != nil {
-            credentialState(
-              "Environment", systemImage: "checkmark.circle.fill", color: VhraseTheme.statusSuccess)
-          } else {
-            Color.clear.frame(width: 96, height: 1)
-          }
-        }
-      })
-  }
-
   private var permissionsCard: some View {
     settingsGroup(
       "Permissions",
       footer:
-        "Microphone is required. Shortcut, paste, and screen access appear only when the features you chose need them."
+        "Input Monitoring appears only for Fn/Globe, and Screen Recording only when screen context is on."
     ) {
       ForEach(relevantPermissionSnapshots) { snapshot in
         permissionTile(snapshot)
@@ -305,51 +247,27 @@ struct SystemView: View {
     }
   }
 
-  private func diagnosticsFullCard(_ diagnostics: [SetupDiagnostic]) -> some View {
-    settingsGroup("Readiness details") {
-      ForEach(diagnostics) { diagnostic in
-        HStack(alignment: .top, spacing: 12) {
-          Image(systemName: diagnostic.systemImage)
-            .foregroundStyle(VhraseTheme.diagnosticColor(diagnostic.severity))
-            .frame(width: 20)
-            .padding(.top, 1)
-          VStack(alignment: .leading, spacing: 2) {
-            Text(diagnostic.title)
-            Text(diagnostic.detail)
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .fixedSize(horizontal: false, vertical: true)
-            if let failureMessage = diagnosticFailureMessage(diagnostic) {
-              Text(failureMessage)
-                .font(.caption)
-                .foregroundStyle(VhraseTheme.statusWarning)
-                .fixedSize(horizontal: false, vertical: true)
-            }
+  /// Every setting except API keys travels as one file; imports show sensitive changes for review before applying.
+  private var customizationCard: some View {
+    settingsGroup("Your settings") {
+      settingsRow(
+        "Move to another Mac",
+        detail:
+          "Save every setting except API keys to a file, or load one. An import shows any sensitive change for review first."
+      ) {
+        HStack(spacing: 8) {
+          Button {
+            appState.importCustomization()
+          } label: {
+            Label("Import…", systemImage: "square.and.arrow.down")
           }
-          Spacer()
-          if diagnostic.id == .openCC,
-            appState.openCCInstallationState == .installing
-          {
-            ProgressView()
-              .controlSize(.small)
-              .accessibilityLabel("Installing OpenCC")
-          }
-          if diagnostic.id == .localModel, appState.selectedLocalModelStore?.isDownloading == true {
-            ProgressView()
-              .controlSize(.small)
-              .accessibilityLabel("Downloading the \(appState.settings.provider.title) model")
-          }
-          if let actionTitle = setupDiagnosticActionTitle(diagnostic) {
-            Button(actionTitle) {
-              handleSetupDiagnostic(diagnostic)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(isDiagnosticActionRunning(diagnostic))
+          Button {
+            appState.exportCustomization()
+          } label: {
+            Label("Export…", systemImage: "square.and.arrow.up")
           }
         }
-        .settingsRowStyle()
-        .accessibilityElement(children: .contain)
+        .buttonStyle(.bordered)
       }
     }
   }
@@ -441,13 +359,7 @@ struct SystemView: View {
     case .screenPermission:
       "Open Settings"
     case .accessibilityPermission:
-      if presentation.permissionSnapshot(.accessibility)?.requestedBefore == true {
-        "Open Settings"
-      } else if appState.settings.hotkeyPreset == .fn {
-        "Enable Shortcut & Insertion"
-      } else {
-        "Enable Insertion"
-      }
+      presentation.insertionPermissionActionTitle
     case .openCC:
       if appState.openCCInstallationState == .installing {
         "Installing…"
@@ -467,13 +379,13 @@ struct SystemView: View {
   private func handleSetupDiagnostic(_ diagnostic: SetupDiagnostic) {
     switch diagnostic.id {
     case .transcriptionConfiguration:
-      selectedTab = .capture
+      navigation.open(.transcription)
     case .providerKey:
-      focusedSecretField = SecretKey(appState.settings.provider)
+      credentialRequest = SecretKey(appState.settings.provider)
     case .localModel:
       appState.selectedLocalModelStore?.download()
     case .adjustmentKey:
-      focusedSecretField = .llmAPIKey
+      credentialRequest = .llmAPIKey
     case .microphonePermission:
       appState.handlePermissionAction(.microphone)
     case .screenPermission:
@@ -489,24 +401,6 @@ struct SystemView: View {
     case .ready:
       break
     }
-  }
-
-  /// Reports where the effective credential comes from beside the field that edits it.
-  private func keyStatus(_ key: SecretKey) -> some View {
-    let isReady = !credentials.effectiveValue(key).isEmpty
-    return credentialState(
-      credentials.usesEnvironmentFallback(for: key)
-        ? "Environment" : (isReady ? "Saved" : "Missing"),
-      systemImage: isReady ? "checkmark.circle.fill" : "exclamationmark.circle.fill",
-      color: isReady ? VhraseTheme.statusSuccess : VhraseTheme.statusWarning
-    )
-  }
-
-  private func credentialState(_ title: String, systemImage: String, color: Color) -> some View {
-    Label(title, systemImage: systemImage)
-      .font(.caption.weight(.medium))
-      .foregroundStyle(color)
-      .frame(width: 96, alignment: .leading)
   }
 
   private func permissionTile(_ snapshot: PermissionSnapshot) -> some View {

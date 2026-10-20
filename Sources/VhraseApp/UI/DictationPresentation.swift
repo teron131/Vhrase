@@ -12,6 +12,8 @@ struct DictationPresentation {
   let liveTranscript: String
   let completion: WorkflowCompletion
   let transcriptionConfigurationIssue: String?
+  /// The vocabulary limit the selected provider would reject; when it is also the configuration issue, Vocabulary owns the fix rather than Transcription.
+  let vocabularyIssue: String?
 
   /// Validates immutable settings once so every readiness label and action uses the same result.
   init(
@@ -29,6 +31,7 @@ struct DictationPresentation {
     self.liveTranscript = liveTranscript
     self.completion = completion
     transcriptionConfigurationIssue = TranscriptionContract.configurationIssue(in: settings)
+    vocabularyIssue = TranscriptionContract.vocabularyIssue(in: settings)
   }
 
   var coreRecordingReady: Bool {
@@ -49,7 +52,7 @@ struct DictationPresentation {
     guard let snapshot = permissionSnapshot(.accessibility), !snapshot.state.isReady else {
       return nil
     }
-    return snapshot.requestedBefore ? "Open Accessibility" : "Enable Insertion"
+    return snapshot.requestedBefore ? "Open Accessibility" : "Allow Accessibility"
   }
 
   var workflowControlsAreDisabled: Bool {
@@ -147,42 +150,6 @@ struct DictationPresentation {
     }
   }
 
-  var statusMessage: String? {
-    if case .failed(let message) = status {
-      return message
-    }
-    if !isRecording {
-      switch providerReadiness {
-      case .ready:
-        break
-      case .missingAPIKey:
-        return "Add \(settings.provider.title) API key in System before recording."
-      case .missingLocalModel:
-        return "Download the \(settings.provider.title) model before recording."
-      }
-    }
-    if !permissionIsReady(.microphone), status.canStartRecording {
-      return "Grant Microphone access before recording."
-    }
-    if let transcriptionConfigurationIssue, status.canStartRecording {
-      return transcriptionConfigurationIssue
-    }
-    return nil
-  }
-
-  var statusMessageIcon: String {
-    if case .failed = status {
-      return "exclamationmark.triangle"
-    }
-    if !permissionIsReady(.microphone) {
-      return "mic.slash"
-    }
-    if transcriptionConfigurationIssue != nil {
-      return "slider.horizontal.3"
-    }
-    return providerReadiness == .missingLocalModel ? "arrow.down.circle" : "key"
-  }
-
   var recordAction: RecordAction {
     if isPreparing {
       return .cancelRecording
@@ -277,9 +244,10 @@ struct DictationPresentation {
     case .compact:
       let cleanup = settings.adjustWithLLM ? "LLM cleanup" : "Raw"
       return
-        "\(settings.provider.title) \(settings.transcriptionModeTitle.lowercased()) · \(cleanup) · \(ShortcutGestureInterpreter.summary)"
+        "\(settings.provider.title) \(settings.transcriptionModeTitle.lowercased()) · \(cleanup) · \(ShortcutGestureInterpreter.summary(settings.shortcutGestures))"
     case .full:
-      return "\(settings.hotkeyDisplay) · \(ShortcutGestureInterpreter.summary)"
+      return
+        "\(settings.hotkeyDisplay) · \(ShortcutGestureInterpreter.summary(settings.shortcutGestures))"
     }
   }
 

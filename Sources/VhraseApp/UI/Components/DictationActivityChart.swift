@@ -79,7 +79,6 @@ struct DictationActivityChart: View {
   var body: some View {
     let buckets = range.buckets(days: days, now: now)
     let totals = range.totals(days: days, now: now)
-    let selected = hoveredDate.flatMap { date in buckets.first { $0.date == date } }
 
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 10) {
@@ -89,19 +88,11 @@ struct DictationActivityChart: View {
       }
 
       VStack(alignment: .leading, spacing: 12) {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(spacing: 8) {
+          SeriesSwatch()
           Text("\(metric.rawValue) \(range.component == .day ? "per day" : "per month")")
             .font(VhraseFont.pill)
             .foregroundStyle(.secondary)
-          Spacer()
-          if let selected {
-            Text(dateLabel(selected.date))
-              .font(.caption)
-              .foregroundStyle(.secondary)
-            Text(metric.label(selected))
-              .font(VhraseFont.pill.monospacedDigit())
-              .foregroundStyle(VhraseTheme.accent)
-          }
         }
         .frame(height: 18)
         .accessibilityElement(children: .combine)
@@ -162,28 +153,38 @@ struct DictationActivityChart: View {
           .foregroundStyle(VhraseTheme.accent)
           .accessibilityLabel(dateLabel(day.date))
           .accessibilityValue("\(metric.rawValue): \(metric.label(day))")
-        if buckets.count == 1 || selected?.date == day.date {
-          PointMark(x: .value("Date", day.date), y: .value(metric.rawValue, metric.value(day)))
-            .foregroundStyle(VhraseTheme.accent)
-            .symbolSize(80)
-            .accessibilityHidden(true)
-        }
+        PointMark(x: .value("Date", day.date), y: .value(metric.rawValue, metric.value(day)))
+          .symbol { PointDot(diameter: 9) }
+          .accessibilityHidden(true)
       }
-      if let selected {
+      if let selected, let index = buckets.firstIndex(where: { $0.date == selected.date }) {
         RuleMark(x: .value("Date", selected.date))
           .foregroundStyle(VhraseTheme.accent.opacity(0.5))
           .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
           .accessibilityHidden(true)
+        // The breakdown opens toward the wider side of the plot so it never covers the point it describes.
+        PointMark(
+          x: .value("Date", selected.date), y: .value(metric.rawValue, metric.value(selected))
+        )
+        .symbol { PointDot(diameter: 14, isFilled: true) }
+        .annotation(
+          position: index * 2 < buckets.count ? .trailing : .leading, spacing: 12,
+          overflowResolution: .init(x: .fit(to: .plot), y: .fit(to: .plot))
+        ) {
+          breakdown(selected)
+        }
+        .accessibilityHidden(true)
       }
     }
-    .chartXScale(domain: first...end)
+    // Padding leaves room for the end points and their centered date labels.
+    .chartXScale(domain: first...end, range: .plotDimension(padding: 24))
     .chartYScale(
       domain:
         0...max(metric == .cost ? 0.01 : 1, (buckets.map { metric.value($0) }.max() ?? 0) * 1.1)
     )
     .chartXAxis {
-      AxisMarks(values: .automatic(desiredCount: 6)) { value in
-        AxisValueLabel {
+      AxisMarks(values: range == .week ? .stride(by: .day) : .automatic(desiredCount: 6)) { value in
+        AxisValueLabel(anchor: .top) {
           if let date = value.as(Date.self) {
             Text(
               date.formatted(
@@ -230,9 +231,63 @@ struct DictationActivityChart: View {
     }
   }
 
+  /// Lists every total for one period, so the quiet days the line flattens can still be read; the charted total carries the legend swatch.
+  private func breakdown(_ day: DictationActivityDay) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text(dateLabel(day.date))
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+      Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 5) {
+        ForEach(ActivityMetric.allCases) { item in
+          let isCharted = item == metric
+          GridRow {
+            SeriesSwatch().opacity(isCharted ? 1 : 0)
+            Text(item.rawValue)
+              .foregroundStyle(isCharted ? .primary : .secondary)
+            Text(item.label(day))
+              .monospacedDigit()
+              .fontWeight(isCharted ? .bold : .medium)
+              .foregroundStyle(isCharted ? VhraseTheme.accent : .primary)
+              .gridColumnAlignment(.trailing)
+          }
+        }
+      }
+      .font(.callout)
+    }
+    .padding(12)
+    .fixedSize()
+    .surface(cornerRadius: VhraseTheme.fieldCornerRadius)
+    .shadow(color: .black.opacity(0.22), radius: 12, y: 4)
+  }
+
   private func dateLabel(_ date: Date) -> String {
     range.component == .month
       ? date.formatted(.dateTime.month(.wide).year())
       : date.formatted(date: .abbreviated, time: .omitted)
+  }
+}
+
+/// The legend key for the plotted series: a stroke of the line with the point marker on it.
+private struct SeriesSwatch: View {
+  var body: some View {
+    Capsule()
+      .fill(VhraseTheme.accent)
+      .frame(width: 18, height: 3.5)
+      .overlay { PointDot(diameter: 9) }
+  }
+}
+
+/// Marks one period's value: hollow on the line, filled for the hovered period.
+private struct PointDot: View {
+  let diameter: CGFloat
+  var isFilled = false
+
+  var body: some View {
+    Circle()
+      .fill(isFilled ? VhraseTheme.accent : VhraseTheme.card)
+      .overlay {
+        Circle().strokeBorder(isFilled ? VhraseTheme.card : VhraseTheme.accent, lineWidth: 2.5)
+      }
+      .frame(width: diameter, height: diameter)
   }
 }

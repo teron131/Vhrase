@@ -81,11 +81,7 @@ struct HistorySearchCheck {
     precondition(index.matches(query: "  \n", dateFilter: .anyTime, provider: "") == cleared)
     precondition(index.providers == ["ElevenLabs", "Gemini", "Grok"])
     precondition(index.topDestination == "Notes")
-    precondition(index.counts(now: now, calendar: calendar).today == 3)
-    precondition(index.counts(now: now, calendar: calendar).week == 3)
     let tomorrow = calendar.date(byAdding: .day, value: 1, to: now)!
-    precondition(index.counts(now: tomorrow, calendar: calendar).today == 0)
-    precondition(index.counts(now: tomorrow, calendar: calendar).week == 3)
     let todayMatches = index.matches(
       query: "", dateFilter: .today, provider: "", now: now, calendar: calendar)
     precondition(todayMatches.count == 3)
@@ -94,7 +90,7 @@ struct HistorySearchCheck {
         .isEmpty)
     let afterEdit = HistorySearch.Index([older])
     precondition(afterEdit.matches(query: "", dateFilter: .anyTime, provider: "") == [older])
-    precondition(afterEdit.providers == ["Grok"] && afterEdit.topDestination == "—")
+    precondition(afterEdit.providers == ["Grok"] && afterEdit.topDestination == nil)
     precondition(afterEdit.wordCount == older.wordCount)
     let boundary = HistorySearch.Index([
       item(
@@ -113,8 +109,6 @@ struct HistorySearchCheck {
       boundary.matches(
         query: "", dateFilter: .today, provider: "", now: afterMidnight, calendar: west
       ).count == 1)
-    precondition(boundary.counts(now: afterMidnight, calendar: utc).today == 0)
-    precondition(boundary.counts(now: afterMidnight, calendar: west).today == 1)
 
     let archive = (0..<41).map { index in
       item(

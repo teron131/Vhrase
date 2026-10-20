@@ -26,7 +26,7 @@ struct RecordButtonStateCheck {
     precondition(invalidSettings.displayStatusTitle == "Check settings")
     precondition(invalidSettings.recordAction == .openSetup)
     precondition(invalidSettings.recordButtonTitle == "Review Settings")
-    precondition(invalidSettings.statusMessage?.contains("found 51") == true)
+    precondition(invalidSettings.recordButtonSubtitle(style: .full).contains("found 51"))
 
     let missingModel = presentation(
       status: .idle, keyReady: true, provider: .parakeet, readiness: .missingLocalModel)
@@ -34,7 +34,8 @@ struct RecordButtonStateCheck {
     precondition(missingModel.recordAction == .openSetup)
     precondition(missingModel.recordButtonTitle == "Download Model")
     precondition(missingModel.recordButtonSystemImage == "arrow.down.circle.fill")
-    precondition(missingModel.statusMessage == "Download the Parakeet model before recording.")
+    precondition(
+      missingModel.recordButtonSubtitle(style: .compact) == "One-time download, then works offline")
     let readyModel = presentation(status: .idle, keyReady: true, provider: .parakeet)
     precondition(readyModel.recordAction == .toggleRecording)
     precondition(readyModel.compactWorkflowSummary.hasPrefix("Parakeet after stop"))

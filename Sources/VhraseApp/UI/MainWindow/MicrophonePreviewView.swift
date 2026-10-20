@@ -47,7 +47,7 @@ struct MicrophonePreviewView: View {
         }
       } else {
         Text(
-          "Watch your microphone while adjusting the controls below. Record a short test, then play it to hear the processing. Test audio stays in memory and is discarded when you leave this panel."
+          "Record a short test and play it back to hear the processing below. Test audio is never saved and is discarded when you leave this page."
         )
         .font(.caption)
         .foregroundStyle(.secondary)

@@ -1,4 +1,4 @@
-// Hosts Vhrase's sidebar control center and its selection-driven recording surfaces.
+// Hosts Vhrase's sidebar route and the selected destination, and carries a page's request to open a System credential field.
 
 import AppKit
 import SwiftUI
@@ -7,28 +7,28 @@ struct MainWindowView: View {
   @ObservedObject var appState: AppState
   @Environment(\.accessibilityReduceMotion) var reduceMotion
   @Environment(\.scenePhase) private var scenePhase
-  @AppStorage("mainWindow.selectedTab") private var selectedTabRawValue = MainWindowTab.dictate
+  @AppStorage("mainWindow.selectedTab") private var selectedTabRawValue = MainWindowTab.dictation
     .rawValue
   @State private var historyBrowsing = HistoryBrowsingState()
-  @State var activityRange = ActivityRange.week
-  @State var hoveredTab: MainWindowTab?
-  @State var selectedCapturePipelineStage = PipelineStage.transcribe
-  @Namespace var navigationSelection
+  @State private var activityRange = ActivityRange.week
+  @State private var credentialRequest: SecretKey?
 
   var selectedTab: MainWindowTab {
     get { MainWindowTab(storedRawValue: selectedTabRawValue) }
     nonmutating set { selectedTabRawValue = newValue.rawValue }
   }
 
-  var presentation: DictationPresentation { appState.presentation }
-
   private var selection: Binding<MainWindowTab> {
     Binding(get: { selectedTab }, set: { selectedTab = $0 })
   }
 
+  private var navigation: MainWindowNavigation {
+    MainWindowNavigation(selection: selection, credentialRequest: $credentialRequest)
+  }
+
   var body: some View {
     NavigationSplitView {
-      sidebar
+      MainWindowSidebar(appState: appState, selection: selection)
         .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 270)
     } detail: {
       content
@@ -89,18 +89,26 @@ struct MainWindowView: View {
   @ViewBuilder
   private var content: some View {
     switch selectedTab {
-    case .dictate:
-      DictationView(appState: appState, selectedTab: selection, activityRange: $activityRange)
+    case .dictation:
+      DictationView(appState: appState, navigation: navigation, activityRange: $activityRange)
     case .history:
       HistoryView(appState: appState, browsing: $historyBrowsing)
-    case .capture:
-      CaptureView(
-        appState: appState, selectedTab: selection,
-        selectedCapturePipelineStage: $selectedCapturePipelineStage)
-    case .output:
-      OutputView(appState: appState)
+    case .shortcut:
+      ShortcutView(appState: appState)
+    case .microphone:
+      MicrophoneView(appState: appState)
+    case .transcription:
+      TranscriptionView(appState: appState, navigation: navigation)
+    case .refinement:
+      RefinementView(appState: appState, navigation: navigation)
+    case .delivery:
+      DeliveryView(appState: appState, navigation: navigation)
+    case .vocabulary:
+      VocabularyView(appState: appState, navigation: navigation)
+    case .writing:
+      WritingView(appState: appState)
     case .system:
-      SystemView(appState: appState, selectedTab: selection)
+      SystemView(appState: appState, navigation: navigation, credentialRequest: $credentialRequest)
     }
   }
 }

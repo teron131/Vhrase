@@ -78,6 +78,8 @@ struct ProviderPicker: NSViewRepresentable {
       for location in ProviderLocation.allCases {
         let header = NSMenuItem.sectionHeader(title: location.title)
         header.isEnabled = false
+        // Headers default to tag 0, the first provider's tag, which would select the header instead of that provider.
+        header.tag = -1
         menu.menu?.addItem(header)
         for provider in location.providers {
           let item = NSMenuItem(title: provider.title, action: nil, keyEquivalent: "")

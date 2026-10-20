@@ -20,7 +20,7 @@ struct ReadinessSummaryCheck {
       ).selectedShortcutReady
     )
     let missingAccessibility = presentation(accessibilityReady: false)
-    precondition(missingAccessibility.insertionPermissionActionTitle == "Enable Insertion")
+    precondition(missingAccessibility.insertionPermissionActionTitle == "Allow Accessibility")
     let requestedAccessibility = presentation(
       accessibilityReady: false,
       accessibilityRequestedBefore: true

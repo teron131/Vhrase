@@ -1,22 +1,70 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 32 32">
-  <title>Vhrase lavender parrot</title>
-  <desc>The Vhrase parrot mark in a continuous lavender gradient with a subtle glow on a near-black aubergine background.</desc>
+  <title>Vhrase cyberpunk parrot</title>
+  <desc>The radiant lavender parrot in a dark wraparound visor with a laser scanline in the app's orange; its color zones follow a real parrot's, in Vhrase's palette: a pale face, lavender coverts over a violet wing band and deeper violet flight feathers, a violet-tipped tail, and a pale bill, on an aubergine background.</desc>
   <defs>
     <radialGradient id="background" cx="50%" cy="44%" r="72%">
       <stop offset="0" stop-color="#211827"/>
       <stop offset="0.58" stop-color="#151119"/>
       <stop offset="1" stop-color="#0e0c11"/>
     </radialGradient>
+    <radialGradient id="spill" gradientUnits="userSpaceOnUse" cx="25" cy="6.8" r="7">
+      <stop offset="0" stop-color="#FF6242" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#FF6242" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="bodyClip"><path clip-rule="evenodd" d="M3.2 29.2 8.5 22.2 6.8 22.9C9.5 19.4 11.4 15.2 14.7 11.8 16.9 9.5 17.6 6.8 19.7 5.0 21.3 3.6 23.8 3.3 25.5 4.1 26.2 4.5 26.6 5.2 26.7 6.1 29.0 6.8 30.0 9.3 29.0 11.5 28.6 12.3 27.9 12.9 27.3 13.2 27.9 11.1 27.3 9.7 25.8 9.1 24.2 10.0 24.2 11.8 24.2 13.4 24.2 17.7 21.9 21.3 18.0 23.2L12.8 26.0 13.7 23.9 3.2 29.2ZM19.6 12.8C18.6 16.8 14.4 19.6 9.9 22.3 14.1 18.5 17.1 16.0 19.6 12.8Z"/></clipPath>
+    <clipPath id="wingClip"><path d="M21.2 10.6 19.6 12.8C18.6 16.8 14.4 19.6 9.9 22.3L6.8 22.9 2.5 21.5 12.5 9.0 17.8 6.9Z"/></clipPath>
     <linearGradient id="bird" gradientUnits="userSpaceOnUse" x1="16" y1="3.5" x2="16" y2="29.2">
       <stop offset="0" stop-color="#e3d9ed"/>
       <stop offset="0.5" stop-color="#c5acd3"/>
       <stop offset="1" stop-color="#a77db8"/>
     </linearGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="0.5"/>
-    </filter>
+    <radialGradient id="mask" gradientUnits="userSpaceOnUse" cx="23.6" cy="7.4" r="4.4">
+      <stop offset="0" stop-color="#f6f2fa" stop-opacity="0.85"/>
+      <stop offset="0.5" stop-color="#f6f2fa" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#f6f2fa" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="flight" gradientUnits="userSpaceOnUse" x1="15" y1="16" x2="7.8" y2="23.3">
+      <stop offset="0" stop-color="#7A5CFF"/>
+      <stop offset="1" stop-color="#4F38C2"/>
+    </linearGradient>
+    <linearGradient id="tail" gradientUnits="userSpaceOnUse" x1="12.5" y1="24.5" x2="3.5" y2="29">
+      <stop offset="0" stop-color="#a77db8"/>
+      <stop offset="0.45" stop-color="#a77db8"/>
+      <stop offset="1" stop-color="#7A5CFF"/>
+    </linearGradient>
+    <linearGradient id="bill" gradientUnits="userSpaceOnUse" x1="27" y1="6" x2="28.5" y2="13">
+      <stop offset="0" stop-color="#f3eef7"/>
+      <stop offset="1" stop-color="#ab97bf"/>
+    </linearGradient>
+    <linearGradient id="glass" gradientUnits="userSpaceOnUse" x1="0" y1="5.25" x2="0" y2="8.5">
+      <stop offset="0" stop-color="#26162F"/>
+      <stop offset="1" stop-color="#0C0910"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.5"/></filter>
+    <filter id="crisp" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.1"/></filter>
+    <filter id="shadow" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="0.3"/></filter>
+    <filter id="neon" x="-20%" y="-300%" width="140%" height="700%"><feGaussianBlur stdDeviation="0.28"/></filter>
   </defs>
   <rect width="32" height="32" fill="url(#background)"/>
-  <path fill="#b88bc4" opacity="0.16" filter="url(#glow)" fill-rule="evenodd" d="M3.2 29.2 8.5 22.2 6.8 22.9C9.5 19.4 11.4 15.2 14.7 11.8 16.9 9.5 17.6 6.8 19.7 5.0 21.3 3.6 23.8 3.3 25.5 4.1 26.2 4.5 26.6 5.2 26.7 6.1 29.0 6.8 30.0 9.3 29.0 11.5 28.6 12.3 27.9 12.9 27.3 13.2 27.9 11.1 27.3 9.7 25.8 9.1 24.2 10.0 24.2 11.8 24.2 13.4 24.2 17.7 21.9 21.3 18.0 23.2L12.8 26.0 13.7 23.9 3.2 29.2ZM18.9 7.55 20.2 6.2 25.0 5.5 26.2 6.1 24.5 8.8 20.8 8.9 19.7 7.55 18.9 7.55ZM19.6 12.8C18.6 16.8 14.4 19.6 9.9 22.3 14.1 18.5 17.1 16.0 19.6 12.8Z"/>
-  <path fill="url(#bird)" fill-rule="evenodd" d="M3.2 29.2 8.5 22.2 6.8 22.9C9.5 19.4 11.4 15.2 14.7 11.8 16.9 9.5 17.6 6.8 19.7 5.0 21.3 3.6 23.8 3.3 25.5 4.1 26.2 4.5 26.6 5.2 26.7 6.1 29.0 6.8 30.0 9.3 29.0 11.5 28.6 12.3 27.9 12.9 27.3 13.2 27.9 11.1 27.3 9.7 25.8 9.1 24.2 10.0 24.2 11.8 24.2 13.4 24.2 17.7 21.9 21.3 18.0 23.2L12.8 26.0 13.7 23.9 3.2 29.2ZM18.9 7.55 20.2 6.2 25.0 5.5 26.2 6.1 24.5 8.8 20.8 8.9 19.7 7.55 18.9 7.55ZM19.6 12.8C18.6 16.8 14.4 19.6 9.9 22.3 14.1 18.5 17.1 16.0 19.6 12.8Z"/>
+  <rect width="32" height="32" fill="url(#spill)"/>
+  <path fill="#b88bc4" opacity="0.16" filter="url(#soft)" fill-rule="evenodd" d="M3.2 29.2 8.5 22.2 6.8 22.9C9.5 19.4 11.4 15.2 14.7 11.8 16.9 9.5 17.6 6.8 19.7 5.0 21.3 3.6 23.8 3.3 25.5 4.1 26.2 4.5 26.6 5.2 26.7 6.1 29.0 6.8 30.0 9.3 29.0 11.5 28.6 12.3 27.9 12.9 27.3 13.2 27.9 11.1 27.3 9.7 25.8 9.1 24.2 10.0 24.2 11.8 24.2 13.4 24.2 17.7 21.9 21.3 18.0 23.2L12.8 26.0 13.7 23.9 3.2 29.2ZM19.6 12.8C18.6 16.8 14.4 19.6 9.9 22.3 14.1 18.5 17.1 16.0 19.6 12.8Z"/>
+  <g clip-path="url(#bodyClip)">
+    <rect width="32" height="32" fill="url(#bird)"/>
+    <rect width="32" height="32" fill="url(#mask)"/>
+    <g clip-path="url(#wingClip)" filter="url(#crisp)">
+      <path fill="url(#flight)" d="M10.70 14.20L0.17 25.72Q3.12 28.42 6.07 31.12L16.60 19.60Z"/>
+      <path fill="#9D86FF" d="M14.21 10.36L9.76 15.23Q9.49 17.01 11.24 16.57Q10.96 18.36 12.71 17.92Q12.44 19.71 14.19 19.27Q13.92 21.06 15.67 20.62L20.11 15.76Z"/>
+      <path fill="url(#bird)" d="M21.23 2.68L13.04 11.64Q12.82 13.07 14.22 12.72Q14.00 14.15 15.40 13.80Q15.18 15.23 16.58 14.88Q16.36 16.31 17.76 15.96Q17.54 17.38 18.94 17.04L27.13 8.08Z"/>
+    </g>
+    <path fill="url(#tail)" filter="url(#crisp)" d="M13.7 23.9 12.8 26.0 2.0 30.5 1.5 27.0 6.8 22.9 9.9 22.3Z"/>
+    <path fill="url(#bill)" d="M26.7 6.1C29.0 6.8 30.0 9.3 29.0 11.5 28.6 12.3 27.9 12.9 27.3 13.2 27.9 11.1 27.3 9.7 25.8 9.1 25.9 8.0 26.2 6.9 26.7 6.1Z"/>
+    <path fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="0.14" stroke-linecap="round" d="M27.0 6.25C29.0 6.9 29.85 9.2 29.05 11.3"/>
+  </g>
+  <path fill="#000" opacity="0.45" filter="url(#shadow)" transform="translate(0.15 0.45)" d="M18.6 6.25 28.75 5.25 27.95 7.7C26.9 8.05 26.0 8.3 25.1 8.38 23.6 8.5 22.3 7.7 21.3 7.42L18.15 7.1Z"/>
+  <path fill="url(#glass)" d="M18.6 6.25 28.75 5.25 27.95 7.7C26.9 8.05 26.0 8.3 25.1 8.38 23.6 8.5 22.3 7.7 21.3 7.42L18.15 7.1Z"/>
+  <path fill="none" stroke="#fff" stroke-opacity="0.38" stroke-width="0.14" stroke-linecap="round" stroke-linejoin="round" d="M18.6 6.25 28.75 5.25"/>
+  <path fill="#fff" opacity="0.13" d="M25.75 5.47 26.65 5.4 25.75 8.2 25.0 8.32Z M27.05 5.38 27.4 5.35 26.6 7.98 26.3 8.05Z"/>
+  <path fill="none" stroke="#FF6242" stroke-width="0.7" stroke-linecap="round" opacity="0.9" filter="url(#neon)" d="M21.7 6.74 27.85 6.29"/>
+  <path fill="none" stroke="#FF6242" stroke-width="0.3" stroke-linecap="round" d="M21.7 6.74 27.85 6.29"/>
+  <path fill="none" stroke="#fff" stroke-opacity="0.7" stroke-width="0.09" stroke-linecap="round" d="M21.7 6.74 27.85 6.29"/>
 </svg>

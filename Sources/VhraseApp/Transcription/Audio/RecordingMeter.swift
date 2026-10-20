@@ -8,7 +8,7 @@ import Foundation
 /// Views observe it directly: an AppState change re-evaluates every window, which ten level updates a second would repeat even while the main window is hidden.
 @MainActor
 final class RecordingMeter: ObservableObject {
-  /// Enough bars for Dictate's full-width signal line; smaller surfaces read their own suffix.
+  /// Enough bars for Dictation's full-width signal line; smaller surfaces read their own suffix.
   private static let historyLimit = 96
   /// Audio arrives in 100 ms chunks; every third one becomes a waveform bar.
   private static let chunksPerBar = 3

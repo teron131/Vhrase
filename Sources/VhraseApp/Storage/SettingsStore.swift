@@ -109,6 +109,15 @@ final class SettingsStore {
       "noiseReductionDB", fallback.noiseReductionDB, range: 0...12)
     settings.vercelModel = storedString("vercelModel", fallback.vercelModel)
     settings.huggingFaceModel = storedString("huggingFaceModel", fallback.huggingFaceModel)
+    settings.shortcutGestures = ShortcutGestures(
+      tapToToggle: bool("shortcutTapToToggle", fallback.shortcutGestures.tapToToggle),
+      holdToTalk: bool("shortcutHoldToTalk", fallback.shortcutGestures.holdToTalk),
+      doubleTapToPolish: bool(
+        "shortcutDoubleTapToPolish", fallback.shortcutGestures.doubleTapToPolish)
+    )
+    if !settings.shortcutGestures.tapToToggle, !settings.shortcutGestures.holdToTalk {
+      settings.shortcutGestures = fallback.shortcutGestures
+    }
     if !settings.provider.availableModes.contains(settings.transcriptionMode) {
       settings.transcriptionMode = .upload
     }
@@ -164,6 +173,9 @@ final class SettingsStore {
     set(settings.screenshotResolution.rawValue, forKey: "screenshotResolution")
     set(settings.hotkeyPreset.rawValue, forKey: "hotkeyPreset")
     saveCustomHotkey(settings.customHotkey)
+    set(settings.shortcutGestures.tapToToggle, forKey: "shortcutTapToToggle")
+    set(settings.shortcutGestures.holdToTalk, forKey: "shortcutHoldToTalk")
+    set(settings.shortcutGestures.doubleTapToPolish, forKey: "shortcutDoubleTapToPolish")
     set(settings.geminiSmartTranscription, forKey: "geminiSmartTranscription")
     set(settings.geminiLanguageHints, forKey: "geminiLanguageHints")
     set(settings.xaiFormatText, forKey: "xaiFormatText")

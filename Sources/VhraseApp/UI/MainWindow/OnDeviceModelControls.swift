@@ -178,7 +178,7 @@ struct OnDeviceModelControls: View {
     if appState.settings.adjustWithLLM {
       HStack(alignment: .center, spacing: 12) {
         Label(
-          "Audio stays on this Mac, but LLM polishing is on: the transcript\(appState.settings.includeScreenshot ? " and a screenshot are" : " is") sent to \(llmHost).",
+          "Audio stays on this Mac, but automatic polishing sends the transcript\(appState.settings.includeScreenshot ? " and a screenshot" : "") to \(llmHost).",
           systemImage: "exclamationmark.triangle"
         )
         .font(.caption)
