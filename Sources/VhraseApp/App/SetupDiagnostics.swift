@@ -36,7 +36,7 @@ struct SetupDiagnostics {
         SetupDiagnostic(
           id: .providerKey,
           title: "\(settings.provider.title) key",
-          detail: "Add the selected STT provider key in Settings.",
+          detail: "Add your \(settings.provider.title) API key to start transcribing.",
           systemImage: "key.fill"
         ))
     case .missingLocalModel:
@@ -54,7 +54,7 @@ struct SetupDiagnostics {
         SetupDiagnostic(
           id: .microphonePermission,
           title: "Microphone",
-          detail: "Grant mic access before real recording.",
+          detail: "Allow microphone access so Vhrase can hear you.",
           systemImage: "mic.fill"
         ))
     }
@@ -63,10 +63,10 @@ struct SetupDiagnostics {
       diagnostics.append(
         SetupDiagnostic(
           id: .accessibilityPermission,
-          title: settings.hotkeyPreset == .fn ? "Shortcut and text insertion" : "Text insertion",
+          title: settings.hotkeyPreset == .fn ? "Shortcut and pasting" : "Pasting into apps",
           detail: settings.hotkeyPreset == .fn
-            ? "Grant Accessibility once so Fn/Globe works globally and transcripts return to the original app."
-            : "Grant Accessibility so transcripts return to the original app.",
+            ? "Allow Accessibility so Fn/Globe works everywhere and text pastes where you were typing."
+            : "Allow Accessibility so text pastes where you were typing.",
           systemImage: "cursorarrow.motionlines"
         ))
     }
@@ -74,8 +74,8 @@ struct SetupDiagnostics {
       diagnostics.append(
         SetupDiagnostic(
           id: .adjustmentKey,
-          title: "LLM adjustment",
-          detail: "LLM API key is required for transcript cleanup.",
+          title: "LLM key",
+          detail: "Add an LLM API key, or turn off automatic polishing.",
           systemImage: "wand.and.stars"
         ))
     }
@@ -86,8 +86,8 @@ struct SetupDiagnostics {
       diagnostics.append(
         SetupDiagnostic(
           id: .screenPermission,
-          title: "Screenshot context",
-          detail: "Grant Screen Recording or turn screenshot off.",
+          title: "Screen context",
+          detail: "Allow Screen Recording, or turn off screen context.",
           systemImage: "rectangle.on.rectangle"
         ))
     }
@@ -95,8 +95,8 @@ struct SetupDiagnostics {
       diagnostics.append(
         SetupDiagnostic(
           id: .openCC,
-          title: "OpenCC s2hk",
-          detail: "Install OpenCC so every final transcript runs through s2hk.",
+          title: "Chinese output",
+          detail: "Install OpenCC to convert Chinese to Hong Kong Traditional.",
           systemImage: "character.book.closed.fill"
         ))
     }

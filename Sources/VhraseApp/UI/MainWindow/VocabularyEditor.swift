@@ -1,4 +1,4 @@
-// Edits the single vocabulary shared by speech recognition and LLM polishing, with the selected provider's limits.
+// Edits the single vocabulary list that speech recognition and LLM polishing both read, and flags the first term the selected provider would reject.
 
 import SwiftUI
 
@@ -6,25 +6,27 @@ struct VocabularyEditor: View {
   @ObservedObject var appState: AppState
 
   var body: some View {
-    let issue = TranscriptionContract.configurationIssue(in: appState.settings)
+    let issue = TranscriptionContract.vocabularyIssue(in: appState.settings)
+    let count = appState.settings.keytermList.count
     VStack(alignment: .leading, spacing: 10) {
       editorTile(
-        "Shared vocabulary",
+        "Vocabulary",
         text: appState.settingsBinding(\.keyterms),
-        height: 96,
-        instruction:
-          "Names and terms used as hints by speech recognition and LLM polishing. One per line; never forced into your text.",
+        height: 200,
+        instruction: "One term per line. They are hints: Vhrase never forces them into your text.",
         placeholder: "Vercel\nbackpropagation\nMonte Carlo"
       )
 
       HStack(alignment: .firstTextBaseline) {
-        Text("\(appState.settings.keytermList.count) unique terms")
+        Text(count == 1 ? "1 unique term" : "\(count) unique terms")
           .font(.caption.monospacedDigit())
           .foregroundStyle(.secondary)
-        Text(issue ?? keytermGuidance)
-          .font(.caption)
-          .foregroundStyle(issue == nil ? Color.secondary : VhraseTheme.statusFailure)
-          .fixedSize(horizontal: false, vertical: true)
+        if let issue {
+          Text(issue)
+            .font(.caption)
+            .foregroundStyle(VhraseTheme.statusFailure)
+            .fixedSize(horizontal: false, vertical: true)
+        }
         Spacer()
         Button("Add developer vocabulary") {
           appState.updateSettings { settings in
@@ -45,27 +47,24 @@ struct VocabularyEditor: View {
       }
     }
   }
+}
 
-  private var keytermGuidance: String {
-    switch (appState.settings.provider, appState.settings.transcriptionMode) {
+extension DictationSettings {
+  /// How the selected provider reads the vocabulary and its limits, as the Vocabulary page shows it.
+  var vocabularyHintGuidance: String {
+    switch (provider, transcriptionMode) {
     case (.xai, _):
-      return "xAI accepts up to 100 keyterms, with at most 50 characters in each term."
+      "xAI accepts up to 100 terms, each up to 50 characters."
     case (.gemini, _):
-      return
-        "Gemini accepts up to 1,000 terms; a focused list of 100 or fewer works best. Your vocabulary is shared across providers."
+      "Gemini accepts up to 1,000 terms; a focused list of 100 or fewer works best."
     case (.elevenLabs, .upload):
-      return
-        "ElevenLabs upload accepts up to 1,000 keyterms; using keyterms adds 20% to transcription usage."
+      "ElevenLabs upload accepts up to 1,000 terms; using them adds 20% to transcription cost."
     case (.elevenLabs, .realtime):
-      return
-        "ElevenLabs realtime accepts up to 50 keyterms of 20 characters each; using keyterms adds 20% to transcription usage."
+      "ElevenLabs realtime accepts up to 50 terms, each up to 20 characters; using them adds 20% to transcription cost."
     case (.openAI, _):
-      return
-        "OpenAI reads these as keyword hints; a focused list works best, and terms cannot contain < or >."
+      "OpenAI reads these as keyword hints; a focused list works best, and terms cannot contain < or >."
     case (.vercel, _), (.parakeet, _), (.huggingFace, _):
-      return
-        "\(appState.settings.provider.title) does not take vocabulary hints, so these terms guide only LLM polishing."
+      "\(provider.title) takes no vocabulary hints, so only polishing uses these terms."
     }
   }
-
 }

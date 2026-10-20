@@ -62,9 +62,9 @@ struct HistorySearch {
     private let documents: [SearchDocument]
     let wordCount: Int
     let providers: [String]
-    let topDestination: String
+    /// The app that received the most saved transcripts, or `nil` when none recorded a destination.
+    let topDestination: String?
     private var lastSearch: (query: Query, items: [TranscriptHistoryItem])?
-    private var lastCounts: (day: CalendarDay, today: Int, week: Int)?
 
     /// Builds the snapshot for `items`, taking each unchanged transcript's normalized text, term counts, and word count from `previous`.
     ///
@@ -86,7 +86,7 @@ struct HistorySearch {
       let destinations = items.compactMap(\.targetAppName)
       let counts = destinations.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
       let highestCount = counts.values.max()
-      topDestination = destinations.first { counts[$0] == highestCount } ?? "—"
+      topDestination = destinations.first { counts[$0] == highestCount }
     }
 
     /// Reuses the last ranking across unrelated app updates and page changes, expiring date filters at the next calendar day or time-zone change.
@@ -105,23 +105,6 @@ struct HistorySearch {
       let items = HistorySearch.rank(documents, query: query)
       lastSearch = (query, items)
       return items
-    }
-
-    /// Counts archive dates once per calendar day, independently of search filters.
-    func counts(now: Date = Date(), calendar: Calendar = .current) -> (today: Int, week: Int) {
-      let day = CalendarDay(now: now, calendar: calendar)
-      if let lastCounts, lastCounts.day == day { return (lastCounts.today, lastCounts.week) }
-      let today = calendar.dateInterval(of: .day, for: now)
-      let weekStart = calendar.date(byAdding: .day, value: -6, to: day.start)
-      var todayCount = 0
-      var weekCount = 0
-      for document in documents {
-        let date = document.item.createdAt
-        if let today, date >= today.start, date < today.end { todayCount += 1 }
-        if let weekStart, date >= weekStart { weekCount += 1 }
-      }
-      lastCounts = (day, todayCount, weekCount)
-      return (todayCount, weekCount)
     }
   }
 

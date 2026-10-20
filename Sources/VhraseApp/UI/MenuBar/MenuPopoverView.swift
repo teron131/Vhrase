@@ -19,6 +19,10 @@ struct MenuPopoverView: View {
         compactHero
         statusMessagePanel
 
+        if let diagnostic = appState.setupDiagnostics.first, diagnostic.severity != .ready {
+          setupSummary(diagnostic)
+        }
+
         Group {
           if showsLiveWorkflow {
             liveTranscriptPanel
@@ -30,10 +34,6 @@ struct MenuPopoverView: View {
         }
 
         captureConfiguration
-
-        if let diagnostic = appState.setupDiagnostics.first, diagnostic.severity != .ready {
-          setupSummary(diagnostic)
-        }
       }
       .padding(14)
 
@@ -55,7 +55,7 @@ struct MenuPopoverView: View {
     }
   }
 
-  /// Mirrors Dictate's mic bar: its fill announces the workflow state and the white disc starts or stops capture.
+  /// Mirrors Dictation's mic bar: its fill announces the workflow state and the white disc starts or stops capture.
   private var compactHero: some View {
     let tint = presentation.micBarTint
     return HStack(spacing: 8) {
@@ -95,6 +95,7 @@ struct MenuPopoverView: View {
     )
   }
 
+  /// Reports how the last workflow ended; unfinished setup is the setup summary's job, so it is never repeated here.
   @ViewBuilder
   private var statusMessagePanel: some View {
     if appState.status == .completed {
@@ -105,11 +106,11 @@ struct MenuPopoverView: View {
         actionTitle: completedInsertionPermissionActionTitle,
         action: { appState.handlePermissionAction(.accessibility) }
       )
-    } else if let message = presentation.statusMessage {
+    } else if case .failed(let message) = appState.status {
       NoticeCard(
         message,
-        systemImage: presentation.statusMessageIcon,
-        color: statusMessageColor
+        systemImage: "exclamationmark.triangle",
+        color: VhraseTheme.statusFailure
       )
     }
   }
@@ -178,19 +179,14 @@ struct MenuPopoverView: View {
         Divider()
           .frame(height: 28)
 
-        menuMetric("Saved", value: "\(appState.history.count)")
+        menuMetric("Words today", value: appState.todayActivity().words.formatted())
 
         Divider()
           .frame(height: 28)
 
-        VStack(alignment: .leading, spacing: 1) {
-          Text(appState.savesTranscriptHistory ? "On" : "Off")
-            .font(VhraseFont.title)
-          Text("Saving")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        menuMetric(
+          appState.savesTranscriptHistory ? "Saved" : "Saved · saving off",
+          value: "\(appState.history.count)")
       }
       .padding(10)
       .surface()
@@ -236,13 +232,6 @@ struct MenuPopoverView: View {
 
   private var captureConfiguration: some View {
     HStack(spacing: 8) {
-      Label("Input", systemImage: "slider.horizontal.2.square")
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(.secondary)
-        .fixedSize()
-
-      Spacer()
-
       ProviderPicker(selection: appState.settingsBinding(\.provider))
         .fixedSize()
         .accessibilityLabel("Transcription provider")
@@ -258,6 +247,7 @@ struct MenuPopoverView: View {
       .fixedSize()
       .accessibilityLabel("Transcription mode")
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .padding(10)
     .surface()
     .disabled(presentation.workflowControlsAreDisabled)
@@ -306,14 +296,14 @@ struct MenuPopoverView: View {
       Button {
         openMainWindow()
       } label: {
-        Label("Dictate", systemImage: "waveform")
+        Label("Dictation", systemImage: "waveform")
       }
       .buttonStyle(.borderless)
 
       Button {
         openMainWindow(.system)
       } label: {
-        Label("System", systemImage: "wrench.and.screwdriver")
+        Label("System", systemImage: "gearshape")
       }
       .buttonStyle(.borderless)
       .help("System")
@@ -375,13 +365,6 @@ struct MenuPopoverView: View {
     return presentation.insertionPermissionActionTitle
   }
 
-  private var statusMessageColor: Color {
-    if case .failed = appState.status {
-      return VhraseTheme.statusFailure
-    }
-    return VhraseTheme.statusWarning
-  }
-
   private func handleRecordButton() {
     switch presentation.recordAction {
     case .toggleRecording:
@@ -395,7 +378,7 @@ struct MenuPopoverView: View {
     }
   }
 
-  private func openMainWindow(_ tab: MainWindowTab = .dictate) {
+  private func openMainWindow(_ tab: MainWindowTab = .dictation) {
     mainWindow.open(tab, using: openWindow)
   }
 

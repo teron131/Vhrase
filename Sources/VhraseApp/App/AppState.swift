@@ -393,7 +393,8 @@ final class AppState: ObservableObject {
     customizationNotice = "Shortcut \(settings.hotkeyDisplay) pressed."
     let action = shortcutGesture.press(
       at: ProcessInfo.processInfo.systemUptime,
-      status: status
+      status: status,
+      gestures: settings.shortcutGestures
     )
     logger.notice("Shortcut pressed action=\(String(describing: action), privacy: .public)")
     performShortcutAction(action)
@@ -405,7 +406,8 @@ final class AppState: ObservableObject {
     performShortcutAction(
       shortcutGesture.release(
         at: ProcessInfo.processInfo.systemUptime,
-        status: status
+        status: status,
+        gestures: settings.shortcutGestures
       )
     )
   }

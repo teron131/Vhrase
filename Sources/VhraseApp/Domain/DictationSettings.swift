@@ -56,10 +56,10 @@ enum STTProvider: String, CaseIterable, Codable, Identifiable, Sendable {
 
   var detail: String {
     switch self {
-    case .xai: "Grok speech recognition with vocabulary hints and optional filler removal."
-    case .elevenLabs: "Scribe speech recognition with vocabulary hints and verbatim controls."
-    case .gemini: "Gemini 3.5 Transcribe with vocabulary hints and optional Smart transcription."
-    case .openAI: "GPT Transcribe with vocabulary hints and an optional language hint."
+    case .xai: "Grok speech recognition with optional filler removal and number formatting."
+    case .elevenLabs: "Scribe speech recognition with verbatim controls and realtime streaming."
+    case .gemini: "Gemini 3.5 Transcribe with optional Smart transcription."
+    case .openAI: "GPT Transcribe with an optional language hint."
     case .vercel:
       "Any transcription model on Vercel AI Gateway, reached with one gateway key."
     case .parakeet:
@@ -171,6 +171,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var screenshotResolution: ScreenshotResolution = .pixels1600
   var hotkeyPreset: HotkeyPreset
   var customHotkey: CustomHotkey?
+  var shortcutGestures = ShortcutGestures()
   var geminiSmartTranscription: Bool = true
   var geminiLanguageHints: String = ""
   var xaiFormatText: Bool = true
@@ -327,6 +328,9 @@ struct DictationSettings: Codable, Equatable, Sendable {
     guard hotkeyPreset != .custom || customHotkey != nil else {
       throw ConfigurationValidationError("Capture a custom shortcut before selecting Custom.")
     }
+    guard shortcutGestures.tapToToggle || shortcutGestures.holdToTalk else {
+      throw ConfigurationValidationError("Turn on tap or hold so the shortcut can start dictation.")
+    }
     // A free-text model name blocks recording only for the provider that would use it.
     guard
       provider != .vercel || !vercelModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -368,6 +372,7 @@ extension DictationSettings {
     case screenshotResolution
     case hotkeyPreset
     case customHotkey
+    case shortcutGestures
     case geminiSmartTranscription
     case geminiLanguageHints
     case xaiFormatText
@@ -423,6 +428,9 @@ extension DictationSettings {
       ?? .pixels1600
     hotkeyPreset = try values.decode(HotkeyPreset.self, forKey: .hotkeyPreset)
     customHotkey = try values.decodeIfPresent(CustomHotkey.self, forKey: .customHotkey)
+    shortcutGestures =
+      try values.decodeIfPresent(ShortcutGestures.self, forKey: .shortcutGestures)
+      ?? ShortcutGestures()
     geminiSmartTranscription = try values.decode(Bool.self, forKey: .geminiSmartTranscription)
     geminiLanguageHints = try values.decode(String.self, forKey: .geminiLanguageHints)
     xaiFormatText = try values.decode(Bool.self, forKey: .xaiFormatText)

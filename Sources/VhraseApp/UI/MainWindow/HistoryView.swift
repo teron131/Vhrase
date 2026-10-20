@@ -25,10 +25,7 @@ struct HistoryView: View {
 
   private func historyTab(_ page: HistorySearch.Page) -> some View {
     mainWindowPage(spacing: 22) {
-      pageHeader(
-        "History",
-        description: "Saved transcripts stay on this Mac. Search, copy, or remove them here."
-      ) {
+      pageHeader("History", description: historySummary) {
         HStack(spacing: 10) {
           Text("Save future transcripts")
             .font(VhraseFont.pill)
@@ -44,8 +41,6 @@ struct HistoryView: View {
           "Keep future transcripts on this Mac. Turning this off does not delete anything already saved."
         )
       }
-
-      historyStatsCard
 
       VStack(alignment: .leading, spacing: 12) {
         if !appState.history.isEmpty {
@@ -219,17 +214,17 @@ struct HistoryView: View {
     .surface(cornerRadius: VhraseTheme.fieldCornerRadius + 2)
   }
 
-  private var historyStatsCard: some View {
+  /// Sums up the archive in one sentence; dictation totals and trends live in Dictation's Activity.
+  private var historySummary: String {
     let index = appState.historyIndex
-    let counts = index.counts()
-    return HStack(spacing: 10) {
-      StatTile(value: "\(counts.today)", title: "Today", detail: "saved dictations")
-      StatTile(value: "\(counts.week)", title: "Last 7 days", detail: "saved dictations")
-      StatTile(
-        value: index.wordCount.formatted(), title: "Words",
-        detail: "across saved text")
-      StatTile(value: index.topDestination, title: "Top destination", detail: "among saved items")
+    let count = appState.history.count
+    guard count > 0 else {
+      return "Saved transcripts stay on this Mac."
     }
+    let transcripts = count == 1 ? "1 transcript" : "\(count.formatted()) transcripts"
+    let words = index.wordCount == 1 ? "1 word" : "\(index.wordCount.formatted()) words"
+    let destination = index.topDestination.map { ", most often sent to \($0)" } ?? ""
+    return "\(transcripts) and \(words) saved on this Mac\(destination)."
   }
 
   @ViewBuilder

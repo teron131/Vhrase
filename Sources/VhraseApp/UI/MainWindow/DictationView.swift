@@ -5,7 +5,7 @@ import SwiftUI
 
 struct DictationView: View {
   @ObservedObject var appState: AppState
-  @Binding var selectedTab: MainWindowTab
+  let navigation: MainWindowNavigation
   @Binding var activityRange: ActivityRange
   @State private var activityMetric = ActivityMetric.words
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -18,7 +18,7 @@ struct DictationView: View {
   private var dictationTab: some View {
     mainWindowPage(spacing: 24) {
       pageHeader(
-        "Dictate",
+        "Dictation",
         description: "Speak naturally, review the result, and keep writing without changing apps."
       ) {
         Button {
@@ -103,7 +103,7 @@ struct DictationView: View {
     )
   }
 
-  /// Names the provider and mode on the bar and switches either without leaving Dictate.
+  /// Names the provider and mode on the bar and switches either without leaving Dictation.
   private func providerChip(onTint: Bool) -> some View {
     Menu {
       Picker("Provider", selection: appState.settingsBinding(\.provider)) {
@@ -175,7 +175,7 @@ struct DictationView: View {
         }
         if !showsLiveCapture, !appState.history.isEmpty {
           Button("View history") {
-            selectedTab = .history
+            navigation.open(.history)
           }
           .buttonStyle(AccentLinkButtonStyle())
           .font(.callout)
@@ -367,25 +367,22 @@ struct DictationView: View {
       case .ready:
         break
       case .missingAPIKey:
-        return "Add the selected provider key before recording."
+        return "Add your \(appState.settings.provider.title) API key in System before recording."
       case .missingLocalModel:
         return
           "Download the \(appState.settings.provider.title) model once to transcribe on this Mac."
       }
       if !presentation.permissionIsReady(.microphone) {
-        return "Grant Microphone access before recording."
+        return "Allow microphone access before recording."
       }
       if let transcriptionConfigurationIssue = presentation.transcriptionConfigurationIssue {
         return transcriptionConfigurationIssue
       }
-      return appState.settings.hotkeyPreset == .disabled
-        ? "Click the button to start talking."
-        : "Hold \(appState.settings.hotkeyDisplay) and talk, or tap it to start and stop."
+      return startHint
     case .preparing:
       return "Starting the microphone and preparing \(appState.settings.provider.title)."
     case .recording:
-      return
-        "Listening. Release after a hold, or tap \(appState.settings.hotkeyDisplay) again when you are done."
+      return finishHint
     case .transcribing:
       return "Transcribing with \(appState.settings.provider.title)."
     case .adjusting:
@@ -394,6 +391,34 @@ struct DictationView: View {
       return appState.lastCompletion.completionDetail
     case .failed(let message):
       return message
+    }
+  }
+
+  /// How to start with the shortcut, naming only the presses that are on.
+  private var startHint: String {
+    let settings = appState.settings
+    guard settings.hotkeyPreset != .disabled else {
+      return "Click the button to start talking."
+    }
+    let key = settings.hotkeyDisplay
+    return switch (settings.shortcutGestures.tapToToggle, settings.shortcutGestures.holdToTalk) {
+    case (true, true): "Hold \(key) and talk, or tap it to start and stop."
+    case (true, false): "Tap \(key) to start, and tap it again to stop."
+    case (false, _): "Hold \(key) and talk."
+    }
+  }
+
+  /// How to finish the recording in progress, matching the presses that are on.
+  private var finishHint: String {
+    let settings = appState.settings
+    guard settings.hotkeyPreset != .disabled else {
+      return "Listening. Click the button when you are done."
+    }
+    let key = settings.hotkeyDisplay
+    return switch (settings.shortcutGestures.tapToToggle, settings.shortcutGestures.holdToTalk) {
+    case (true, true): "Listening. Release after a hold, or tap \(key) again when you are done."
+    case (true, false): "Listening. Tap \(key) again when you are done."
+    case (false, _): "Listening. Release \(key) when you are done."
     }
   }
 
@@ -416,7 +441,7 @@ struct DictationView: View {
     case .cancelRecording:
       appState.cancelRecording()
     case .openSetup:
-      selectedTab = .system
+      navigation.open(.system)
     case .disabled:
       break
     }

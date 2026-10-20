@@ -49,18 +49,38 @@ enum ShortcutAction: Equatable, Sendable {
   case none
 }
 
-/// Interprets one shortcut as tap-to-toggle, hold-to-record, and double-tap-to-polish without delaying microphone startup.
+/// Which presses of the global shortcut act; tap and hold are the two ways to start dictating, so settings keep at least one of them on.
+struct ShortcutGestures: Codable, Equatable, Sendable {
+  var tapToToggle = true
+  var holdToTalk = true
+  var doubleTapToPolish = true
+}
+
+/// Interprets one shortcut as tap-to-toggle, hold-to-record, and double-tap-to-polish without delaying microphone startup, acting only on the gestures that are on.
 struct ShortcutGestureInterpreter {
-  static let summary = "Tap to toggle · hold to talk · double-tap to polish"
   static let holdThreshold: TimeInterval = 0.35
   static let doubleTapInterval: TimeInterval = 0.28
+
+  /// Names the presses that are on, such as "Tap to toggle · hold to talk · double-tap to polish".
+  static func summary(_ gestures: ShortcutGestures) -> String {
+    let text = [
+      gestures.tapToToggle ? "tap to toggle" : nil,
+      gestures.holdToTalk ? "hold to talk" : nil,
+      gestures.doubleTapToPolish ? "double-tap to polish" : nil,
+    ]
+    .compactMap(\.self)
+    .joined(separator: " · ")
+    return text.prefix(1).uppercased() + text.dropFirst()
+  }
 
   private var pressStartedAt: TimeInterval?
   private var startedRecordingOnPress = false
   private var ignoresCurrentRelease = false
   private var pendingTapReleasedAt: TimeInterval?
 
-  mutating func press(at time: TimeInterval, status: AppStatus) -> ShortcutAction {
+  mutating func press(
+    at time: TimeInterval, status: AppStatus, gestures: ShortcutGestures
+  ) -> ShortcutAction {
     guard pressStartedAt == nil else {
       return .none
     }
@@ -69,7 +89,7 @@ struct ShortcutGestureInterpreter {
     startedRecordingOnPress = false
     ignoresCurrentRelease = false
 
-    if let pendingTapReleasedAt,
+    if gestures.doubleTapToPolish, let pendingTapReleasedAt,
       time - pendingTapReleasedAt <= Self.doubleTapInterval
     {
       self.pendingTapReleasedAt = nil
@@ -93,7 +113,9 @@ struct ShortcutGestureInterpreter {
     return .none
   }
 
-  mutating func release(at time: TimeInterval, status: AppStatus) -> ShortcutAction {
+  mutating func release(
+    at time: TimeInterval, status: AppStatus, gestures: ShortcutGestures
+  ) -> ShortcutAction {
     guard let pressStartedAt else {
       return .none
     }
@@ -111,9 +133,17 @@ struct ShortcutGestureInterpreter {
 
     if time - pressStartedAt < Self.holdThreshold {
       pendingTapReleasedAt = time
+      // Without tap, a quick press can only be the first half of a double-tap, so the recording it started is dropped.
+      guard gestures.tapToToggle else {
+        return status == .preparing || status == .recording ? .cancelRecording : .none
+      }
       return .none
     }
     pendingTapReleasedAt = nil
+    // Without hold, letting go after a long press leaves the recording running until the next press.
+    guard gestures.holdToTalk else {
+      return .none
+    }
     if status == .preparing {
       return .cancelRecording
     }

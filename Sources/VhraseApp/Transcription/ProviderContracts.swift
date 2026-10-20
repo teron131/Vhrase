@@ -28,6 +28,23 @@ enum TranscriptionContract {
     }
   }
 
+  /// Describes the first vocabulary limit the selected provider and mode would reject, or returns `nil`.
+  static func vocabularyIssue(in settings: DictationSettings) -> String? {
+    do {
+      _ = try validatedKeyterms(
+        settings.keytermList, provider: settings.provider, mode: settings.transcriptionMode)
+      return nil
+    } catch {
+      return error.localizedDescription
+    }
+  }
+
+  /// The most terms a provider accepts in a mode, or `nil` when it sets no count limit.
+  static func maximumKeyterms(provider: STTProvider, mode: TranscriptionMode) -> Int? {
+    let maximum = keytermPolicy(provider: provider, mode: mode).maximumCount
+    return maximum == .max ? nil : maximum
+  }
+
   fileprivate static func validatedKeyterms(
     _ keyterms: [String],
     provider: STTProvider,
