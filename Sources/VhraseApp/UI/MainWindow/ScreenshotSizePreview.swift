@@ -4,8 +4,6 @@ import AppKit
 import ImageIO
 import SwiftUI
 
-/// Shows sample text as a Retina screen draws it beside the same text after the capture's real downsizing step.
-/// The reference is a fixed 3456 × 2234 Retina screenshot, so the simulation reads the same on any display.
 struct ScreenshotSizePreview: View {
   let resolution: ScreenshotResolution
   @Environment(\.colorScheme) private var colorScheme
@@ -36,7 +34,6 @@ struct ScreenshotSizePreview: View {
     resolution == .original ? "Sent at full size" : "Sent at \(resolution.title) px"
   }
 
-  /// Converts the reference screenshot at this size into the two facts the slider trades: text size and OpenAI image tokens.
   private var summary: String {
     let reference = ScreenshotSample.referenceSize
     let scale = ScreenshotSample.scale(for: resolution)
@@ -55,7 +52,6 @@ struct ScreenshotSizePreview: View {
     (pixels + Self.openAIPatchSize - 1) / Self.openAIPatchSize
   }
 
-  /// Fills its half of the row with the sample's own background, so a wide row reads as more of the same screen.
   /// The sample shrinks with the row instead of fixing its width, because a page wider than the detail column pushes the whole window, sidebar included, sideways.
   private func panel(_ title: String, image: NSImage?, sample: ScreenshotSample) -> some View {
     VStack(alignment: .leading, spacing: 4) {
@@ -113,7 +109,6 @@ private final class ScreenshotSample {
     return sample
   }
 
-  /// The fraction of the reference screenshot's pixels kept at this size.
   static func scale(for resolution: ScreenshotResolution) -> CGFloat {
     guard let maxPixelSize = resolution.maxPixelSize else {
       return 1

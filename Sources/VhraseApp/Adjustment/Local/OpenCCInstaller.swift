@@ -13,7 +13,7 @@ struct OpenCCInstaller: Sendable {
     defaultHomebrewURL() != nil
   }
 
-  /// Runs Homebrew away from the UI actor and preserves its failure output for the setup screen.
+  /// A failed install throws with Homebrew's own output, which the setup screen shows.
   func install() async throws {
     guard let homebrewURL else {
       throw OpenCCInstallerError.homebrewUnavailable
@@ -91,7 +91,6 @@ private enum OpenCCInstallerError: LocalizedError {
   }
 }
 
-/// Stores Homebrew output behind a lock while its process drains the shared pipe.
 private final class OpenCCInstallOutputCollector: @unchecked Sendable {
   private let lock = NSLock()
   private var storedData = Data()

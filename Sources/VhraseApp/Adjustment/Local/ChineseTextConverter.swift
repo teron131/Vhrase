@@ -3,7 +3,6 @@
 import Darwin
 import Foundation
 
-/// Normalizes every final transcript through OpenCC s2hk so Chinese output is Hong Kong Traditional.
 struct ChineseTextConverter: Sendable {
   private let executableURL: URL?
   private let configName: String

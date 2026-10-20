@@ -2,7 +2,6 @@
 
 import Foundation
 
-/// The Python side of Hugging Face recognition: uv builds the environment the script declares, and both the script and the Hub cache sit inside Vhrase's Models folder.
 enum HuggingFaceRuntime {
   private static let directory = OnDeviceModelFiles.directory
     .appendingPathComponent("huggingface", isDirectory: true)
@@ -16,9 +15,7 @@ enum HuggingFaceRuntime {
     cacheDirectory.appendingPathComponent(reference.cacheFolderName, isDirectory: true)
   }
 
-  /// Starts one of the script's commands with its output piped back; only a download may ask the Hub for files.
-  ///
-  /// uv reuses the environment it built for the script's locked dependencies, so a later start reads only its own cache.
+  /// Only a download may ask the Hub for files. uv reuses the environment it built for the script's locked dependencies, so a later start reads only its own cache.
   static func start(_ arguments: [String], allowsModelDownload: Bool) throws -> HuggingFaceProcess {
     guard let uv = uvURL() else {
       throw HuggingFaceError.uvMissing
@@ -39,7 +36,6 @@ enum HuggingFaceRuntime {
     return try HuggingFaceProcess(process)
   }
 
-  /// Releases every helper, including a download, before the application exits.
   static func stopAll() {
     HuggingFaceProcess.stopAll()
   }

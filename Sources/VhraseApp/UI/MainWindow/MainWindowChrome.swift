@@ -4,7 +4,6 @@ import AVFoundation
 import AppKit
 import SwiftUI
 
-/// Lists every destination with what it is set to now; the stages hang on one dotted line in the order speech travels, and a stage whose page holds unfinished setup carries a badge.
 struct MainWindowSidebar: View {
   @ObservedObject var appState: AppState
   @Binding var selection: MainWindowTab
@@ -75,7 +74,7 @@ struct MainWindowSidebar: View {
     .padding(.bottom, 14)
   }
 
-  /// Names the tier the rows below it share in small tracked capitals, starting at the marks' edge so it heads the whole group rather than reading as another row title.
+  /// Starts at the marks' edge so it heads the whole group rather than reading as another row title.
   private func sectionLabel(_ title: String) -> some View {
     Text(title)
       .font(.system(.subheadline, design: .rounded, weight: .heavy))
@@ -88,7 +87,6 @@ struct MainWindowSidebar: View {
       .accessibilityAddTraits(.isHeader)
   }
 
-  /// Joins the stages with one dotted line so they read as the route a dictation travels.
   private func route(_ presentation: DictationPresentation) -> some View {
     VStack(alignment: .leading, spacing: 2) {
       ForEach(MainWindowTab.route) { tab in
@@ -173,7 +171,6 @@ struct MainWindowSidebar: View {
     .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
 
-  /// Route stages sit in circular stations on the line, white inside the selected pill; other destinations keep a bare symbol.
   @ViewBuilder
   private func mark(_ tab: MainWindowTab, isSelected: Bool, needsAttention: Bool) -> some View {
     let symbol = Image(systemName: tab.systemImage)
@@ -211,14 +208,12 @@ struct MainWindowSidebar: View {
     }
   }
 
-  /// The amber badge for unfinished setup, shared by stage stations, bare symbols, and the System gear.
   private var attentionDot: some View {
     Circle()
       .fill(VhraseTheme.statusWarning)
       .frame(width: 10, height: 10)
   }
 
-  /// What each destination is set to now, so the sidebar doubles as a summary of the whole configuration.
   private func summary(_ tab: MainWindowTab, _ presentation: DictationPresentation) -> String {
     let settings = appState.settings
     switch tab {
@@ -279,7 +274,6 @@ struct MainWindowSidebar: View {
     }
   }
 
-  /// System is the familiar settings gear rather than a row, and its dot marks unfinished setup the way the stage badges do.
   private func systemButton(_ presentation: DictationPresentation) -> some View {
     let isSelected = selection == .system
     let isHovered = hoveredTab == .system
@@ -348,7 +342,6 @@ struct MainWindowSidebar: View {
   }
 }
 
-/// A vertical center line for the route's dotted connector.
 private struct RouteLine: Shape {
   func path(in rect: CGRect) -> Path {
     var path = Path()

@@ -2,9 +2,7 @@
 
 import Foundation
 
-/// What differs between on-device model families; `OnDeviceModelStore` owns the setup state they share.
 protocol OnDeviceModel: Sendable {
-  /// Names the family in setup messages and logs, such as "Parakeet".
   var title: String { get }
   /// The measured download size, or `nil` for a model Vhrase has not measured.
   var downloadSizeLabel: String? { get }
@@ -17,8 +15,6 @@ protocol OnDeviceModel: Sendable {
   var isInstalled: Bool { get }
 
   /// Fetches the files, proves the runtime can load them, and writes the completion marker; a failed or cancelled download removes its partial files before throwing.
-  ///
-  /// `isIndeterminate` marks the phases around the transfer, when progress has no meaningful fraction.
   func download(
     progress: @escaping @Sendable (_ fraction: Double, _ isIndeterminate: Bool) -> Void
   ) async throws
@@ -28,7 +24,6 @@ protocol OnDeviceModel: Sendable {
   func remove() async throws
 }
 
-/// Where every family keeps its files and how each marks a finished download.
 enum OnDeviceModelFiles {
   /// The file that marks a model folder's download as finished; a folder without it is an interrupted download, replaced rather than loaded.
   static func completionMarker(in modelDirectory: URL) -> URL {

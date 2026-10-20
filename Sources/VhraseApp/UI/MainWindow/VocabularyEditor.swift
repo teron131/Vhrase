@@ -50,7 +50,6 @@ struct VocabularyEditor: View {
 }
 
 extension DictationSettings {
-  /// How the selected provider reads the vocabulary and its limits, as the Vocabulary page shows it.
   var vocabularyHintGuidance: String {
     switch (provider, transcriptionMode) {
     case (.xai, _):

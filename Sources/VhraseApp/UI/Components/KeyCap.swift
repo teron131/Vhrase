@@ -2,7 +2,6 @@
 
 import SwiftUI
 
-/// Renders a keyboard shortcut as a physical key cap.
 struct KeyCap: View {
   enum Prominence {
     case compact

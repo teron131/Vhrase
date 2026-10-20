@@ -14,7 +14,7 @@ struct CustomizationTransfer {
     case imported(DictationSettings)
   }
 
-  /// Presents a destination picker and atomically writes a versioned customization snapshot.
+  /// Returns `false` when the user cancels the save panel.
   func export(_ settings: DictationSettings) throws -> Bool {
     let panel = NSSavePanel()
     panel.allowedContentTypes = [.json]
@@ -32,7 +32,6 @@ struct CustomizationTransfer {
     return true
   }
 
-  /// Reads and validates a bounded snapshot before reviewing expanded data retention or system behavior.
   func importSettings(replacing current: DictationSettings) throws -> ImportOutcome {
     let panel = NSOpenPanel()
     panel.allowedContentTypes = [.json]
@@ -71,13 +70,11 @@ struct CustomizationTransfer {
     return data
   }
 
-  /// Rejects unsafe customization values before they can change persisted app behavior.
   private func validate(_ snapshot: CustomizationSnapshot) throws {
     try TranscriptionContract.validate(settings: snapshot.settings)
     _ = try LLMEndpoint.validatedBaseURL(snapshot.settings.adjustmentBaseURL)
   }
 
-  /// Requires an explicit review when imported settings expand remote-data or system-control behavior.
   private func confirmSensitiveChanges(
     from current: DictationSettings,
     to imported: DictationSettings

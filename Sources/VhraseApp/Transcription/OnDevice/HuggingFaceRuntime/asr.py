@@ -48,7 +48,6 @@ SMALL_FILE_SUFFIXES = (".json", ".txt", ".model")
 
 
 def main() -> int:
-    """Dispatch one of the two commands Vhrase issues."""
     match sys.argv[1:]:
         case ["download", model]:
             return download(model, claim_protocol_stream())
@@ -146,10 +145,7 @@ def serve(protocol: TextIO) -> int:
 
 
 def build_recognizer(model: str) -> Any:
-    """Build the transformers ASR pipeline for one model on the fastest device this machine has.
-
-    transformers downloads whatever is not in the cache yet, unless HF_HUB_OFFLINE forbids it, in which case a missing file is an error.
-    """
+    """transformers downloads whatever is not in the cache yet, unless HF_HUB_OFFLINE forbids it, in which case a missing file is an error."""
     import torch
     from transformers import pipeline
     from transformers.utils import logging as transformers_logging
@@ -178,7 +174,6 @@ def release_model_memory() -> None:
 
 
 def runtime_description(recognizer: Any) -> dict[str, str]:
-    """Name the device and precision a model actually runs with, for Vhrase's log."""
     return {
         "device": str(recognizer.device),
         "precision": str(recognizer.model.dtype).removeprefix("torch."),
@@ -186,10 +181,7 @@ def runtime_description(recognizer: Any) -> dict[str, str]:
 
 
 def transcribe(recognizer: Any, audio_path: Path, language: str | None) -> str:
-    """Transcribe one Vhrase recording, joining the text of its pieces.
-
-    Pieces run one at a time: batching them on an Apple GPU returned truncated text.
-    """
+    """Pieces run one at a time: batching them on an Apple GPU returned truncated text."""
     pieces = split_at_quiet_points(read_recording(audio_path))
     results = recognizer(
         [{"raw": piece, "sampling_rate": SAMPLE_RATE} for piece in pieces],

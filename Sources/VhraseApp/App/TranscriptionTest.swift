@@ -29,7 +29,6 @@ final class TranscriptionTest: ObservableObject {
   private var operation: Task<Void, Never>?
   private var countdown: Task<Void, Never>?
 
-  /// Snapshots recognition configuration for one test; realtime uses the same provider transport as dictation.
   func start(settings: DictationSettings, apiKey: String, client: SpeechToTextClient) {
     guard !state.isActive else { return }
     let recording = TranscriptionRecording(settings: settings, apiKey: apiKey, client: client)
@@ -95,7 +94,6 @@ final class TranscriptionTest: ObservableObject {
     }
   }
 
-  /// Invalidates continuations before releasing capture, transport, and temporary audio.
   func cancel() {
     guard state.isActive else { return }
     release()

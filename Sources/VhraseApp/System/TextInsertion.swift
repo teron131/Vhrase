@@ -27,9 +27,7 @@ struct TextInsertionContext: Equatable {
 
 @MainActor
 struct TextInsertion {
-  /// How long finalized text stays on the clipboard after Command-V before the previous clipboard returns.
-  /// The target app reads the clipboard only when it handles the shortcut, and that read leaves no trace Vhrase can observe, so a busy or just-activated app that handles it late pastes whatever is on the clipboard by then.
-  /// At 150 ms that was occasionally the restored clipboard instead of the transcript; a second leaves a wide margin while a copy the user makes in the meantime still wins.
+  /// The target app reads the clipboard only when it handles Command-V, and Vhrase cannot observe that read, so a busy or just-activated app pastes whatever is there by then. At 150 ms that was sometimes the restored clipboard; a second leaves a wide margin, and a copy the user makes meanwhile still wins.
   private static let clipboardRestoreDelay: Duration = .seconds(1)
 
   private let pasteboard: any TextPasteboard
@@ -54,7 +52,6 @@ struct TextInsertion {
     self.postPasteShortcut = postPasteShortcut
   }
 
-  /// Replaces the active pasteboard with finalized text and reports a failed write.
   func copy(_ text: String) throws {
     pasteboard.clearContents()
     guard pasteboard.setString(text, forType: .string) else {
@@ -62,8 +59,7 @@ struct TextInsertion {
     }
   }
 
-  /// Posts finalized text through Command-V and reports whether it remains on the clipboard.
-  /// Cancellation before insertion leaves the editor and clipboard untouched; cancellation afterward still restores the clipboard.
+  /// Returns whether the text remains on the clipboard. Cancellation before the paste leaves the editor and clipboard untouched; cancellation afterward still restores the clipboard.
   func paste(
     _ text: String,
     keepOnClipboard: Bool,

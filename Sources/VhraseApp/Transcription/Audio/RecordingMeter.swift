@@ -3,9 +3,6 @@
 import Combine
 import Foundation
 
-/// Holds the active recording's latest level, a decimated history for waveforms, and its running time.
-///
-/// Views observe it directly: an AppState change re-evaluates every window, which ten level updates a second would repeat even while the main window is hidden.
 @MainActor
 final class RecordingMeter: ObservableObject {
   /// Enough bars for Dictation's full-width signal line; smaller surfaces read their own suffix.

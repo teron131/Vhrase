@@ -2,7 +2,6 @@
 
 import SwiftUI
 
-/// Names a credential's source: saved in Keychain, read from the environment, or missing.
 struct CredentialStatusLabel: View {
   let key: SecretKey
   @ObservedObject var credentials: Credentials
@@ -19,7 +18,6 @@ struct CredentialStatusLabel: View {
   }
 }
 
-/// A credential's state on a page that needs it, with a jump to its field on System, which stays its only editor.
 struct CredentialSummaryRow: View {
   let key: SecretKey
   @ObservedObject var credentials: Credentials

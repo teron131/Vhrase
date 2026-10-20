@@ -27,7 +27,6 @@ struct AudioPreviewCheck {
     print("audio preview cancellation check passed")
   }
 
-  /// Uses Apple's WAV decoder to verify the bounded clip is playable as five seconds of mono audio.
   private static func verifyClip() throws {
     var clip = AudioTestClip()
     precondition(clip.isEmpty)

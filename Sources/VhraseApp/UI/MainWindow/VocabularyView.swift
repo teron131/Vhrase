@@ -71,7 +71,6 @@ struct VocabularyView: View {
   }
 }
 
-/// One stage's use of the vocabulary: what reads it, in which role, and how close the list is to that stage's limit.
 private struct UseCard<Meter: View>: View {
   let stage: MainWindowTab
   let source: String
@@ -124,7 +123,6 @@ private struct UseCard<Meter: View>: View {
   }
 }
 
-/// How many terms the list holds against the provider's maximum; the fill turns red once the list is over it.
 private struct CapacityBar: View {
   let count: Int
   let limit: Int

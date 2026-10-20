@@ -82,7 +82,6 @@ struct TranscriptHistoryItem: Identifiable, Codable, Equatable, Sendable {
 
   var wordCount: Int { Self.countWords(in: text) }
 
-  /// Counts language-aware words consistently for historical text and aggregate activity.
   static func countWords(in text: String) -> Int {
     let tokenizer = NLTokenizer(unit: .word)
     tokenizer.string = text

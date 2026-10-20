@@ -126,7 +126,6 @@ struct ShortcutView: View {
     }
   }
 
-  /// Groups the presses by what they do: tap and hold both dictate, so one of them always stays on, while double-tap polishing is its own feature and Esc is a separate key.
   private var gestures: some View {
     let gestures = appState.settings.shortcutGestures
     return Grid(alignment: .topLeading, horizontalSpacing: 10, verticalSpacing: 8) {
@@ -201,7 +200,6 @@ struct ShortcutView: View {
   }
 }
 
-/// One press: its name or key, its on/off switch when it can be turned off, a key-press timeline, and what it does in plain words; a press that is off fades.
 private struct GestureTile: View {
   let title: String
   /// Shown instead of the title for a press on a key other than the shortcut.
@@ -284,7 +282,6 @@ private struct GestureTimeline: View {
   }
 }
 
-/// A key's state over time as a step line: down along the bottom edge, pressed along the top.
 private struct KeyPressLine: Shape {
   let presses: [ClosedRange<CGFloat>]
 

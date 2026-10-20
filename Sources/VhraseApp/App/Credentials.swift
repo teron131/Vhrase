@@ -8,7 +8,6 @@ import Foundation
 final class Credentials: ObservableObject {
   private static let developmentEnvironmentFileArgument = "--development-environment-file"
 
-  /// Editable values: saved secrets, this session's edits, or the LLM environment reference, never environment fallbacks.
   @Published private var fields: [SecretKey: String] = [:]
   @Published private(set) var unsavedKeys: Set<SecretKey> = []
   @Published private(set) var keychainReadNotice = ""
@@ -56,7 +55,6 @@ final class Credentials: ObservableObject {
     fields = [.llmAPIKey: store.savedLLMCredentialReference()]
   }
 
-  /// Returns the credential field shown for editing, which excludes environment fallbacks.
   func field(_ key: SecretKey) -> String {
     fields[key, default: ""]
   }
@@ -169,7 +167,6 @@ final class Credentials: ObservableObject {
     save(unsavedKeys)
   }
 
-  /// Completes the pending Keychain batch and clears its debounce state.
   private func savePending() {
     saveTask = nil
     let keys = pendingSaves
@@ -209,7 +206,6 @@ final class Credentials: ObservableObject {
         : failures.joined(separator: " ") + " Unsaved changes apply only for this session.")
   }
 
-  /// Reads the development environment path paired with the launch-only argument.
   private static func developmentEnvironmentFileURL(arguments: [String]) -> URL? {
     guard let argumentIndex = arguments.firstIndex(of: developmentEnvironmentFileArgument) else {
       return nil

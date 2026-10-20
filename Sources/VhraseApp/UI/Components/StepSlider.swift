@@ -2,7 +2,6 @@
 
 import SwiftUI
 
-/// Places track, ticks, thumb, labels, and drag snapping on the same evenly spaced stops.
 struct StepSlider<Option: Hashable>: View {
   let title: String
   let options: [Option]

@@ -44,7 +44,6 @@ struct ProviderPicker: NSViewRepresentable {
     }
   }()
 
-  /// The provider's mark for surfaces outside the pickers, such as its credential row.
   static func icon(for provider: STTProvider) -> NSImage? {
     icons[provider]
   }
@@ -128,7 +127,6 @@ struct ProviderPicker: NSViewRepresentable {
       self.providers = providers
     }
 
-    /// Sends native selection changes through the existing settings binding and persistence policy.
     @objc func selectProvider(_ sender: NSControl) {
       if let menu = sender as? NSPopUpButton {
         guard let tag = menu.selectedItem?.tag, ProviderPicker.allProviders.indices.contains(tag)

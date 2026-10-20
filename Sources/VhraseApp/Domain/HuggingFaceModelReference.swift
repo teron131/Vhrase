@@ -4,14 +4,11 @@ import Foundation
 
 /// A model on the Hugging Face Hub, named the way the transformers pipeline takes it: `owner/name`.
 struct HuggingFaceModelReference: Equatable, Sendable {
-  /// OpenAI's large-v3-turbo checkpoint: Whisper large-v3 with a four-layer decoder, 1.6 GB of weights run at half precision on the Apple GPU.
   static let whisperTurbo = "openai/whisper-large-v3-turbo"
 
   let id: String
 
-  /// Accepts `owner/name`, or a bare `name` for the few models without an owner.
-  ///
-  /// Each part follows the Hub's own rules, letters, digits, `.`, `_`, and `-` with no `..` or `--`, so an ID can neither leave the Models folder nor collide with the cache's `--` separator.
+  /// Accepts `owner/name`, or a bare `name` for the few models without an owner. Parts follow the Hub's own character rules, so an ID can neither leave the Models folder nor collide with the cache's `--` separator.
   init(_ id: String) throws {
     let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
     let parts = trimmed.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
@@ -23,7 +20,6 @@ struct HuggingFaceModelReference: Equatable, Sendable {
     self.id = trimmed
   }
 
-  /// The folder the Hub client keeps this model's files in inside its cache.
   var cacheFolderName: String {
     "models--" + id.replacingOccurrences(of: "/", with: "--")
   }

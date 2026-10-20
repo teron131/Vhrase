@@ -29,7 +29,6 @@ struct AudioProcessingCheck {
       limited[0] == Int16.max && limited[1] == Int16.min, "Gain must never wrap PCM polarity.")
   }
 
-  /// Automatic gain works with denoising off, stays bounded, and never invents audio from digital silence.
   private static func verifyAutomaticLeveling() throws {
     let processor = try AudioPreprocessor(
       noiseReductionDB: 0, gainDB: 0, automaticVolumeLeveling: true)
@@ -46,7 +45,6 @@ struct AudioProcessingCheck {
     }
   }
 
-  /// A deterministic stationary noise floor must fall without gating away a quiet speech-band tone.
   private static func verifyNoiseReduction() throws {
     let processor = try AudioPreprocessor(noiseReductionDB: 6, gainDB: 0)
     var seed: UInt32 = 42
@@ -96,7 +94,6 @@ struct AudioProcessingCheck {
     precondition(converter.finish().isEmpty, "Finalization must not duplicate audio.")
   }
 
-  /// A running converter applies gain edits to subsequent chunks without losing audio or needing a fresh session.
   private static func verifyLiveControls() throws {
     let format = PCM16AudioConverter.format
     let converter = PCM16AudioConverter(inputFormat: format)

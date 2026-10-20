@@ -32,7 +32,6 @@ actor HuggingFaceRecognizer: SpeechToTextClient {
     memoryPressureSource.cancel()
   }
 
-  /// Starts the server and loads a model ahead of transcription, typically while the user is still speaking.
   func load(model: String) async throws {
     guard !isMemoryConstrained else { return }
     let started = ContinuousClock.now
@@ -43,7 +42,7 @@ actor HuggingFaceRecognizer: SpeechToTextClient {
     )
   }
 
-  /// Transcribes a finished recording with the model named in settings; the language code reaches only multilingual Whisper models, and cancellation stops the server without returning text.
+  /// The language code reaches only multilingual Whisper models; cancellation stops the server without returning text.
   func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult {
     let model = settings.huggingFaceModel.trimmingCharacters(in: .whitespacesAndNewlines)
     guard HuggingFaceModel.isInstalled(model) else {
@@ -65,7 +64,6 @@ actor HuggingFaceRecognizer: SpeechToTextClient {
     )
   }
 
-  /// Stops the server, which releases the model's memory, for example before its files are removed.
   func unload() async {
     idleUnloadTask?.cancel()
     idleUnloadTask = nil

@@ -52,7 +52,6 @@ struct LLMAdjustmentRequestCheck {
   }
 }
 
-/// Reads usage from both polishing paths, prices it from a gateway-style catalog, and tolerates an endpoint that reports neither.
 private func verifyUsageAndPrice() async throws {
   URLProtocol.registerClass(StubbedEndpoint.self)
   defer { URLProtocol.unregisterClass(StubbedEndpoint.self) }
@@ -116,7 +115,6 @@ private final class StubbedEndpoint: URLProtocol, @unchecked Sendable {
   override func stopLoading() {}
 }
 
-/// Rejects only this check's synthetic endpoint without making a network request.
 private final class RejectedCompletion: URLProtocol, @unchecked Sendable {
   override class func canInit(with request: URLRequest) -> Bool {
     request.url?.host == "vhrase-check.invalid"

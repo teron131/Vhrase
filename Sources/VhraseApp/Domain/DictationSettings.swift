@@ -70,7 +70,6 @@ enum STTProvider: String, CaseIterable, Codable, Identifiable, Sendable {
   }
 }
 
-/// Where a provider recognizes speech: cloud providers need an API key, local ones a downloaded model.
 enum ProviderLocation: String, CaseIterable, Identifiable, Sendable {
   case cloud
   case local
@@ -125,8 +124,7 @@ enum ElevenLabsCommitStrategy: String, CaseIterable, Codable, Identifiable, Send
   }
 }
 
-/// Longest side of the screenshot sent with LLM polishing, chosen locally because gateways such as Vercel AI Gateway drop OpenAI's `image_url` detail hint.
-/// Smaller images reach the model sooner but blur small text; 1600 keeps 13 pt Retina text near its on-screen size, and from about 1280 down unusual names misread more often.
+/// Chosen locally because gateways such as Vercel AI Gateway drop OpenAI's `image_url` detail hint. 1600 keeps 13 pt Retina text near its on-screen size; from about 1280 down, unusual names misread more often.
 enum ScreenshotResolution: String, CaseIterable, Codable, Identifiable, Sendable {
   case pixels1024 = "1024"
   case pixels1280 = "1280"
@@ -183,7 +181,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var vercelModel: String = defaultVercelModel
   var huggingFaceModel: String = HuggingFaceModelReference.whisperTurbo
 
-  /// Vercel AI Gateway's identifier for xAI's speech-to-text, the same default youtube-toolkit uses.
+  /// Vercel AI Gateway's identifier for xAI's speech-to-text.
   static let defaultVercelModel = "spacexai/grok-stt"
   static let legacyDefaultAdjustmentPrompt = """
     Rewrite the transcript into polished text that is ready to insert into the active app. Fix obvious speech-to-text mistakes, punctuation, casing, and awkward phrasing while preserving intent. Use the screenshot only as context. Return only the final text.
@@ -385,7 +383,6 @@ extension DictationSettings {
     case huggingFaceModel
   }
 
-  /// Supplies audio and model defaults for existing exports while retaining validation of the original settings contract.
   init(from decoder: Decoder) throws {
     let values = try decoder.container(keyedBy: CodingKeys.self)
     provider = try values.decode(STTProvider.self, forKey: .provider)

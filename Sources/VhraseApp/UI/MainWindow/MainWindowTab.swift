@@ -14,7 +14,6 @@ enum MainWindowTab: String, CaseIterable, Hashable, Identifiable {
   case writing
   case system
 
-  /// The stages one dictation passes through, in the order speech travels; the sidebar connects them as one route.
   static let route: [MainWindowTab] = [
     .shortcut, .microphone, .transcription, .refinement, .delivery,
   ]
@@ -71,7 +70,6 @@ enum MainWindowTab: String, CaseIterable, Hashable, Identifiable {
   }
 }
 
-/// Lets a page send people to the destination that owns a setting, and to the exact field when that owner is a System credential.
 struct MainWindowNavigation {
   let selection: Binding<MainWindowTab>
   let credentialRequest: Binding<SecretKey?>

@@ -55,7 +55,6 @@ struct MenuPopoverView: View {
     }
   }
 
-  /// Mirrors Dictation's mic bar: its fill announces the workflow state and the white disc starts or stops capture.
   private var compactHero: some View {
     let tint = presentation.micBarTint
     return HStack(spacing: 8) {

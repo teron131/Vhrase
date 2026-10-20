@@ -9,12 +9,10 @@ struct AudioTestClip {
   var isComplete: Bool { pcm.count == Self.maximumByteCount }
   var isEmpty: Bool { pcm.isEmpty }
 
-  /// Bounds retention even if a capture callback supplies more than the remaining test duration.
   mutating func append(_ data: Data) {
     pcm.append(data.prefix(Self.maximumByteCount - pcm.count))
   }
 
-  /// Encodes mono 16 kHz PCM16 as an in-memory WAV; no audio file is created.
   var wavData: Data {
     var data = Data("RIFF".utf8)
     append(UInt32(36 + pcm.count), to: &data)

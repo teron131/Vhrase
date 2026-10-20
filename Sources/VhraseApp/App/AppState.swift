@@ -75,7 +75,6 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Reuses normalized transcripts across History renders and searches; after a history edit, only the changed transcript is indexed again.
   var historyIndex: HistorySearch.Index {
     if let cachedHistoryIndex, historyIndexIsCurrent {
       return cachedHistoryIndex
@@ -163,7 +162,6 @@ final class AppState: ObservableObject {
     status.canStartRecording && !transcriptionTest.state.isActive
   }
 
-  /// Creates the shared UI projection from the current application state.
   var presentation: DictationPresentation {
     DictationPresentation(
       status: status,
@@ -203,7 +201,6 @@ final class AppState: ObservableObject {
     OpenCCInstaller.isHomebrewAvailable
   }
 
-  /// Installs OpenCC after explicit UI confirmation and refreshes the computed setup diagnostics.
   func installOpenCC() {
     guard openCCInstallationState != .installing else {
       return
@@ -234,7 +231,6 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Opens Homebrew's setup page when OpenCC cannot yet be installed from the app.
   func openHomebrewSetup() {
     guard let url = URL(string: "https://brew.sh") else {
       return
@@ -255,7 +251,6 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Repeats the workflow that most recently failed without changing the configured shortcut gesture.
   func retryLastWorkflow() {
     switch activeWorkflow {
     case .dictation:
@@ -265,7 +260,6 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Cancels microphone startup or active capture without sending audio to a provider.
   func cancelRecording() {
     guard status == .preparing || status == .recording else {
       return
@@ -290,7 +284,6 @@ final class AppState: ObservableObject {
     customizationNotice = "Transcription cancelled."
   }
 
-  /// The setup store for an on-device provider's model; cloud providers have none.
   func localModelStore(for provider: STTProvider) -> OnDeviceModelStore? {
     switch provider {
     case .parakeet: parakeetModelStore
@@ -303,7 +296,7 @@ final class AppState: ObservableObject {
     localModelStore(for: settings.provider)
   }
 
-  /// Deletes a downloaded model only between dictations and reports the outcome like other setup actions.
+  /// Ignored while a recording is active; the outcome arrives as a customization notice.
   func removeLocalModel(_ store: OnDeviceModelStore) {
     guard canStartRecording else {
       return
@@ -319,7 +312,6 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Clears completed or failed feedback without changing an active workflow.
   func dismissWorkflowOutcome() {
     switch status {
     case .completed, .failed:
@@ -329,7 +321,7 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Cancels the active transient workflow when possible and otherwise hides its non-blocking feedback immediately.
+  /// Returns `false` when there is nothing to cancel or hide, so the caller can let the key event through.
   @discardableResult
   func handleEscapeCommand() -> Bool {
     if transcriptionTest.state.isActive {
@@ -429,7 +421,6 @@ final class AppState: ObservableObject {
     persistSettings(previous: previousSettings)
   }
 
-  /// Prepares the selected on-device model, so its load, a Core ML compile or a Python start, rarely delays a dictation.
   private func warmUpSelectedLocalModel() {
     selectedLocalModelStore?.prepare()
   }
@@ -554,7 +545,7 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Releases active capture resources and removes any recording owned by an in-flight transcription before app exit.
+  /// Also deletes the recording an in-flight transcription still owns.
   func prepareForTermination() {
     guard ownsInstance else { return }
     escapeKeyMonitor.setEnabled(false, onEscape: {})
@@ -919,7 +910,6 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Rejects stale continuations before they can mutate resources owned by a newer recording.
   private func ensureCurrentRecording(_ recording: TranscriptionRecording) throws {
     try Task.checkCancellation()
     guard self.recording === recording else {
@@ -927,7 +917,6 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Cleans up a startup failure only when this task still owns the active recording.
   private func finishRecordingStartup(
     _ recording: TranscriptionRecording,
     error: Error?
@@ -943,7 +932,6 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Stops every resource owned by the active recording, then clears its live feedback and target context.
   private func releaseRecording() {
     recordingTask?.cancel()
     recordingTask = nil
@@ -1102,7 +1090,6 @@ final class AppState: ObservableObject {
     customizationNotice = "Text polishing cancelled."
   }
 
-  /// Prevents late provider callbacks from mutating a newer recording.
   private func partialTranscriptHandler(
     for recording: TranscriptionRecording
   ) -> @Sendable (String) -> Void {
@@ -1123,7 +1110,6 @@ final class AppState: ObservableObject {
     lastAdjustmentWarning = ""
   }
 
-  /// Publishes finalized text, returns it to the target app, and records history and activity with one processing measurement.
   private func finalizeTranscript(
     _ result: TranscriptionResult,
     adjustment: AdjustmentExecution,
@@ -1266,7 +1252,6 @@ final class AppState: ObservableObject {
     targetAppLabel = ""
   }
 
-  /// Combines content-free daily totals without consulting the separately retained transcript archive.
   func todayActivity(now: Date = Date()) -> DictationActivityDay {
     activityDays.reduce(into: DictationActivityDay(date: now)) { total, day in
       if Calendar.current.isDate(day.date, inSameDayAs: now) {

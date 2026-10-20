@@ -188,7 +188,6 @@ struct PolishPreferencesEditor: View {
     )
   }
 
-  /// Keeps spoken source and written result visually distinct within the row, both set as the user's own words.
   private func examplePreview(_ example: String) -> some View {
     let parts = example.components(separatedBy: " → ")
     return HStack(spacing: 10) {

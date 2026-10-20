@@ -6,13 +6,11 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Captures screenshot context for transcript adjustment using the macOS screen capture boundary.
 struct ScreenContext: Sendable {
   private static let jpegQuality = 0.8
   private let screencaptureURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
 
-  /// Returns a JPEG data URL of the display showing the target app's front window at the chosen resolution, or `nil` when authorization, capture, reading, or setup fails.
-  /// Without a target or a visible window it captures the main display; capture runs off the caller's actor because `screencapture` blocks until its process exits.
+  /// Captures the display under the target's front window, or the main display without one; `nil` when authorization or capture fails. Capture runs off the caller's actor because `screencapture` blocks until its process exits.
   func displayJPEGDataURL(
     showing target: FrontmostApp?,
     resolution: ScreenshotResolution
@@ -26,9 +24,7 @@ struct ScreenContext: Sendable {
     .value
   }
 
-  /// Scales an image down through ImageIO's thumbnail path, which never enlarges a smaller image, and encodes it once as JPEG.
-  /// Captures and the settings preview share this step, so the preview shows exactly what the model receives; a `nil` size keeps the image's own size.
-  /// JPEG keeps the upload small: about 0.8 MB even for a 1600-pixel screen full of small text, against 1.2 MB as PNG at the same size.
+  /// Shared by captures and the settings preview, so the preview shows exactly what the model receives; `nil` keeps the image's own size, and a smaller image is never enlarged. JPEG because a 1600-pixel screen of small text is about 0.8 MB, against 1.2 MB as PNG.
   static func downsizedJPEG(from source: CGImageSource, maxPixelSize: Int?) -> Data? {
     let image =
       if let maxPixelSize {
@@ -69,7 +65,6 @@ struct ScreenContext: Sendable {
     return data as Data
   }
 
-  /// Captures one display by its global bounds, or the main display when the bounds are unknown.
   private func capture(displayBounds: CGRect?, maxPixelSize: Int?) -> String? {
     guard isScreenCaptureAuthorized else {
       return nil

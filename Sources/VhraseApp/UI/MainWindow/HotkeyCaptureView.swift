@@ -4,7 +4,6 @@ import AppKit
 import Carbon
 import SwiftUI
 
-/// Captures one key equivalent from AppKit while SwiftUI owns the stored shortcut.
 struct HotkeyCaptureView: NSViewRepresentable {
   @Binding var isCapturing: Bool
   let onCapture: (CustomHotkey) -> Void

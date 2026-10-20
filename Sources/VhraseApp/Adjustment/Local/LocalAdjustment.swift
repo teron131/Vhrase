@@ -9,7 +9,6 @@ struct DemoAdjustmentPreview {
 }
 
 struct LocalAdjustmentFallback {
-  /// Applies deterministic spelling, whitespace, and punctuation cleanup without a provider request.
   func adjust(_ text: String) -> String {
     let normalized = normalizeProductNames(cleanWhitespace(text))
     return ensureTrailingPunctuation(sentenceCased(normalizePunctuationSpacing(normalized)))

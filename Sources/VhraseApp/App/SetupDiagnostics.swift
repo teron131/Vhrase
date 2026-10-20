@@ -2,7 +2,6 @@
 
 import Foundation
 
-/// Names what the selected speech provider still needs before recording can start.
 enum ProviderReadiness: Equatable, Sendable {
   case ready
   case missingAPIKey
@@ -119,7 +118,6 @@ struct SetupDiagnostics {
   }
 }
 
-/// Identifies each setup issue consistently across readiness summaries and their corrective actions.
 struct SetupDiagnostic: Identifiable, Sendable {
   enum ID: Hashable, Sendable {
     case transcriptionConfiguration

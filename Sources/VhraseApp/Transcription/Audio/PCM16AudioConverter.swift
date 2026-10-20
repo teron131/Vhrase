@@ -28,7 +28,6 @@ final class PCM16AudioConverter: @unchecked Sendable {
     converter = AVAudioConverter(from: inputFormat, to: Self.format)
   }
 
-  /// Serializes control changes with processing so a slider updates the next audio chunk safely.
   func updateProcessing(settings: DictationSettings) throws {
     try lock.withLock {
       if let preprocessor {
