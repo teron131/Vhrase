@@ -1,4 +1,4 @@
-// Captures and revalidates editable text in the focused macOS accessibility element before replacement.
+// Captures and revalidates editable text in the focused macOS accessibility element before replacement, and asks Electron apps to publish that text so the cursor can be read.
 
 import AppKit
 import ApplicationServices
@@ -127,6 +127,23 @@ struct FocusedTextService {
       originalSelection: selection,
       replacementRange: replacementRange,
       replacesWholeField: replacesWholeField
+    )
+  }
+
+  /// Electron apps such as Claude and Codex publish their text to Accessibility only once a client asks, and keep publishing until they quit; other apps ignore the request.
+  /// The app builds that text in the background, so ask when recording starts rather than when the cursor is read.
+  func exposeText(in app: FrontmostApp) {
+    guard
+      let application = NSRunningApplication.runningApplications(
+        withBundleIdentifier: app.bundleIdentifier
+      ).first
+    else {
+      return
+    }
+    _ = AXUIElementSetAttributeValue(
+      AXUIElementCreateApplication(application.processIdentifier),
+      "AXManualAccessibility" as CFString,
+      kCFBooleanTrue
     )
   }
 

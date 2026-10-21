@@ -601,6 +601,9 @@ final class AppState: ObservableObject {
     }
     recordingTargetApp = appContext.targetApp()
     targetAppLabel = recordingTargetApp?.name ?? ""
+    if let recordingTargetApp {
+      focusedTextService.exposeText(in: recordingTargetApp)
+    }
     resetLiveRecordingState()
     do {
       try validateRecordingPermissions()
