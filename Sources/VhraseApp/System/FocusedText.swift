@@ -224,6 +224,7 @@ struct FocusedTextService {
       return text.substring(with: range).first
     }
 
+    // Two UTF-16 units, so a preceding emoji or other surrogate pair arrives whole.
     var range = CFRange(location: max(0, cursorLocation - 2), length: min(2, cursorLocation))
     guard let rangeValue = AXValueCreate(.cfRange, &range) else {
       return nil

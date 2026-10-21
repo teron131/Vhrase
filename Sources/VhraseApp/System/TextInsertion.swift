@@ -27,7 +27,7 @@ struct TextInsertionContext: Equatable {
 
 @MainActor
 struct TextInsertion {
-  /// The target app reads the clipboard only when it handles Command-V, and Vhrase cannot observe that read, so a busy or just-activated app pastes whatever is there by then. At 150 ms that was sometimes the restored clipboard; a second leaves a wide margin, and a copy the user makes meanwhile still wins.
+  /// The target app reads the clipboard only when it handles Command-V, and Vhrase cannot observe that read, so a busy or just-activated app pastes whatever is there by then. A delay of 150 ms sometimes pastes the restored clipboard instead; a second leaves a wide margin, and a copy the user makes meanwhile still wins.
   private static let clipboardRestoreDelay: Duration = .seconds(1)
 
   private let pasteboard: any TextPasteboard
@@ -86,7 +86,7 @@ struct TextInsertion {
     return false
   }
 
-  /// Adds one separator for collapsed Latin-script cursor boundaries without changing replacements or punctuation attachment.
+  /// Prepends a space where text would run into the word before a collapsed cursor: `world` after `Hello` becomes ` world`, while `, world`, text after `(` or a space, CJK on either side, and a replaced selection stay as given.
   static func preparedText(_ text: String, context: TextInsertionContext?) -> String {
     guard let context, !context.hasSelection,
       let precedingCharacter = context.precedingCharacter,

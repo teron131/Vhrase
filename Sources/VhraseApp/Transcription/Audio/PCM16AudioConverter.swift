@@ -3,6 +3,7 @@
 @preconcurrency import AVFoundation
 import Foundation
 
+/// One 100 ms PCM16 frame after enhancement; `inputLevel` measures the same audio before it, and both levels run from 0 to 1.
 struct AudioChunk: Sendable {
   let data: Data
   let inputLevel: Double

@@ -4,6 +4,7 @@ import AppKit
 import SwiftUI
 
 extension View {
+  /// Escape goes to the active workflow first and otherwise hides the window, unless `blocksEscape` leaves it to the page, as during shortcut capture or a confirmation dialog. `onDeactivate` runs when the window resigns key, closes, or is hidden this way.
   func mainWindowEvents(
     appState: AppState,
     blocksEscape: Bool = false,

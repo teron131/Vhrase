@@ -60,6 +60,7 @@ struct ParrotMark: View {
               Self.faceMask.opacity(0.85), Self.faceMask.opacity(0.45), Self.faceMask.opacity(0),
             ]),
             center: point(23.6, 7.4), startRadius: 0, endRadius: 4.4 * art.a))
+        // The body's own lavender serves as the wing coverts; the icon's scalloped feather tips are too small to see at in-app sizes.
         bird.drawLayer { wing in
           wing.clip(to: ParrotWing().path(in: bounds))
           wing.fill(ArtPolygon.violetBand.path(in: bounds), with: .color(Self.violet))
@@ -91,6 +92,7 @@ struct ParrotMark: View {
   }
 }
 
+/// Maps the icon SVG's 32-by-32 viewBox onto the largest square centered in `rect`.
 private func artworkTransform(in rect: CGRect) -> CGAffineTransform {
   let scale = min(rect.width, rect.height) / 32
   return CGAffineTransform(
@@ -258,7 +260,6 @@ private struct ParrotBill: Shape {
   }
 }
 
-/// The body's own lavender serves as the wing coverts; the icon's scalloped feather tips are too small to see at in-app sizes.
 private struct ArtPolygon: Shape {
   let corners: [CGPoint]
 

@@ -97,6 +97,7 @@ if [[ -z "$AUDIO_FILE" ]]; then
   afconvert -f WAVE -d LEI16@16000 -c 1 "$AIFF_FILE" "$AUDIO_FILE"
 fi
 
+# `${EXTRA_ARGS[@]+...}` expands an empty array safely under `set -u` in macOS's bash 3.2.
 if [[ "$MODE" == "realtime" ]]; then
   uv run --python /usr/bin/python3 --with websockets python "$ROOT/scripts/live-realtime-stt-smoke.py" \
     --provider "$PROVIDER" \

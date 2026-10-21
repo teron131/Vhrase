@@ -6,7 +6,7 @@ import AppKit
 final class EscapeKeyMonitor {
   private var globalMonitor: Any?
 
-  /// Enables a global listener only while transient workflow feedback is visible outside the active Vhrase window.
+  /// A listener that is already installed keeps the `onEscape` it was installed with.
   func setEnabled(_ isEnabled: Bool, onEscape: @escaping @MainActor () -> Void) {
     if isEnabled {
       installIfNeeded(onEscape: onEscape)

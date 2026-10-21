@@ -26,7 +26,7 @@ final class AudioInputPreview: NSObject, ObservableObject, AVAudioPlayerDelegate
   private var inputDeviceUID = ""
   private var waveformTick = 0
 
-  /// Updates running capture in place; only initial startup needs to acquire the microphone.
+  /// Updates running capture in place; only initial startup acquires the microphone. Applying new settings discards the test clip.
   func start(settings: DictationSettings) {
     if let recorder, recorder.isRecording, !isPlayingTest, inputDeviceUID == settings.inputDeviceUID
     {

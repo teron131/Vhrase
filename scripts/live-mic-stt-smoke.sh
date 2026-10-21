@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Records a short microphone sample and optionally submits it to the selected STT provider.
+# Records a short microphone sample with ffmpeg and runs it through live-stt-smoke.sh against the chosen provider.
 
 set -euo pipefail
 
@@ -104,4 +104,4 @@ bash "$ROOT/scripts/live-stt-smoke.sh" \
   --provider "$PROVIDER" \
   --mode "$MODE" \
   --audio "$OUTPUT_FILE" \
-  "${EXTRA_ARGS[@]}"
+  ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}

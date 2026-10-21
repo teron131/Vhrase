@@ -60,6 +60,7 @@ check() {
   printf "\n"
 }
 
+# Prints where a credential is found, Keychain before the environment, without reading its value; prints nothing when neither has it.
 key_value() {
   local name="$1"
   if /usr/bin/security find-generic-password -s Vhrase -a "$name" >/dev/null 2>&1; then
@@ -72,6 +73,7 @@ key_value() {
   fi
 }
 
+# Prints Vhrase's TCC auth_value for a service, 2 meaning allowed; prints nothing when this shell cannot read TCC.db or Vhrase has no entry.
 permission_status() {
   local service="$1"
   sqlite3 "$HOME/Library/Application Support/com.apple.TCC/TCC.db" \

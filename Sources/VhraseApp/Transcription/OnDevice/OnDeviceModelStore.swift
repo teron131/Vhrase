@@ -105,6 +105,7 @@ final class OnDeviceModelStore: ObservableObject {
     downloadTask?.cancel()
   }
 
+  /// Loads the installed model in the background ahead of a dictation; a failed load is only logged, because transcription loads it again and reports the failure.
   func prepare() {
     guard isInstalled, !isPreparing else { return }
     let model = model
@@ -114,7 +115,6 @@ final class OnDeviceModelStore: ObservableObject {
       } catch  where Task.isCancelled {
         return
       } catch {
-        // Transcription reports the failure to the user; the log keeps its cause for diagnosis.
         let failure = error as NSError
         Self.logger(for: model).error(
           "Model load failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
@@ -130,6 +130,7 @@ final class OnDeviceModelStore: ObservableObject {
     preparationTask = nil
   }
 
+  /// Does nothing while a download or warm-up is running.
   func remove() async throws {
     guard downloadTask == nil, !isPreparing else { return }
     let id = selectionID

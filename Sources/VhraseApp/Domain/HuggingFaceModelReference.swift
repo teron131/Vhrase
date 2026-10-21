@@ -20,6 +20,7 @@ struct HuggingFaceModelReference: Equatable, Sendable {
     self.id = trimmed
   }
 
+  /// The Hub cache's folder for the model: `openai/whisper-large-v3-turbo` → `models--openai--whisper-large-v3-turbo`.
   var cacheFolderName: String {
     "models--" + id.replacingOccurrences(of: "/", with: "--")
   }

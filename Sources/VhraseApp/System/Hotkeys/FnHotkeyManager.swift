@@ -1,10 +1,9 @@
-// Monitors Fn or Globe modifier changes for global push-to-talk and toggle shortcuts.
+// Detects Fn/Globe presses for the global shortcut by watching modifier changes, since macOS reports Fn only as a modifier flag, which Carbon hotkeys cannot register.
 
 import AppKit
 import Foundation
 import OSLog
 
-/// Owns Fn/Globe shortcut detection, which is exposed as modifier changes instead of a Carbon hotkey.
 @MainActor
 final class FnHotkeyManager {
   private var localMonitor: Any?

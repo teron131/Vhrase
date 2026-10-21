@@ -32,6 +32,7 @@ actor HuggingFaceRecognizer: SpeechToTextClient {
     memoryPressureSource.cancel()
   }
 
+  /// A warm-up, skipped while memory pressure is elevated.
   func load(model: String) async throws {
     guard !isMemoryConstrained else { return }
     let started = ContinuousClock.now
@@ -75,7 +76,7 @@ actor HuggingFaceRecognizer: SpeechToTextClient {
     await stop(server)
   }
 
-  /// Gives idle model memory back under system pressure; an active request finishes before its helper is released, and speculative warm-ups wait for normal pressure.
+  /// Gives idle model memory back under system pressure; an active request finishes before its helper is released.
   func handleMemoryPressure(isElevated: Bool) async {
     isMemoryConstrained = isElevated
     guard isElevated else { return }

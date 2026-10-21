@@ -42,7 +42,7 @@ final class AppContext {
     return lastTargetApp
   }
 
-  /// After a switch it waits briefly before returning, because frontmost status flips before the app's window becomes key and a shortcut sent in that gap is dropped.
+  /// `false` when the app is not running or does not come to the front within half a second. After a switch it waits briefly before returning, because frontmost status flips before the app's window becomes key and a shortcut sent in that gap is dropped.
   func activate(_ target: FrontmostApp) async -> Bool {
     guard !target.bundleIdentifier.isEmpty,
       let application =

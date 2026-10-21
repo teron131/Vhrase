@@ -60,6 +60,7 @@ openssl req \
   -out "$CERT" \
   -config "$CONFIG" >/dev/null 2>&1
 
+# OpenSSL 3 encrypts PKCS#12 with algorithms `security import` cannot read unless `-legacy` is given.
 openssl pkcs12 \
   -export \
   -legacy \
@@ -67,7 +68,7 @@ openssl pkcs12 \
   -in "$CERT" \
   -name "$IDENTITY" \
   -out "$P12" \
-  -passout "pass:$P12_PASSWORD" >/dev/null 2>&1
+  -passout "pass:$P12_PASSWORD" >/dev/null
 
 /usr/bin/security import "$P12" \
   -k "$KEYCHAIN" \

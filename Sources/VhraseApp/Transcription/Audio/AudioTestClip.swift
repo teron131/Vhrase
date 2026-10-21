@@ -14,6 +14,7 @@ struct AudioTestClip {
   }
 
   var wavData: Data {
+    // The canonical 44-byte header: after "fmt " come its size (16), PCM format (1), channels (1), sample rate, byte rate, frame size (2), and bits per sample (16).
     var data = Data("RIFF".utf8)
     append(UInt32(36 + pcm.count), to: &data)
     data.append(contentsOf: "WAVEfmt ".utf8)

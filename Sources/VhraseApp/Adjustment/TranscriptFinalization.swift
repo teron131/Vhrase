@@ -24,6 +24,7 @@ struct TranscriptFinalizer {
     self.chineseTextConverter = chineseTextConverter
   }
 
+  /// Throws only when no text is left; a failed LLM request falls back to local cleanup or the raw transcript and adds a warning instead.
   func finalize(
     _ result: TranscriptionResult,
     adjustment: AdjustmentExecution,

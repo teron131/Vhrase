@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Assembles the built Vhrase executable and resources into a macOS application bundle.
+# Builds Vhrase, assembles dist/Vhrase.app from the executable, its SwiftPM resources, third-party licenses, and a rendered icon, and signs it through sign-app.sh.
 
 set -euo pipefail
 
@@ -66,9 +66,9 @@ cat > "$CONTENTS/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.16.2</string>
+  <string>0.16.3</string>
   <key>CFBundleVersion</key>
-  <string>37</string>
+  <string>38</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>
