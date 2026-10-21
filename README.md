@@ -48,9 +48,12 @@ App prices are October 2026 list prices; only the yearly totals are estimates.
 - With a local model and automatic polishing off, dictation never leaves the Mac.
 - API keys stay in the macOS Keychain, and History, settings, and logs stay local; logs never include audio, transcripts, or keys.
 
-## Quick Start
+## Install
 
-Requires macOS 14 and Swift 6.2 or later.
+On an Apple silicon Mac with macOS 14 or later, download the latest `Vhrase-x.y.z.zip` from [Releases](https://github.com/teron131/Vhrase/releases), unzip it, and move Vhrase to Applications.
+It isn't notarized, so macOS blocks the first launch: open **System Settings → Privacy & Security** and choose **Open Anyway**.
+
+Or build it yourself, with macOS 14 and Swift 6.2 or later:
 
 ```sh
 bash scripts/ensure-local-codesign-identity.sh   # once per Mac, so rebuilds keep their permissions

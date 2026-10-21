@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Builds Vhrase, assembles dist/Vhrase.app from the executable, its SwiftPM resources, third-party licenses, and a rendered icon, then signs it and verifies the signature and microphone entitlement.
+# Builds Vhrase, assembles the app from the executable, its SwiftPM resources, third-party licenses, and a rendered icon, then signs it and verifies the signature and microphone entitlement.
+# Usage: bundle-app.sh [debug|release] [app path, dist/Vhrase.app by default].
 # Signing uses VHRASE_CODESIGN_IDENTITY when set, else the local development identity from ensure-local-codesign-identity.sh, else ad-hoc.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_CONFIG="${1:-debug}"
-APP_DIR="$ROOT/dist/Vhrase.app"
+APP_DIR="${2:-$ROOT/dist/Vhrase.app}"
 CONTENTS="$APP_DIR/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
@@ -70,9 +71,9 @@ cat > "$CONTENTS/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.17.2</string>
+  <string>0.17.3</string>
   <key>CFBundleVersion</key>
-  <string>41</string>
+  <string>42</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>
