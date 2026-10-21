@@ -2,7 +2,7 @@
 
 import Foundation
 
-struct HuggingFaceModel: OnDeviceModel {
+struct HuggingFaceModel: LocalModel {
   let title = STTProvider.huggingFace.title
   let id: String
   private let huggingFace: HuggingFaceRecognizer
@@ -35,7 +35,7 @@ struct HuggingFaceModel: OnDeviceModel {
   /// Reads only Vhrase's cache folder, so readiness never starts Python.
   static func isInstalled(_ id: String) -> Bool {
     guard let reference = try? HuggingFaceModelReference(id) else { return false }
-    let marker = OnDeviceModelFiles.completionMarker(
+    let marker = LocalModelFiles.completionMarker(
       in: HuggingFaceRuntime.modelDirectory(for: reference))
     return FileManager.default.fileExists(atPath: marker.path)
   }
@@ -72,7 +72,7 @@ struct HuggingFaceModel: OnDeviceModel {
         throw outcome?.message.map(HuggingFaceError.failed)
           ?? HuggingFaceError.stopped(helper.lastErrorLine)
       }
-      try Data().write(to: OnDeviceModelFiles.completionMarker(in: directory))
+      try Data().write(to: LocalModelFiles.completionMarker(in: directory))
     } catch {
       activeHelper?.stop()
       await activeHelper?.waitForExit()

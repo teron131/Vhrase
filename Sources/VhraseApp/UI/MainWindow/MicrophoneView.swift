@@ -47,7 +47,7 @@ struct MicrophoneView: View {
   }
 
   @ViewBuilder private var accessNotice: some View {
-    if let snapshot = presentation.permissionSnapshot(.microphone), !snapshot.state.isReady {
+    if let snapshot = presentation.permissions.snapshot(for: .microphone), !snapshot.state.isReady {
       NoticeCard(
         "Vhrase can't hear anything until macOS allows microphone access.",
         systemImage: "mic.slash",

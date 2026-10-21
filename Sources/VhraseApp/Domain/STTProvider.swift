@@ -97,7 +97,7 @@ enum TranscriptionMode: String, CaseIterable, Codable, Identifiable, Sendable {
 
   var id: String { rawValue }
 
-  /// Names after-stop transcription by where it runs, so on-device recognition never reads as an upload.
+  /// Names after-stop transcription by where it runs, so local recognition never reads as an upload.
   func title(for provider: STTProvider) -> String {
     switch self {
     case .upload:

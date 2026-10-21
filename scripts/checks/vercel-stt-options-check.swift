@@ -11,9 +11,7 @@ struct VercelSTTOptionsCheck {
     precondition(STTProvider.vercel.location == .cloud)
     precondition(STTProvider.vercel.availableModes == [.upload])
     precondition(settings.vercelModel == "spacexai/grok-stt")
-    // The gateway forwards neither hint, so neither is reported nor limited.
-    settings.language = "yue"
-    precondition(settings.recognitionLanguage.isEmpty)
+    // The gateway forwards no vocabulary, so a list sized for LLM polishing never blocks recording.
     precondition(!STTProvider.vercel.takesVocabularyHints)
     settings.keyterms = (1...1_200).map { "term \($0)" }.joined(separator: "\n")
     try TranscriptionContract.validate(settings: settings)

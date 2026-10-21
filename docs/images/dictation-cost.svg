@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 516" width="1180" height="516" role="img" aria-labelledby="title">
+  <title id="title">What a year of dictation costs by each month, for regular use at list prices. Wispr Flow Pro bills $15 every month, $180 by December. VoiceInk costs $25 once, plus use with cloud models, $49 in all. Vhrase with cloud models costs only its use, about $24. With open-source models VoiceInk stays at $25 and Vhrase at nothing.</title>
+  <!-- A year of dictation five ways: a subscription billed monthly, and VoiceInk and Vhrase each with cloud or open-source models. Cloud use is spread over an illustrative working year; only the yearly total is an estimate. -->
+  <style>
+    .bg { fill: #161412; }
+    text { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; }
+    .title { fill: #F7F4EF; font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: 800; font-size: 26px; }
+    .sub { fill: #A9A198; font-style: italic; font-size: 15px; }
+    .grid { stroke: #3A3531; stroke-dasharray: 2 5; }
+    .axis { fill: #A9A198; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .floor { stroke: #6B645D; stroke-width: 1.2; }
+    .line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .line.local { stroke-dasharray: 7 6; stroke-linecap: butt; }
+    .line.vhrase.cloud { stroke-width: 4; }
+    .subscription { stroke: #F7F4EF; fill: #F7F4EF; }
+    .voiceink { stroke: #A9A198; fill: #A9A198; }
+    .vhrase { stroke: #FF6242; fill: #FF6242; }
+    .line { fill: none; }
+    .leader { stroke-width: 1; opacity: 0.6; }
+    .name { fill: #F7F4EF; font-weight: 700; font-size: 14px; }
+    .note { stroke: none; font-size: 13px; }
+  </style>
+  <rect class="bg" width="1180" height="516" rx="24"/>
+  <g transform="translate(30 0)">
+    <text class="title" x="40" y="62">A year of dictation, five ways to pay</text>
+    <text class="sub" x="40" y="90">What you have paid by each month for regular use, at list prices</text>
+    <line class="grid" x1="96" x2="800" y1="353.3" y2="353.3"/>
+    <text class="axis" x="84" y="357.3" text-anchor="end">$20</text>
+    <line class="grid" x1="96" x2="800" y1="246.7" y2="246.7"/>
+    <text class="axis" x="84" y="250.7" text-anchor="end">$40</text>
+    <line class="grid" x1="96" x2="800" y1="140.0" y2="140.0"/>
+    <text class="axis" x="84" y="144.0" text-anchor="end">$60</text>
+    <line class="floor" x1="96" x2="800" y1="460" y2="460"/>
+    <text class="axis" x="125.3" y="482" text-anchor="middle">Jan</text>
+    <text class="axis" x="184.0" y="482" text-anchor="middle">Feb</text>
+    <text class="axis" x="242.7" y="482" text-anchor="middle">Mar</text>
+    <text class="axis" x="301.3" y="482" text-anchor="middle">Apr</text>
+    <text class="axis" x="360.0" y="482" text-anchor="middle">May</text>
+    <text class="axis" x="418.7" y="482" text-anchor="middle">Jun</text>
+    <text class="axis" x="477.3" y="482" text-anchor="middle">Jul</text>
+    <text class="axis" x="536.0" y="482" text-anchor="middle">Aug</text>
+    <text class="axis" x="594.7" y="482" text-anchor="middle">Sep</text>
+    <text class="axis" x="653.3" y="482" text-anchor="middle">Oct</text>
+    <text class="axis" x="712.0" y="482" text-anchor="middle">Nov</text>
+    <text class="axis" x="770.7" y="482" text-anchor="middle">Dec</text>
+    <path class="line subscription" d="M 96.0 460.0 V 380.0 H 154.7 V 300.0 H 213.3 V 220.0 H 272.0 V 140.0 V 126"/>
+    <path class="arrow subscription" d="M 265.0 130 L 272.0 118 L 279.0 130 Z"/>
+    <path class="line voiceink cloud" d="M 96.0 460.0 V 326.7 C 115.6 324.1 135.1 322.1 154.7 319.1 C 174.2 316.1 193.8 312.2 213.3 308.3 C 232.9 304.4 252.4 298.8 272.0 295.4 C 291.6 291.9 311.1 290.1 330.7 286.7 C 350.2 283.4 369.8 279.1 389.3 274.9 C 408.9 270.6 428.4 264.7 448.0 260.8 C 467.6 257.0 487.1 253.1 506.7 251.1 C 526.2 249.1 545.8 249.0 565.3 246.8 C 584.9 244.6 604.4 238.5 624.0 233.8 C 643.6 229.2 663.1 223.2 682.7 218.7 C 702.2 214.3 721.8 209.7 741.3 206.9 C 760.9 204.1 780.4 202.5 800.0 200.4"/>
+    <path class="line voiceink local" d="M 96.0 460.0 V 326.7 H 800.0"/>
+    <path class="line vhrase cloud" d="M 96.0 460.0 V 460.0 C 115.6 457.5 135.1 455.4 154.7 452.4 C 174.2 449.5 193.8 445.6 213.3 441.7 C 232.9 437.7 252.4 432.2 272.0 428.7 C 291.6 425.2 311.1 423.4 330.7 420.1 C 350.2 416.7 369.8 412.5 389.3 408.2 C 408.9 403.9 428.4 398.0 448.0 394.2 C 467.6 390.3 487.1 386.4 506.7 384.4 C 526.2 382.5 545.8 382.3 565.3 380.1 C 584.9 378.0 604.4 371.8 624.0 367.2 C 643.6 362.5 663.1 356.5 682.7 352.1 C 702.2 347.6 721.8 343.0 741.3 340.2 C 760.9 337.4 780.4 335.9 800.0 333.7"/>
+    <path class="line vhrase local" d="M 96.0 460.0 H 800.0"/>
+    <text class="name" x="288.0" y="114">Wispr Flow Pro</text>
+    <text class="note subscription" x="288.0" y="132">$15 every month: $180 by December</text>
+    <line class="leader voiceink" x1="806" x2="840" y1="200.4" y2="195.4"/>
+    <text class="name" x="848" y="200.4">VoiceInk, cloud models</text>
+    <text class="note voiceink" x="848" y="218.4">$49 a year: $25 once, plus use</text>
+    <line class="leader voiceink" x1="806" x2="840" y1="326.7" y2="321.7"/>
+    <text class="name" x="848" y="326.7">VoiceInk, open-source models</text>
+    <text class="note voiceink" x="848" y="344.7">$25 once</text>
+    <line class="leader vhrase" x1="806" x2="840" y1="333.7" y2="365.7"/>
+    <text class="name" x="848" y="370.7">Vhrase, cloud models</text>
+    <text class="note vhrase" x="848" y="388.7">$24 a year of use</text>
+    <line class="leader vhrase" x1="806" x2="840" y1="460.0" y2="455.0"/>
+    <text class="name" x="848" y="460.0">Vhrase, open-source models</text>
+    <text class="note vhrase" x="848" y="478.0">$0</text>
+  </g>
+</svg>

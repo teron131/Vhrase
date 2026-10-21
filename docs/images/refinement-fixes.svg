@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 572" width="1180" height="572" role="img" aria-labelledby="title">
+  <title id="title">What Refinement fixes. The speech model heard: "Check the session. Below in agents dot md. Then ask cloud to open the reaper. Um, no, the codecs config." Refinement corrects the misheard "session" to "section", joins the sentence split at a pause, writes AGENTS.md, Claude and Codex from the Vocabulary list, and drops the spoken correction and filler. Result: "Check the section below in AGENTS.md. Then ask Claude to open the Codex config."</title>
+  <!-- A proofread transcript: the speech model's raw words with corrections marked in pen, orange where the Vocabulary list supplied them and violet where the model judged, and the clean result below. -->
+  <style>
+    .bg { fill: #161412; }
+    text { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; }
+    .title { fill: #F7F4EF; font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: 800; font-size: 26px; }
+    .sub { fill: #A9A198; font-style: italic; font-size: 15px; }
+    .sheet { fill: #211E1B; stroke: #3A3531; stroke-width: 1.4; }
+    .label { fill: #A9A198; font-weight: 700; font-size: 13px; }
+    .raw { fill: #F7F4EF; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 22px; }
+    .vocabulary { stroke: #FF6242; fill: #FF6242; }
+    .judgment { stroke: #9D86FF; fill: #9D86FF; }
+    .strike { stroke-width: 2.6; stroke-linecap: round; }
+    .caret { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .insert { stroke: none; font-style: italic; font-weight: 600; font-size: 21px; text-anchor: middle; }
+    .tag { stroke: none; font-weight: 650; font-size: 13px; text-anchor: middle; }
+    .arrow { fill: none; stroke: #A9A198; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .mark { fill: #9D86FF; }
+    .clean { fill: #161412; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 19px; }
+    .legend { fill: #A9A198; font-size: 14px; }
+    .key { stroke-width: 3; stroke-linecap: round; }
+    .vocabulary-key { stroke: #FF6242; }
+    .judgment-key { stroke: #9D86FF; }
+  </style>
+  <rect class="bg" width="1180" height="572" rx="24"/>
+  <g transform="translate(30 0)">
+    <text class="title" x="40" y="62">What Refinement fixes</text>
+    <text class="sub" x="40" y="90">Raw words from the speech model, marked up the way the language model corrects them</text>
+    <rect class="sheet" x="40" y="126" width="1040" height="250" rx="10"/>
+    <text class="label" x="62" y="152">Heard</text>
+    <text class="raw" x="70.0" y="212" textLength="567.0" lengthAdjust="spacing">Check the session. Below in agents dot md.</text>
+    <text class="raw" x="70.0" y="318" textLength="823.5" lengthAdjust="spacing">Then ask cloud to open the reaper. Um, no, the codecs config.</text>
+    <g class="judgment"><line class="strike" x1="204.0" x2="296.5" y1="205" y2="205"/><path class="caret" d="M 245.2 186 L 252.2 179 L 259.2 186"/><text class="insert" x="252.2" y="172">section</text><text class="tag" x="234.2" y="242">misheard</text></g>
+    <g class="judgment"><line class="strike" x1="298.5" x2="337.0" y1="205" y2="205"/><path class="caret" d="M 312.8 186 L 319.8 179 L 326.8 186"/><text class="insert" x="319.8" y="172">b</text><text class="tag" x="353.8" y="242">pause split</text></g>
+    <g class="vocabulary"><line class="strike" x1="447.0" x2="620.5" y1="205" y2="205"/><path class="caret" d="M 528.8 186 L 535.8 179 L 542.8 186"/><text class="insert" x="535.8" y="172">AGENTS.md</text></g>
+    <g class="vocabulary"><line class="strike" x1="190.5" x2="256.0" y1="311" y2="311"/><path class="caret" d="M 218.2 292 L 225.2 285 L 232.2 292"/><text class="insert" x="225.2" y="278">Claude</text></g>
+    <g class="judgment"><line class="strike" x1="379.5" x2="647.5" y1="311" y2="311"/><text class="tag" x="515.5" y="348">spoken correction, filler</text></g>
+    <g class="vocabulary"><line class="strike" x1="703.5" x2="782.5" y1="311" y2="311"/><path class="caret" d="M 738.0 292 L 745.0 285 L 752.0 292"/><text class="insert" x="745.0" y="278">Codex</text></g>
+    <path class="arrow" d="M 560 384 V 420 M 552 412 L 560 421 L 568 412"/>
+    <text class="label" x="62" y="438">Pasted</text>
+    <rect class="mark" x="62" y="447" width="940.3" height="34" rx="4"/>
+    <text class="clean" x="70.0" y="470" textLength="924.3" lengthAdjust="spacing">Check the section below in AGENTS.md. Then ask Claude to open the Codex config.</text>
+    <line class="key vocabulary-key" x1="70" x2="100" y1="532" y2="532"/>
+    <text class="legend" x="110" y="537">from the Vocabulary list</text>
+    <line class="key judgment-key" x1="330" x2="360" y1="532" y2="532"/>
+    <text class="legend" x="370" y="537">the model's own judgment</text>
+  </g>
+</svg>

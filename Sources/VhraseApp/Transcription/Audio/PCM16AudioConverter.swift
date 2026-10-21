@@ -148,10 +148,6 @@ struct PCM16ChunkFramer {
 
   private var remainder = Data()
 
-  var remainderByteCount: Int {
-    remainder.count
-  }
-
   mutating func append(_ data: Data) -> [Data] {
     guard !data.isEmpty else {
       return []

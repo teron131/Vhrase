@@ -11,6 +11,7 @@
 """Runs Hugging Face speech recognition for Vhrase: any model the transformers automatic-speech-recognition (ASR) pipeline accepts, on the Apple GPU or the CPU.
 
 Vhrase starts this script through uv, which builds the Python environment from the dependencies above the first time.
+After changing them, run `uv lock --script` on this file, because uv cannot update the lockfile inside the signed app.
 `download MODEL` fetches a model into the cache named by HF_HUB_CACHE and proves it runs on this machine; `serve` keeps one model loaded and transcribes recordings on request.
 Vhrase sets HF_HUB_DISABLE_SHARED_BLOBS, so each model's files stay inside its own cache folder, which is what progress measures and what removing a model deletes.
 Both write JSON lines to standard output, and everything a library prints goes to standard error so it cannot corrupt that stream.
@@ -191,7 +192,10 @@ def transcribe(recognizer: Any, audio_path: Path, language: str | None) -> str:
 
 
 def whisper_language_options(recognizer: Any, language: str | None) -> dict[str, Any]:
-    """Pass a language hint only to multilingual Whisper models; other architectures detect the language themselves and reject the option."""
+    """Pass a language hint only to multilingual Whisper models; other architectures detect the language themselves and reject the option.
+
+    Whisper's temperature fallback stays off: in transformers 5.19 it raised an internal error on a degenerate clip and still returned "Thank you." for silence.
+    """
     model = recognizer.model
     is_multilingual_whisper = model.config.model_type == "whisper" and getattr(
         model.generation_config, "is_multilingual", False

@@ -1,5 +1,11 @@
-#!/usr/bin/env python3
-"""Exercise realtime STT with saved Vhrase Keychain credentials or environment fallbacks."""
+# /// script
+# requires-python = ">=3.13"
+# dependencies = ["websockets>=17.0"]
+# ///
+"""Streams a WAV through xAI or ElevenLabs realtime STT with the saved Vhrase Keychain credential, or the environment's, and checks the transcript.
+
+Without `--audio` it speaks a test phrase with macOS `say`, so the default expectation, `custom dictation`, is in the audio.
+"""
 
 from __future__ import annotations
 
@@ -8,18 +14,21 @@ import asyncio
 import base64
 import json
 import os
+from pathlib import Path
 import struct
 import subprocess
 import sys
 import urllib.parse
-from pathlib import Path
 
 import websockets
 
 SECURITY = "/usr/bin/security"
+SAY = "/usr/bin/say"
+AFCONVERT = "/usr/bin/afconvert"
 KEYCHAIN_SERVICE = "Vhrase"
 ELEVENLABS_REALTIME_MODEL_ID = "scribe_v2_realtime"
 PCM_FRAME_BYTES = 3_200
+SPOKEN_PHRASE = "Custom dictation live smoke test for OpenAI, xAI, and ElevenLabs."
 
 
 def key_value(name: str) -> str:
@@ -41,6 +50,21 @@ def key_value(name: str) -> str:
     if result.returncode == 0 and (value := result.stdout.strip()):
         return value
     return os.environ.get(name, "")
+
+
+def spoken_wav(provider: str) -> Path:
+    """Converts the spoken phrase to the 16 kHz mono Int16 PCM that Vhrase streams."""
+    folder = (
+        Path(__file__).resolve().parent.parent / ".cache" / "live-realtime-stt-smoke"
+    )
+    folder.mkdir(parents=True, exist_ok=True)
+    aiff, wav = folder / f"{provider}.aiff", folder / f"{provider}.wav"
+    subprocess.run([SAY, "-o", str(aiff), SPOKEN_PHRASE], check=True)  # noqa: S603
+    subprocess.run(  # noqa: S603
+        [AFCONVERT, "-f", "WAVE", "-d", "LEI16@16000", "-c", "1", str(aiff), str(wav)],
+        check=True,
+    )
+    return wav
 
 
 def wav_pcm_data(path: Path) -> bytes:
@@ -104,13 +128,6 @@ def joined_xai_text(
     return " ".join(segments)
 
 
-async def connect(url: str, headers: dict[str, str]):
-    try:
-        return await websockets.connect(url, additional_headers=headers)
-    except TypeError:
-        return await websockets.connect(url, extra_headers=headers)
-
-
 async def send_pcm_binary(websocket, pcm: bytes):
     for chunk in pcm_frames(pcm):
         await websocket.send(chunk)
@@ -157,7 +174,9 @@ async def transcribe_xai(args: argparse.Namespace, pcm: bytes) -> str:
     query_items.extend(("keyterm", keyterm) for keyterm in args.keyterm)
 
     url = query_url("wss://api.x.ai/v1/stt", query_items)
-    async with await connect(url, {"Authorization": f"Bearer {api_key}"}) as websocket:
+    async with websockets.connect(
+        url, additional_headers={"Authorization": f"Bearer {api_key}"}
+    ) as websocket:
         final_segments: list[str] = []
         locked_utterance = ""
         latest_partial = ""
@@ -213,13 +232,15 @@ async def transcribe_elevenlabs(args: argparse.Namespace, pcm: bytes) -> str:
     query_items.extend(("keyterms", keyterm) for keyterm in args.keyterm)
 
     url = query_url("wss://api.elevenlabs.io/v1/speech-to-text/realtime", query_items)
-    async with await connect(url, {"xi-api-key": api_key}) as websocket:
+    async with websockets.connect(
+        url, additional_headers={"xi-api-key": api_key}
+    ) as websocket:
         committed_segments: list[str] = []
         while True:
             timeout = 0.35 if committed_segments else 20
             try:
                 message = await asyncio.wait_for(websocket.recv(), timeout=timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return " ".join(committed_segments)
             event = json.loads(message)
             if args.verbose:
@@ -260,10 +281,14 @@ async def transcribe_elevenlabs(args: argparse.Namespace, pcm: bytes) -> str:
 async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--provider", choices=["xai", "elevenlabs"], required=True)
-    parser.add_argument("--audio", required=True)
+    parser.add_argument(
+        "--audio",
+        type=Path,
+        help="16 kHz mono Int16 WAV; defaults to a spoken test phrase",
+    )
     parser.add_argument("--language", default="en")
     parser.add_argument("--keyterm", action="append", default=[])
-    parser.add_argument("--expect")
+    parser.add_argument("--expect", default="custom dictation")
     parser.add_argument(
         "--elevenlabs-commit-strategy",
         choices=["manual", "vad"],
@@ -277,7 +302,7 @@ async def main() -> int:
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
-    pcm = wav_pcm_data(Path(args.audio))
+    pcm = wav_pcm_data(args.audio or spoken_wav(args.provider))
     if args.provider == "xai":
         text = await transcribe_xai(args, pcm)
     else:
@@ -286,7 +311,7 @@ async def main() -> int:
     text = text.strip()
     if not text:
         raise RuntimeError("provider returned an empty transcript")
-    if args.expect and args.expect.lower() not in text.lower():
+    if args.expect.lower() not in text.lower():
         raise RuntimeError(f"transcript did not include {args.expect!r}: {text}")
 
     print(f"Provider: {args.provider}")

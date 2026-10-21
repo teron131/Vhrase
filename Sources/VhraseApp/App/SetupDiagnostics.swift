@@ -1,4 +1,4 @@
-// Derives actionable setup diagnostics from settings, credentials, the on-device model, and macOS permission state.
+// Derives actionable setup diagnostics from settings, credentials, the local model, and macOS permission state.
 
 import Foundation
 
@@ -48,7 +48,7 @@ struct SetupDiagnostics {
           systemImage: "arrow.down.circle.fill"
         ))
     }
-    if permissionState(for: .microphone)?.isReady != true {
+    if !permissions.isReady(.microphone) {
       diagnostics.append(
         SetupDiagnostic(
           id: .microphonePermission,
@@ -57,7 +57,7 @@ struct SetupDiagnostics {
           systemImage: "mic.fill"
         ))
     }
-    let accessibilityIsReady = permissionState(for: .accessibility)?.isReady == true
+    let accessibilityIsReady = permissions.isReady(.accessibility)
     if !accessibilityIsReady {
       diagnostics.append(
         SetupDiagnostic(
@@ -80,7 +80,7 @@ struct SetupDiagnostics {
     }
     if settings.adjustWithLLM,
       settings.includeScreenshot,
-      permissionState(for: .screenRecording)?.isReady != true
+      !permissions.isReady(.screenRecording)
     {
       diagnostics.append(
         SetupDiagnostic(
@@ -105,16 +105,12 @@ struct SetupDiagnostics {
           id: .ready,
           title: "Ready",
           detail: settings.provider.location == .local
-            ? "The on-device model and required permissions look ready."
+            ? "The local model and required permissions look ready."
             : "Keys and required permissions look ready.",
           systemImage: "checkmark.circle.fill"
         ))
     }
     return diagnostics
-  }
-
-  private func permissionState(for permission: AppPermission) -> PermissionState? {
-    permissions.first(where: { $0.permission == permission })?.state
   }
 }
 

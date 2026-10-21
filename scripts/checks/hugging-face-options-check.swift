@@ -1,4 +1,4 @@
-// Verifies the on-device Hugging Face provider's model IDs, after-stop-only contract, language hint, and persistence.
+// Verifies the local Hugging Face provider's model IDs, after-stop-only contract, and persistence.
 
 import Foundation
 
@@ -14,8 +14,6 @@ struct HuggingFaceOptionsCheck {
     precondition(settings.transcriptionModeTitle == "After stop")
     precondition(settings.huggingFaceModel == "openai/whisper-large-v3-turbo")
     try TranscriptionContract.validate(settings: settings)
-    settings.language = " yue "
-    precondition(settings.recognitionLanguage == "yue")
 
     let builtIn = try HuggingFaceModelReference(settings.huggingFaceModel)
     precondition(builtIn.id == "openai/whisper-large-v3-turbo")

@@ -1,11 +1,11 @@
-// Owns one on-device model's setup on this Mac: whether its files are complete, the one-time download, background preparation, and removal.
+// Owns one local model's setup on this Mac: whether its files are complete, the one-time download, background preparation, and removal.
 
 import Foundation
 import OSLog
 
-/// Publishes a model's setup state; downloading is the only step of on-device recognition that uses the network.
+/// Publishes a model's setup state; downloading is the only step of local recognition that uses the network.
 @MainActor
-final class OnDeviceModelStore: ObservableObject {
+final class LocalModelStore: ObservableObject {
   enum State: Equatable {
     case missing
     /// `isIndeterminate` marks setup work without a percentage: building a runtime before the transfer, or compiling and loading the model for this Mac after it.
@@ -21,7 +21,7 @@ final class OnDeviceModelStore: ObservableObject {
   }
 
   /// The model this store sets up; Hugging Face's changes with the model named in settings.
-  @Published private(set) var model: any OnDeviceModel
+  @Published private(set) var model: any LocalModel
   @Published private(set) var state: State
   private var downloadTask: Task<Void, Never>?
   @Published private var preparationTask: Task<Void, Never>?
@@ -30,7 +30,7 @@ final class OnDeviceModelStore: ObservableObject {
   /// Invalidates removal completions when the selected model changes.
   private var selectionID = UUID()
 
-  init(model: any OnDeviceModel) {
+  init(model: any LocalModel) {
     self.model = model
     state = model.isInstalled ? .installed : .missing
   }
@@ -53,7 +53,7 @@ final class OnDeviceModelStore: ObservableObject {
   }
 
   /// Points the store at another model of the same family, abandoning a download of the previous one.
-  func select(_ model: any OnDeviceModel) {
+  func select(_ model: any LocalModel) {
     cancelPreparation()
     downloadTask?.cancel()
     downloadTask = nil
@@ -145,7 +145,7 @@ final class OnDeviceModelStore: ObservableObject {
   }
 
   private func finishDownload(
-    _ outcome: State, of model: any OnDeviceModel, id: UUID, seconds: Double
+    _ outcome: State, of model: any LocalModel, id: UUID, seconds: Double
   ) {
     let result =
       switch outcome {
@@ -162,21 +162,21 @@ final class OnDeviceModelStore: ObservableObject {
     state = outcome
   }
 
-  private nonisolated static func logger(for model: any OnDeviceModel) -> Logger {
+  private nonisolated static func logger(for model: any LocalModel) -> Logger {
     Logger(subsystem: "local.codex.Vhrase", category: model.title)
   }
 
   /// Refuses a download that would exhaust the disk partway through; models of unknown size skip the check.
-  private nonisolated static func checkFreeSpace(for model: any OnDeviceModel) throws {
+  private nonisolated static func checkFreeSpace(for model: any LocalModel) throws {
     guard let required = model.requiredFreeBytes else { return }
-    let modelsFolder = OnDeviceModelFiles.directory
+    let modelsFolder = LocalModelFiles.directory
     try FileManager.default.createDirectory(at: modelsFolder, withIntermediateDirectories: true)
     let available =
       try modelsFolder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
       .volumeAvailableCapacityForImportantUsage ?? .max
     guard available >= required else {
       let formatter = ByteCountFormatter()
-      throw OnDeviceModelError.insufficientSpace(
+      throw LocalModelError.insufficientSpace(
         title: model.title,
         available: formatter.string(fromByteCount: available),
         required: formatter.string(fromByteCount: required)
@@ -185,7 +185,7 @@ final class OnDeviceModelStore: ObservableObject {
   }
 
   private nonisolated static func failureMessage(
-    for error: Error, model: any OnDeviceModel
+    for error: Error, model: any LocalModel
   ) -> String {
     if let urlError = error as? URLError,
       [.notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .timedOut]
@@ -198,7 +198,7 @@ final class OnDeviceModelStore: ObservableObject {
   }
 }
 
-private enum OnDeviceModelError: LocalizedError {
+private enum LocalModelError: LocalizedError {
   case insufficientSpace(title: String, available: String, required: String)
 
   var errorDescription: String? {

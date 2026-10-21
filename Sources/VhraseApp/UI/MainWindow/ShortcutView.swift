@@ -115,7 +115,7 @@ struct ShortcutView: View {
       case (false, _):
         "Double-tap polishing needs Accessibility to read and replace text in other apps."
       }
-    if !presentation.permissionIsReady(.accessibility), fnNeedsAccess || polishNeedsAccess {
+    if !presentation.permissions.isReady(.accessibility), fnNeedsAccess || polishNeedsAccess {
       NoticeCard(
         message,
         systemImage: "exclamationmark.triangle",

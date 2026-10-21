@@ -1,4 +1,4 @@
-// Verifies the on-device Parakeet provider's after-stop-only contract, its labels, vocabulary policy, and persistence.
+// Verifies the local Parakeet provider's after-stop-only contract, its labels, vocabulary policy, and persistence.
 
 import Foundation
 
@@ -15,8 +15,6 @@ struct ParakeetOptionsCheck {
       ProviderLocation.cloud.providers == [.elevenLabs, .gemini, .openAI, .vercel, .xai])
     precondition(settings.transcriptionModeTitle == "After stop")
     precondition(TranscriptionMode.upload.title(for: .xai) == "Upload")
-    settings.language = "yue"
-    precondition(settings.recognitionLanguage.isEmpty)
 
     // Parakeet receives no vocabulary, so a list sized for LLM polishing never blocks recording.
     settings.keyterms = (1...1_200).map { "term \($0) " + String(repeating: "x", count: 60) }

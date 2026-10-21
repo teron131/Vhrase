@@ -3,12 +3,12 @@
 import Foundation
 
 @main
-struct NativeSTTSmoke {
+struct UploadSTTSmoke {
   static func main() async throws {
     let arguments = Array(CommandLine.arguments.dropFirst())
     guard let path = arguments.first else {
       print(
-        "Usage: live-native-stt-smoke /absolute/path/recording.wav [gemini] [xai] [elevenLabs] [openAI] [vercel]"
+        "Usage: live-upload-stt-smoke /absolute/path/recording.wav [gemini] [xai] [elevenLabs] [openAI] [vercel]"
       )
       return
     }
@@ -44,7 +44,7 @@ struct NativeSTTSmoke {
       let result = try await client.transcribe(fileURL: audio, settings: settings)
       guard !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
         throw NSError(
-          domain: "Vhrase.NativeSmoke", code: 1,
+          domain: "Vhrase.UploadSmoke", code: 1,
           userInfo: [NSLocalizedDescriptionKey: "Empty transcript from \(provider.title)"])
       }
       print(

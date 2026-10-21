@@ -94,7 +94,7 @@ struct RecorderHUDView: View {
       if appState.canCancelTranscription {
         ZStack {
           activityIndicator(
-            appState.selectedLocalModelStore?.isPreparing == true
+            appState.localModels.selected?.isPreparing == true
               ? "Preparing \(appState.settings.provider.title) for this Mac"
               : "Transcribing with \(appState.settings.provider.title)")
           HStack {

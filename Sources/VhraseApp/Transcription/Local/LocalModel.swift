@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol OnDeviceModel: Sendable {
+protocol LocalModel: Sendable {
   var title: String { get }
   /// The measured download size, or `nil` for a model Vhrase has not measured.
   var downloadSizeLabel: String? { get }
@@ -24,7 +24,7 @@ protocol OnDeviceModel: Sendable {
   func remove() async throws
 }
 
-enum OnDeviceModelFiles {
+enum LocalModelFiles {
   /// The file that marks a model folder's download as finished; a folder without it is an interrupted download, replaced rather than loaded.
   static func completionMarker(in modelDirectory: URL) -> URL {
     modelDirectory.appendingPathComponent(".vhrase-complete")

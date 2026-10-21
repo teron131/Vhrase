@@ -39,8 +39,10 @@ struct AdjustmentFallbackCheck {
     precondition(localFallback.warning == "LLM adjustment failed. Used local cleanup fallback.")
     precondition(localFallback.cleanup == .localFallback)
 
+    // The Run demo dictation's raw transcript, cleaned by the local fallback without calling a model.
     let demo = try await finalize(
-      rawTranscript: "raw",
+      rawTranscript:
+        "Please send this custom dictation demo to open AI and x AI using eleven labs.",
       adjustment: .localDemo
     )
     precondition(

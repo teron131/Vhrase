@@ -1,64 +1,66 @@
 # Vhrase
 
-Vhrase is a small native macOS menu bar app for configurable cloud or on-device speech-to-text and optional context-aware cleanup.
+<h3 align="center">Pay for the API, not the app.</h3>
 
-It records microphone audio, transcribes natively with Gemini, Grok (xAI), ElevenLabs, OpenAI, any Vercel AI Gateway transcription model, or NVIDIA Parakeet or a Hugging Face model running on this Mac, stores a local transcript history, and returns the result to the originating app.
-Parakeet and Hugging Face models need no API key and work offline after a one-time download; Parakeet covers 25 European languages, while Hugging Face runs Whisper Large v3 Turbo or any speech model the `transformers` pipeline accepts, in a Python runtime that `uv` builds.
-Gemini offers vocabulary hints and Smart transcription; Grok offers vocabulary hints, filler removal, and number formatting.
-Grok and ElevenLabs also support realtime streaming, and an optional OpenAI-compatible model can provide a separate cleanup pass.
+Vhrase lives in the menu bar: press a shortcut in any app, speak, and the cloud provider you hold a key for transcribes it, an LLM polishes it if you want, and the text lands where you were typing.
+
+This is a personal project shared for reference, not a product: clone it and have your coding agent reshape it to how you work.
+
+![One dictation through Vhrase: Shortcut, Microphone, Transcription, Refinement, and Delivery, with Vocabulary, Writing, and screen context feeding the two model stages](docs/images/dictation-route.svg)
+
+## How It Works
+
+The shortcut is ⌃⌥Space by default, or Fn/Globe or one you record, and each press does something different.
+
+![One shortcut, four gestures: tap starts and a second tap finishes, hold records until release, double-tap polishes the selection or the whole field, and Esc cancels without pasting or saving](docs/images/shortcut-gestures.svg)
+
+Refinement sends the transcript to any OpenAI-compatible model with your Vocabulary and Writing style, and optionally a screenshot of the app you're in; if the request fails, local cleanup runs instead.
+
+![What Refinement fixes: a misheard word, a sentence split at a pause, Vocabulary terms, and a spoken correction with a filler, turned into one clean sentence](docs/images/refinement-fixes.svg)
+
+The text is pasted into the app you started in, your clipboard is restored, and History keeps a searchable local copy unless you turn it off.
+
+## Speech Models
+
+| Provider | Runs | Realtime | Vocabulary hints | Notes |
+| --- | --- | --- | --- | --- |
+| ElevenLabs | Cloud | Yes | Yes | Vocabulary costs 20% more |
+| Gemini | Cloud | — | Yes | Smart transcription formats text |
+| OpenAI | Cloud | — | Yes | Language hint |
+| Vercel | Cloud | — | — | Any AI Gateway model, Grok by default |
+| xAI (Grok) | Cloud | Yes | Yes | Filler removal, number formatting |
+| Hugging Face | Local | — | — | Whisper Large v3 Turbo; other models untested |
+| Parakeet | Local | — | — | 25 European languages |
+
+Local models need no key and run offline after a one-time download, but they are only a baseline: Refinement has no local model yet.
+
+## What It Costs
+
+![A year of dictation, five ways to pay: Wispr Flow Pro at \$15 a month reaches \$180, VoiceInk costs \$25 once plus use, and Vhrase costs only its use, about \$24 a year with cloud models and nothing with open-source models](docs/images/dictation-cost.svg)
+
+Regular use is about 8 minutes of speech in 100 dictations a day, from a published 90-day log, at xAI's \$0.10 per hour of audio plus about \$0.0005 per GPT-6 Luna polish with a screenshot.
+App prices are October 2026 list prices; only the yearly totals are estimates.
+
+## What Leaves Your Mac
+
+- Cloud transcription sends the recording to the selected provider.
+- Polishing sends the text and the target app's name to your endpoint, plus a screenshot only when screen context is on, which it is not by default.
+- With a local model and automatic polishing off, dictation never leaves the Mac.
+- API keys stay in the macOS Keychain, and History, settings, and logs stay local; logs never include audio, transcripts, or keys.
 
 ## Quick Start
 
-```sh
-bash scripts/ensure-local-codesign-identity.sh
-./scripts/build-and-run.sh
-```
-
-The identity command is a one-time, idempotent setup that creates `Vhrase Local Development` in the login Keychain and trusts it only for local code signing.
-macOS may request one Keychain or trust authorization during that setup; later builds reuse the same identity instead of triggering recurring credential and privacy prompts.
-The local identity can be removed later with Keychain Access if Vhrase development is no longer needed.
-
-The first recording can trigger macOS microphone permission.
-Accessibility returns finalized text to the originating app and also enables the global Fn/Globe shortcut.
-Input Monitoring is only an optional fallback when Fn/Globe does not respond reliably.
-Screenshot context is off by default, and Screen Recording permission is only needed when you explicitly enable it for LLM cleanup.
-These are feature-specific macOS privacy prompts and are separate from the one-time local signing setup.
-API keys entered in Vhrase are stored as generic-password items in macOS Keychain under the `Vhrase` service.
-A saved Keychain credential takes precedence.
-A nonempty `GEMINI_API_KEY`, `XAI_API_KEY`, `ELEVENLABS_API_KEY`, `OPENAI_API_KEY`, `AI_GATEWAY_API_KEY`, or `LLM_API_KEY` launch-environment value is used next, and a direct literal export in `~/.zshrc` fills any remaining key without executing shell code.
-The development run command uses ignored `.env` values in memory without reading Keychain, preventing rebuilt development binaries from producing credential prompts.
-A nonsecret LLM credential reference such as `AI_GATEWAY_API_KEY` is stored in preferences, survives rebuilds, and resolves against the launch environment, `~/.zshrc`, or `.env`.
-Normal Finder and menu-bar launches prefer saved Keychain credentials before using the in-memory environment fallbacks.
-
-## Source Layout
-
-`Sources/VhraseApp` is grouped by ownership:
-
-- `App`: scene composition, process launch/termination, dictation workflow orchestration, and the session's credentials.
-- `Domain`: validated settings, speech-to-text providers, shortcuts, workflow status, and transcript contracts.
-- `UI`: main window, menu-bar pop-up, and recorder HUD surfaces; each main-window destination owns its controls and temporary editing lifecycle.
-- `Transcription`: provider request contracts and the recording that carries one capture through to recognized text.
-- `Transcription/Audio`: microphone capture, PCM conversion, and live level metering.
-- `Transcription/Upload`: cloud upload provider adapters.
-- `Transcription/Realtime`: WebSocket sessions and ordered transcript accumulation.
-- `Transcription/OnDevice`: on-device model setup shared by Parakeet (FluidAudio) and Hugging Face models (a Python helper started through `uv`), and each one's recognition.
-- `Adjustment`: LLM polishing with shared vocabulary, Chinese conversion, and local cleanup fallback.
-- `System`: macOS permissions, hotkeys, frontmost app context, screenshots, and text insertion.
-- `Storage`: Keychain, settings, and transcript-history persistence.
-
-## Docs
-
-- [Usage](docs/usage.md): launching, configuring, recording, shortcuts, and customization.
-- [Development](docs/development.md): build, verify, bundle, doctor, and live smoke commands.
-- [API Notes](docs/api-notes.md): provider endpoints and request behavior.
-
-## Main Commands
+Requires macOS 14 and Swift 6.2 or later.
 
 ```sh
-./scripts/build-and-run.sh
-bash scripts/doctor.sh
-bash scripts/verify.sh
-bash scripts/verify.sh --launch
+bash scripts/ensure-local-codesign-identity.sh   # once per Mac, so rebuilds keep their permissions
+./scripts/build-and-run.sh                       # build, sign, and launch dist/Vhrase.app
 ```
 
-The run script stops stale Vhrase processes, rebuilds and signs `dist/Vhrase.app`, and launches the menu-bar app bundle instead of the raw Swift executable. Vhrase presents its main window on first launch; later launches stay out of the Dock until you open it from the menu bar.
+Then open **System** from the sidebar's gear, which walks you through the rest:
+
+1. Add a key for each cloud provider you use, or download a local model in **Transcription**.
+2. Allow Microphone, and Accessibility so Vhrase can paste into other apps.
+3. Speak a short phrase in **Transcription → Test**.
+
+Keys can also come from environment variables such as `XAI_API_KEY`, or from an ignored `.env` file for development builds.

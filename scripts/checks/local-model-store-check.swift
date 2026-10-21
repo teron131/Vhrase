@@ -4,11 +4,11 @@ import Foundation
 
 @main
 @MainActor
-struct OnDeviceModelStoreCheck {
+struct LocalModelStoreCheck {
   static func main() async throws {
     let first = ControlledModel(title: "First")
     let second = ControlledModel(title: "Second")
-    let store = OnDeviceModelStore(model: first)
+    let store = LocalModelStore(model: first)
     store.prepare()
     await waitUntil { await first.loading.starts == 1 }
     try await store.remove()
@@ -35,7 +35,7 @@ struct OnDeviceModelStoreCheck {
     try await removal.value
     precondition(
       store.state == .installed, "Removing the previous model must not mark the new model missing")
-    print("on-device model store lifecycle ok")
+    print("local model store lifecycle ok")
   }
 
   private static func waitUntil(_ condition: () async -> Bool) async {
@@ -51,7 +51,7 @@ struct OnDeviceModelStoreCheck {
   }
 }
 
-private final class ControlledModel: OnDeviceModel, SpeechToTextClient, Sendable {
+private final class ControlledModel: LocalModel, SpeechToTextClient, Sendable {
   let title: String
   let downloadSizeLabel: String? = nil
   let requiredFreeBytes: Int64? = nil

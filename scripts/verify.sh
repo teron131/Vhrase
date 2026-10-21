@@ -92,7 +92,7 @@ APP_CORE_CHECKS=(
   scripts/checks/customization-snapshot-check.swift
   scripts/checks/history-check.swift
   scripts/checks/history-search-check.swift
-  scripts/checks/demo-adjustment-check.swift
+  scripts/checks/local-adjustment-check.swift
 )
 APP_PROVIDER_CHECK_SOURCES=(
   "${APP_DOMAIN_SOURCES[@]}"
@@ -183,16 +183,16 @@ done
 for check_script in "${APP_INSERTION_CHECKS[@]}"; do
   run_compiled_check "$check_script" "${APP_INSERTION_CHECK_SOURCES[@]}"
 done
-run_compiled_check scripts/checks/on-device-model-store-check.swift \
+run_compiled_check scripts/checks/local-model-store-check.swift \
   "${APP_DOMAIN_SOURCES[@]}" \
   Sources/VhraseApp/Transcription/ProviderContracts.swift \
-  Sources/VhraseApp/Transcription/OnDevice/OnDeviceModel.swift \
-  Sources/VhraseApp/Transcription/OnDevice/OnDeviceModelStore.swift
+  Sources/VhraseApp/Transcription/Local/LocalModel.swift \
+  Sources/VhraseApp/Transcription/Local/LocalModelStore.swift
 run_compiled_check scripts/checks/hugging-face-process-check.swift \
   "${APP_DOMAIN_SOURCES[@]}" \
   Sources/VhraseApp/Transcription/ProviderContracts.swift \
-  Sources/VhraseApp/Transcription/OnDevice/HuggingFaceRecognizer.swift \
-  Sources/VhraseApp/Transcription/OnDevice/HuggingFaceProcess.swift
+  Sources/VhraseApp/Transcription/Local/HuggingFaceRecognizer.swift \
+  Sources/VhraseApp/Transcription/Local/HuggingFaceProcess.swift
 run_compiled_check scripts/checks/transcription-test-check.swift \
   Sources/VhraseApp/App/TranscriptionTest.swift \
   Sources/VhraseApp/Transcription/TranscriptionRecording.swift
@@ -201,13 +201,16 @@ echo "==> Checking the Hugging Face helper without model dependencies"
 UV_CACHE_DIR="$ROOT/.cache/uv" uv run --offline --no-project --python 3.13 \
   python scripts/checks/hugging-face-runtime-check.py
 
-echo "==> Compiling live STT smoke client"
-mkdir -p "$ROOT/.cache/live-stt-smoke"
-swiftc -parse-as-library "$ROOT/scripts/live-stt-smoke.swift" -o "$ROOT/.cache/live-stt-smoke/live-stt-smoke"
-"$ROOT/.cache/live-stt-smoke/live-stt-smoke" --help >/dev/null
-/usr/bin/python3 -m py_compile "$ROOT/scripts/live-realtime-stt-smoke.py"
-/usr/bin/python3 -m py_compile "$ROOT/scripts/live-adjustment-smoke.py"
-bash "$ROOT/scripts/live-mic-stt-smoke.sh" --help >/dev/null
+echo "==> Compiling live STT smokes"
+# Without a recording, the upload smoke prints its usage and calls no provider.
+run_compiled_check scripts/live-upload-stt-smoke.swift \
+  "${APP_DOMAIN_SOURCES[@]}" \
+  Sources/VhraseApp/Transcription/ProviderContracts.swift \
+  Sources/VhraseApp/Transcription/Upload/MultipartForm.swift \
+  Sources/VhraseApp/Transcription/Upload/UploadTranscriptionClients.swift \
+  Sources/VhraseApp/Storage/APIKeyStore.swift >/dev/null
+UV_CACHE_DIR="$ROOT/.cache/uv" uv run --offline --no-project --python 3.13 \
+  python -m py_compile scripts/live-realtime-stt-smoke.py
 bash "$ROOT/scripts/doctor.sh" --help >/dev/null
 
 echo "==> Generating offline audio fixture"

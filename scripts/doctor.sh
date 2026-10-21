@@ -141,12 +141,6 @@ else
   check missing "realtime smoke runner" "uv is required for realtime WebSocket smoke tests"
 fi
 
-if command -v ffmpeg >/dev/null 2>&1; then
-  check ok "microphone smoke recorder" "ffmpeg"
-else
-  check warn "microphone smoke recorder" "install ffmpeg to run scripts/live-mic-stt-smoke.sh"
-fi
-
 if command -v opencc >/dev/null 2>&1 || [[ -x /opt/homebrew/bin/opencc || -x /usr/local/bin/opencc || -x /usr/bin/opencc ]]; then
   check ok "OpenCC s2t" "final transcript conversion available"
 else
@@ -189,14 +183,14 @@ else
 fi
 
 if [[ -f "$HOME/Library/Application Support/Vhrase/Models/parakeet-tdt-0.6b-v3/.vhrase-complete" ]]; then
-  check ok "Parakeet model" "downloaded for on-device transcription"
+  check ok "Parakeet model" "downloaded for local transcription"
 else
   check warn "Parakeet model" "download it in Transcription or System to transcribe on this Mac"
 fi
 
 # Each downloaded Hugging Face model folder carries the same completion marker.
 if compgen -G "$HOME/Library/Application Support/Vhrase/Models/huggingface/hub/models--*/.vhrase-complete" >/dev/null; then
-  check ok "Hugging Face model" "downloaded for on-device transcription"
+  check ok "Hugging Face model" "downloaded for local transcription"
 else
   check warn "Hugging Face model" "download it in Transcription or System to transcribe on this Mac"
 fi

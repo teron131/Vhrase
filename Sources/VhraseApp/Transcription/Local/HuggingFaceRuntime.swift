@@ -3,7 +3,7 @@
 import Foundation
 
 enum HuggingFaceRuntime {
-  private static let directory = OnDeviceModelFiles.directory
+  private static let directory = LocalModelFiles.directory
     .appendingPathComponent("huggingface", isDirectory: true)
   /// The Hub client's cache, kept apart from `~/.cache/huggingface` so Vhrase alone decides what is installed and removing a model never affects another tool.
   static let cacheDirectory = directory.appendingPathComponent("hub", isDirectory: true)
