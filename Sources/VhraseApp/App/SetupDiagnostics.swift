@@ -90,12 +90,12 @@ struct SetupDiagnostics {
           systemImage: "rectangle.on.rectangle"
         ))
     }
-    if !chineseConversionIsAvailable {
+    if settings.convertChineseOutput, !chineseConversionIsAvailable {
       diagnostics.append(
         SetupDiagnostic(
           id: .openCC,
           title: "Chinese output",
-          detail: "Install OpenCC to convert Chinese to Hong Kong Traditional.",
+          detail: "Install OpenCC to convert Chinese to Traditional.",
           systemImage: "character.book.closed.fill"
         ))
     }

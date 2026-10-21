@@ -12,14 +12,14 @@ struct HuggingFaceModel: OnDeviceModel {
     huggingFace = recognizer
   }
 
-  /// The built-in turbo model's weights, measured on Hugging Face on 2026-10-13; other models are not measured.
+  /// The default model's weights, measured on Hugging Face on 2026-10-13, so a new default needs measuring again; other models are not measured.
   var downloadSizeLabel: String? {
-    id == HuggingFaceModelReference.whisperTurbo ? "1.6 GB" : nil
+    id == DictationSettings.defaultHuggingFaceModel ? "1.6 GB" : nil
   }
 
-  /// Covers the built-in model plus the Python environment uv builds on the first download.
+  /// Covers the default model plus the Python environment uv builds on the first download.
   var requiredFreeBytes: Int64? {
-    id == HuggingFaceModelReference.whisperTurbo ? 4_000_000_000 : nil
+    id == DictationSettings.defaultHuggingFaceModel ? 4_000_000_000 : nil
   }
 
   let loadingNote = "Starting the Python runtime and loading the model takes several seconds."

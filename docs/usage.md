@@ -3,7 +3,7 @@
 ## Native transcription providers
 
 Select Gemini, xAI (Grok), ElevenLabs, OpenAI, or Vercel in **Transcription**, or switch providers directly from Dictation or the menu bar.
-Gemini uses `gemini-3.5-transcribe` directly with your `GEMINI_API_KEY`; it uploads the completed recording when you stop and requests `store: false`.
+Gemini uses the model set in Transcription, `gemini-3.5-transcribe` by default, directly with your `GEMINI_API_KEY`; it uploads the completed recording when you stop and requests `store: false`.
 Gemini realtime is not enabled in Vhrase; choosing Gemini switches capture to Upload while retaining realtime support for Grok and ElevenLabs.
 All providers read the same **Vocabulary** list, with duplicate lines ignored and provider limits checked before recording.
 “Add developer vocabulary” adds a small editable set including Vercel, refactor, backpropagation, and Monte Carlo without removing existing entries.
@@ -14,8 +14,8 @@ Transcription's Language hints row accepts Gemini-specific BCP-47 hints such as 
 Grok's “Keep filler words” and “Format numbers and currency” are independent controls; formatting uses the Language code in Transcription.
 For Grok realtime, lowering the speech detection threshold may help quiet speech but can admit background noise; Smart Turn controls turn timing, not text cleanup.
 
-OpenAI uses `gpt-transcribe` with your `OPENAI_API_KEY`; Vocabulary is sent as keyword hints, and the Language code, when set, is sent as its language hint.
-Vercel sends the recording through Vercel AI Gateway with your `AI_GATEWAY_API_KEY` to the model named in Vercel options, `spacexai/grok-stt` by default; any transcription model in the gateway's catalog works, such as `openai/gpt-transcribe` or `google/gemini-3.5-transcribe`.
+OpenAI uses the model set in Transcription, `gpt-transcribe` by default, with your `OPENAI_API_KEY`; Vocabulary is sent as keyword hints, and the Language code, when set, is sent as its language hint.
+Vercel sends the recording through Vercel AI Gateway with your `AI_GATEWAY_API_KEY` to the model named in Vercel options, `spacexai/grok-stt` by default; any transcription model in the gateway's catalog works.
 The gateway forwards neither Vocabulary nor a language hint, so those guide only LLM polishing with Vercel.
 OpenAI and Vercel transcribe after you stop; Realtime stays with Grok and ElevenLabs.
 
@@ -43,7 +43,7 @@ Transcription's Parakeet group states which applies and offers **Keep text on th
 ## On-device Hugging Face models
 
 Select **Hugging Face** under Local to transcribe on this Mac with Hugging Face's `transformers` speech recognition pipeline, the same one youtube-toolkit uses.
-**Model** offers **Whisper Large v3 Turbo** (`openai/whisper-large-v3-turbo`, OpenAI's fastest large model, 1.6 GB) or **Custom**, which takes any Hugging Face model ID the pipeline accepts, such as `nvidia/parakeet-tdt-0.6b-v3`, `openai/whisper-large-v3`, or a fine-tune for one language.
+**Model** offers **Default** (`openai/whisper-large-v3-turbo`, 1.6 GB) or **Custom**, which takes any Hugging Face model ID the pipeline accepts, such as `nvidia/parakeet-tdt-0.6b-v3`, `openai/whisper-large-v3`, or a fine-tune for one language.
 The pipeline picks the device and precision itself: half precision on the Apple GPU, or full precision on the CPU when there is no GPU; it has no 8-bit mode on a Mac.
 
 These models run in Python, so the Mac needs [uv](https://docs.astral.sh/uv/) (`brew install uv`), which the app looks for in Homebrew's and uv's own install locations.
@@ -123,7 +123,7 @@ Microphone, Input Monitoring, Screen Recording, and Accessibility can each produ
 ## Dictation
 
 Choose the provider and Upload or Realtime mode from the compact menu-bar controller or **Transcription**.
-ElevenLabs uses `scribe_v2` for Upload and `scribe_v2_realtime` for Realtime; these transport-specific models are shown read-only so an unsupported combination cannot be saved.
+Each provider's **Model** row in Transcription sets the model its requests name, starting from the provider's current default; ElevenLabs keeps one for Upload (`scribe_v2`) and one for Realtime (`scribe_v2_realtime`), because the two transports accept different models. A model whose API lacks the options Vhrase sends rejects the request.
 Start from the menu, **Dictation**, or the configured global shortcut.
 Tap the shortcut once to start and once to stop, or hold it to record only until release.
 Double-tap the shortcut to polish selected text, or the entire focused editable field when nothing is selected.
@@ -155,10 +155,11 @@ Workflow-shaping controls are locked while a recording or transcription is activ
 ## Cleanup And Chinese Output
 
 Vocabulary supplies recognition hints and context-sensitive spelling references to LLM polishing; it does not perform automatic text substitutions.
-OpenCC `s2hk` normalization runs after optional LLM cleanup.
-Install `opencc` to normalize Chinese output to Hong Kong Traditional Chinese; Refinement's Chinese output row shows whether it is installed and can install it with Homebrew. When it is unavailable, Vhrase preserves the transcript and shows a warning.
+With **Convert to Traditional Chinese** on in Refinement, OpenCC `s2t` normalization runs after optional LLM cleanup, only on transcripts that contain Chinese characters; turning it off leaves Chinese as recognized and drops OpenCC from setup.
+Install `opencc` to normalize Chinese output to Traditional Chinese; Refinement's Chinese output row shows whether it is installed and can install it with Homebrew. When it is unavailable, Vhrase preserves a transcript that contains Chinese characters and shows a warning; other transcripts never need it.
 LLM cleanup uses the configured OpenAI-compatible endpoint and can include the recorded target-app identity as context.
 Screenshot context is off by default; enabling it captures the display showing the app you are dictating into (the main display when that app has no visible window), sends that image to the configured cleanup endpoint for the current transcript, and removes the disposable local capture immediately after it is read.
+Dictation takes the screenshot as soon as recording stops, while speech is still being recognized, and discards it unsent if recognition then fails; double-tap polishing takes it when polishing starts.
 Screenshot size in Refinement trades speed for legibility: smaller images reach the model sooner, while small text and unusual names blur, noticeably from about 1280 pixels down; the preview beside the slider simulates the effect on standard macOS text.
 If the LLM call fails, Vhrase uses deterministic local cleanup when that fallback is enabled; otherwise it preserves the raw transcript.
 

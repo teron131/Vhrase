@@ -1,4 +1,4 @@
-// Owns how a transcript is polished: when the LLM runs and what context it sees, which endpoint and model it uses, and the local Chinese conversion every transcript passes through; Writing holds how the polished text should read.
+// Owns how a transcript is polished: when the LLM runs and what context it sees, which endpoint and model it uses, and whether OpenCC converts the Chinese in final transcripts; Writing holds how the polished text should read.
 
 import SwiftUI
 
@@ -23,7 +23,7 @@ struct RefinementView: View {
     .disabled(appState.presentation.workflowControlsAreDisabled)
     .mainWindowEvents(appState: appState, blocksEscape: isOpenCCInstallConfirmationPresented)
     .openCCInstallConfirmation(
-      isPresented: $isOpenCCInstallConfirmationPresented, appState: appState)
+      isPresented: $isOpenCCInstallConfirmationPresented, setup: appState.openCCSetup)
   }
 
   private var polishingGroup: some View {
@@ -156,39 +156,46 @@ struct RefinementView: View {
   }
 
   private var chineseOutputGroup: some View {
-    let state = appState.openCCInstallationState
-    let isInstalled = ChineseTextConverter.isAvailable
+    settingsGroup("Chinese output") {
+      settingsToggle(
+        "Convert to Traditional Chinese",
+        detail: "Rewrites the Chinese in each final transcript with OpenCC, after polishing.",
+        isOn: appState.settingsBinding(\.convertChineseOutput)
+      )
+      if appState.settings.convertChineseOutput {
+        openCCRow
+      }
+    }
+  }
+
+  private var openCCRow: some View {
+    let setup = appState.openCCSetup
     let detail =
-      if isInstalled {
-        "OpenCC converts Chinese in every final transcript, after polishing."
-      } else if state == .installing {
+      if setup.isInstalled {
+        "Installed on this Mac."
+      } else if setup.installation == .installing {
         "Installing OpenCC with Homebrew…"
-      } else if let failure = state.failureMessage {
+      } else if let failure = setup.failureMessage {
         failure
-      } else if appState.canInstallOpenCC {
-        "Install OpenCC to convert Chinese in every final transcript."
+      } else if setup.canInstall {
+        "Install OpenCC to convert Chinese."
       } else {
         "OpenCC installs with Homebrew, which this Mac doesn't have yet."
       }
-    return settingsGroup("Chinese output") {
-      settingsRow("Hong Kong Traditional Chinese", detail: detail) {
-        if isInstalled {
-          Label("Installed", systemImage: "checkmark.circle.fill")
-            .font(.caption.weight(.medium))
-            .foregroundStyle(VhraseTheme.statusSuccess)
-        } else if state == .installing {
-          ProgressView()
-            .controlSize(.small)
-            .accessibilityLabel("Installing OpenCC")
-        } else if appState.canInstallOpenCC {
-          Button(state.failureMessage == nil ? "Install OpenCC" : "Retry Install") {
-            isOpenCCInstallConfirmationPresented = true
-          }
-          .buttonStyle(.bordered)
-        } else {
-          Button("Get Homebrew") { appState.openHomebrewSetup() }
-            .buttonStyle(.bordered)
+    return settingsRow("OpenCC", detail: detail) {
+      if setup.isInstalled {
+        Label("Installed", systemImage: "checkmark.circle.fill")
+          .font(.caption.weight(.medium))
+          .foregroundStyle(VhraseTheme.statusSuccess)
+      } else if setup.installation == .installing {
+        ProgressView()
+          .controlSize(.small)
+          .accessibilityLabel("Installing OpenCC")
+      } else {
+        Button(setup.nextStepTitle) {
+          setup.takeNextStep { isOpenCCInstallConfirmationPresented = true }
         }
+        .buttonStyle(.bordered)
       }
     }
   }
@@ -196,9 +203,9 @@ struct RefinementView: View {
 
 extension View {
   /// Asks before running Homebrew, wherever an OpenCC install starts: Chinese output on Refinement or the setup summary on System.
-  func openCCInstallConfirmation(isPresented: Binding<Bool>, appState: AppState) -> some View {
+  func openCCInstallConfirmation(isPresented: Binding<Bool>, setup: OpenCCSetup) -> some View {
     confirmationDialog("Install OpenCC?", isPresented: isPresented, titleVisibility: .visible) {
-      Button("Install with Homebrew") { appState.installOpenCC() }
+      Button("Install with Homebrew") { setup.install() }
       Button("Cancel", role: .cancel) {}
     } message: {
       Text(

@@ -1,11 +1,13 @@
 // Persists the complete local history of finalized transcript records.
 
 import Foundation
+import OSLog
 
 final class TranscriptHistoryStore {
   private let defaults: UserDefaults
   private let historyKey = "transcriptHistory"
   private let savingKey = "saveTranscriptHistory"
+  private let logger = Logger(subsystem: "local.codex.Vhrase", category: "History")
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
@@ -27,7 +29,9 @@ final class TranscriptHistoryStore {
     do {
       return try JSONDecoder().decode([TranscriptHistoryItem].self, from: data)
     } catch {
-      NSLog("Vhrase history decode failed: \(error.localizedDescription)")
+      let failure = error as NSError
+      logger.error(
+        "History decode failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
       return []
     }
   }
@@ -62,7 +66,9 @@ final class TranscriptHistoryStore {
       let data = try JSONEncoder().encode(history)
       defaults.set(data, forKey: historyKey)
     } catch {
-      NSLog("Vhrase history encode failed: \(error.localizedDescription)")
+      let failure = error as NSError
+      logger.error(
+        "History encode failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
     }
   }
 }

@@ -2,7 +2,7 @@
 
 ## Gemini native transcription
 
-`GeminiTranscriptionContract` builds `POST https://generativelanguage.googleapis.com/v1beta/interactions` with `x-goog-api-key`, inline WAV audio, the fixed `gemini-3.5-transcribe` model, and `store: false`.
+`GeminiTranscriptionContract` builds `POST https://generativelanguage.googleapis.com/v1beta/interactions` with `x-goog-api-key`, inline WAV audio, the `geminiModel` setting (`gemini-3.5-transcribe` by default), and `store: false`.
 Shared vocabulary maps to `generation_config.transcription_config.custom_vocabulary`; Gemini language hints map to `language_codes`.
 Smart mode maps to `mode: "smart"`, while verbatim uses `mode: {"type":"verbatim"}`.
 The adapter accepts only completed responses and joins text blocks from `model_output` steps before the existing finalization pipeline runs.
@@ -18,8 +18,8 @@ References: [Gemini transcription](https://ai.google.dev/gemini-api/docs/transcr
 
 ## OpenAI and Vercel AI Gateway transcription
 
-`OpenAITranscriptionContract` builds `POST https://api.openai.com/v1/audio/transcriptions` as a multipart upload with bearer auth and the fixed `gpt-transcribe` model.
-Shared vocabulary maps to repeated `keywords[]` fields and the Listen language code to one `languages[]` field; both are specific to `gpt-transcribe`, which rejects the singular `language` field alongside `languages`, so the model is not editable.
+`OpenAITranscriptionContract` builds `POST https://api.openai.com/v1/audio/transcriptions` as a multipart upload with bearer auth and the `openAIModel` setting (`gpt-transcribe` by default).
+Shared vocabulary maps to repeated `keywords[]` fields and the Listen language code to one `languages[]` field; both follow `gpt-transcribe`'s API, which rejects the singular `language` field alongside `languages`, so a model without those fields rejects the request.
 OpenAI documents no keyword count or length limit but rejects a request whose keyword contains `<` or `>`, which Vhrase checks before recording; uploads are limited to 25 MB, about 13 minutes of Vhrase's 16 kHz mono WAV.
 
 `VercelTranscriptionContract` builds `POST https://ai-gateway.vercel.sh/v4/ai/transcription-model` with bearer auth, the protocol headers `ai-gateway-protocol-version: 0.0.1` and `ai-transcription-model-specification-version: 4`, and the model in `ai-model-id`.
@@ -69,12 +69,12 @@ Credential fields always edit the saved Keychain value; clearing one reveals the
 ## Speech-To-Text
 
 - xAI upload STT uses `POST https://api.x.ai/v1/stt` with multipart audio upload.
-- ElevenLabs upload STT uses `POST https://api.elevenlabs.io/v1/speech-to-text` with the fixed `scribe_v2` model.
+- ElevenLabs upload STT uses `POST https://api.elevenlabs.io/v1/speech-to-text` with the `elevenLabsModel` setting (`scribe_v2` by default).
 - xAI realtime uses `wss://api.x.ai/v1/stt`, waits for `transcript.created`, sends raw 16 kHz PCM in exact 3,200-byte (100 ms) binary frames, pads the final frame with silence, and finishes with `audio.done`.
 - xAI chunk-final `is_final` text remains replaceable until `speech_final` commits the complete utterance, preventing cumulative partials from being duplicated.
-- ElevenLabs realtime uses `wss://api.elevenlabs.io/v1/speech-to-text/realtime` with the fixed `scribe_v2_realtime` model, base64 `input_audio_chunk` messages, and an empty-audio commit when manual recording finishes.
+- ElevenLabs realtime uses `wss://api.elevenlabs.io/v1/speech-to-text/realtime` with the `elevenLabsRealtimeModel` setting (`scribe_v2_realtime` by default), base64 `input_audio_chunk` messages, and an empty-audio commit when manual recording finishes.
 
-ElevenLabs model identifiers are intentionally not editable because its batch and realtime transports require different current models.
+ElevenLabs keeps one model setting per transport because upload and realtime accept different models.
 Provider-specific validation runs before a request: xAI allows up to 100 keyterms of at most 50 characters, ElevenLabs upload allows up to 1,000 keyterms of fewer than 50 characters and at most five words, and ElevenLabs realtime allows up to 50 keyterms of at most 20 characters.
 ElevenLabs charges a 20% premium when keyterm prompting is used, so Vhrase surfaces that tradeoff beside the setting.
 

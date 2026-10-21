@@ -17,6 +17,13 @@ struct GeminiSTTOptionsCheck {
         with: GeminiTranscriptionContract.requestBody(audio: audio, settings: settings))
       as! [String: Any]
     precondition(json["model"] as? String == "gemini-3.5-transcribe")
+    var newerModel = settings
+    newerModel.geminiModel = " gemini-next-transcribe "
+    let newerJSON =
+      try JSONSerialization.jsonObject(
+        with: GeminiTranscriptionContract.requestBody(audio: audio, settings: newerModel))
+      as! [String: Any]
+    precondition(newerJSON["model"] as? String == "gemini-next-transcribe")
     precondition(json["store"] as? Bool == false)
     let input = (json["input"] as! [[String: Any]])[0]
     precondition(input["data"] as? String == audio.base64EncodedString())

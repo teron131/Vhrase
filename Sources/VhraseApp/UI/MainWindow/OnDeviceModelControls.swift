@@ -36,7 +36,7 @@ struct OnDeviceModelControls: View {
         detail:
           "Runs through FluidAudio on the Neural Engine. Detects 25 European languages, including English; not Chinese or Cantonese."
       ) {
-        Text("parakeet-tdt-0.6b-v3")
+        Text(ParakeetModel.repository)
           .font(.callout.monospaced())
           .foregroundStyle(.secondary)
           .textSelection(.enabled)
@@ -48,12 +48,12 @@ struct OnDeviceModelControls: View {
   @ViewBuilder private var huggingFaceModelRows: some View {
     let usesCustomModel =
       editsHuggingFaceModelID
-      || appState.settings.huggingFaceModel != HuggingFaceModelReference.whisperTurbo
+      || appState.settings.huggingFaceModel != DictationSettings.defaultHuggingFaceModel
     settingsRow(
       "Model",
       detail: usesCustomModel
         ? "Runs through Hugging Face's transformers pipeline on the Apple GPU with the model named below."
-        : "Runs through Hugging Face's transformers pipeline on the Apple GPU. Whisper Large v3 Turbo is OpenAI's fastest large model, 1.6 GB at half precision, and covers about 100 languages including Chinese and Cantonese."
+        : "Runs through Hugging Face's transformers pipeline on the Apple GPU with the default model, \(DictationSettings.defaultHuggingFaceModel)."
     ) {
       Picker(
         "Model",
@@ -63,13 +63,13 @@ struct OnDeviceModelControls: View {
             editsHuggingFaceModelID = isCustom
             if !isCustom {
               appState.updateSettings {
-                $0.huggingFaceModel = HuggingFaceModelReference.whisperTurbo
+                $0.huggingFaceModel = DictationSettings.defaultHuggingFaceModel
               }
             }
           }
         )
       ) {
-        Text("Whisper Large v3 Turbo").tag(false)
+        Text("Default").tag(false)
         Text("Custom").tag(true)
       }
       .labelsHidden()
@@ -93,7 +93,7 @@ struct OnDeviceModelControls: View {
     do {
       _ = try HuggingFaceModelReference(appState.settings.huggingFaceModel)
       return
-        "Any speech recognition model on Hugging Face that the transformers pipeline accepts, such as nvidia/parakeet-tdt-0.6b-v3 or openai/whisper-large-v3."
+        "Any speech recognition model on Hugging Face that the transformers pipeline accepts, named owner/name."
     } catch {
       return error.localizedDescription
     }

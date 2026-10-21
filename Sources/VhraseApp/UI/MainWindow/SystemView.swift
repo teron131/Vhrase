@@ -21,7 +21,7 @@ struct SystemView: View {
         onDeactivate: finishAPIKeyEditing
       )
       .openCCInstallConfirmation(
-        isPresented: $isOpenCCInstallConfirmationPresented, appState: appState
+        isPresented: $isOpenCCInstallConfirmationPresented, setup: appState.openCCSetup
       )
       .onChange(of: focusedSecretField) { _, field in
         if field != nil {
@@ -311,7 +311,7 @@ struct SystemView: View {
   private func diagnosticFailureMessage(_ diagnostic: SetupDiagnostic) -> String? {
     switch diagnostic.id {
     case .openCC:
-      appState.openCCInstallationState.failureMessage
+      appState.openCCSetup.failureMessage
     case .localModel:
       if case .failed(let message) = appState.selectedLocalModelStore?.state {
         message
@@ -325,7 +325,7 @@ struct SystemView: View {
 
   private func isDiagnosticActionRunning(_ diagnostic: SetupDiagnostic) -> Bool {
     switch diagnostic.id {
-    case .openCC: appState.openCCInstallationState == .installing
+    case .openCC: appState.openCCSetup.installation == .installing
     case .localModel: appState.selectedLocalModelStore?.isDownloading == true
     default: false
     }
@@ -353,15 +353,8 @@ struct SystemView: View {
     case .accessibilityPermission:
       presentation.insertionPermissionActionTitle
     case .openCC:
-      if appState.openCCInstallationState == .installing {
-        "Installing…"
-      } else if !appState.canInstallOpenCC {
-        "Get Homebrew"
-      } else if appState.openCCInstallationState.failureMessage != nil {
-        "Retry Install"
-      } else {
-        "Install OpenCC"
-      }
+      appState.openCCSetup.installation == .installing
+        ? "Installing…" : appState.openCCSetup.nextStepTitle
     case .ready:
       nil
     }
@@ -384,11 +377,7 @@ struct SystemView: View {
     case .accessibilityPermission:
       appState.handlePermissionAction(.accessibility)
     case .openCC:
-      if appState.canInstallOpenCC {
-        isOpenCCInstallConfirmationPresented = true
-      } else {
-        appState.openHomebrewSetup()
-      }
+      appState.openCCSetup.takeNextStep { isOpenCCInstallConfirmationPresented = true }
     case .ready:
       break
     }

@@ -148,9 +148,9 @@ else
 fi
 
 if command -v opencc >/dev/null 2>&1 || [[ -x /opt/homebrew/bin/opencc || -x /usr/local/bin/opencc || -x /usr/bin/opencc ]]; then
-  check ok "OpenCC s2hk" "final transcript conversion available"
+  check ok "OpenCC s2t" "final transcript conversion available"
 else
-  check warn "OpenCC s2hk" "install opencc for final transcript s2hk conversion"
+  check warn "OpenCC s2t" "install opencc for final transcript s2t conversion"
 fi
 
 XAI_SOURCE="$(key_value XAI_API_KEY)"

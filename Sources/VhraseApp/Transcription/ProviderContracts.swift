@@ -6,6 +6,16 @@ protocol SpeechToTextClient: Sendable {
   func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult
 }
 
+/// Recording checks for the key before it starts, and each client checks again at its request boundary, so both report the same sentence.
+struct MissingAPIKeyError: LocalizedError {
+  /// The key's environment name, such as `XAI_API_KEY`.
+  let name: String
+
+  var errorDescription: String? {
+    "\(name) is missing. Add it in System before recording."
+  }
+}
+
 /// Enforces provider limits before recording starts and again at each request boundary.
 enum TranscriptionContract {
   static func validate(settings: DictationSettings) throws {
@@ -132,74 +142,12 @@ enum TranscriptionContract {
   }
 }
 
-/// Owns Gemini's native Interactions schema; vocabulary and Smart mode never pass through a gateway.
-enum GeminiTranscriptionContract {
-  static let modelID = "gemini-3.5-transcribe"
-
-  static func requestBody(audio: Data, settings: DictationSettings) throws -> Data {
-    try TranscriptionContract.validate(settings: settings)
-    let terms = try TranscriptionContract.validatedKeyterms(
-      settings.keytermList, provider: .gemini, mode: .upload)
-    let languageCodes = settings.geminiLanguageCodes
-    var config: [String: Any] = [
-      "mode": settings.geminiSmartTranscription
-        ? "smart" as Any : ["type": "verbatim"] as Any
-    ]
-    if !terms.isEmpty { config["custom_vocabulary"] = terms }
-    if !languageCodes.isEmpty {
-      config["language_codes"] = languageCodes
-    }
-    return try JSONSerialization.data(withJSONObject: [
-      "model": modelID,
-      "input": [["type": "audio", "data": audio.base64EncodedString(), "mime_type": "audio/wav"]],
-      "generation_config": ["transcription_config": config],
-      "store": false,
-    ])
-  }
-}
-
-/// Builds OpenAI's multipart fields for its fixed model; `languages[]` and `keywords[]` are specific to GPT Transcribe, so the model is not editable.
-enum OpenAITranscriptionContract {
-  static let modelID = "gpt-transcribe"
-
-  static func uploadFields(settings: DictationSettings) throws -> [(String, String)] {
-    try settings.validateLocalConfiguration()
-    let keywords = try TranscriptionContract.validatedKeyterms(
-      settings.keytermList,
-      provider: .openAI,
-      mode: .upload
-    )
-    let language = settings.language.trimmingCharacters(in: .whitespacesAndNewlines)
-    var fields: [(String, String)] = [("model", modelID)]
-    if !language.isEmpty {
-      fields.append(("languages[]", language))
-    }
-    fields += keywords.map { ("keywords[]", $0) }
-    return fields
-  }
-}
-
-/// Builds Vercel AI Gateway's transcription request, which names the model in a header and carries base64 audio in JSON because the gateway accepts no file uploads.
-enum VercelTranscriptionContract {
-  static let endpoint = URL(string: "https://ai-gateway.vercel.sh/v4/ai/transcription-model")!
-
-  /// The gateway versions its transcription route through the two protocol headers.
-  static func headers(settings: DictationSettings) throws -> [String: String] {
-    try settings.validateLocalConfiguration()
-    return [
-      "ai-gateway-protocol-version": "0.0.1",
-      "ai-transcription-model-specification-version": "4",
-      "ai-model-id": settings.vercelModel.trimmingCharacters(in: .whitespacesAndNewlines),
-      "Content-Type": "application/json",
-    ]
-  }
-
-  static func requestBody(audio: Data) throws -> Data {
-    try JSONSerialization.data(withJSONObject: [
-      "audio": audio.base64EncodedString(),
-      "mediaType": "audio/wav",
-    ])
-  }
+private struct KeytermPolicy {
+  let maximumCount: Int
+  let characterLimit: Int
+  var characterLimitIsExclusive = false
+  var maximumWords: Int?
+  var unsupportedCharacters: Set<Character> = []
 }
 
 enum TranscriptionContractError: LocalizedError, Equatable {
@@ -258,14 +206,6 @@ enum TranscriptionContractError: LocalizedError, Equatable {
   }
 }
 
-private struct KeytermPolicy {
-  let maximumCount: Int
-  let characterLimit: Int
-  var characterLimitIsExclusive = false
-  var maximumWords: Int?
-  var unsupportedCharacters: Set<Character> = []
-}
-
 enum XAITranscriptionContract {
   static func uploadFields(settings: DictationSettings) throws -> [(String, String)] {
     try settings.validateLocalConfiguration()
@@ -319,11 +259,8 @@ enum XAITranscriptionContract {
   }
 }
 
-/// Builds ElevenLabs requests with the fixed models supported by each transport.
+/// Builds ElevenLabs requests; upload and realtime each send their own model setting, because each transport accepts different models.
 enum ElevenLabsTranscriptionContract {
-  static let uploadModelID = "scribe_v2"
-  static let realtimeModelID = "scribe_v2_realtime"
-
   static func uploadFields(settings: DictationSettings) throws -> [(String, String)] {
     try settings.validateLocalConfiguration()
     let keyterms = try TranscriptionContract.validatedKeyterms(
@@ -333,7 +270,7 @@ enum ElevenLabsTranscriptionContract {
     )
     let language = settings.language.trimmingCharacters(in: .whitespacesAndNewlines)
     var fields: [(String, String)] = [
-      ("model_id", uploadModelID),
+      ("model_id", settings.elevenLabsModel.trimmingCharacters(in: .whitespacesAndNewlines)),
       ("no_verbatim", settings.elevenLabsNoVerbatim ? "true" : "false"),
     ]
     if !language.isEmpty {
@@ -352,7 +289,9 @@ enum ElevenLabsTranscriptionContract {
     )
     let language = settings.language.trimmingCharacters(in: .whitespacesAndNewlines)
     var queryItems = [
-      URLQueryItem(name: "model_id", value: realtimeModelID),
+      URLQueryItem(
+        name: "model_id",
+        value: settings.elevenLabsRealtimeModel.trimmingCharacters(in: .whitespacesAndNewlines)),
       URLQueryItem(name: "audio_format", value: "pcm_16000"),
       URLQueryItem(name: "commit_strategy", value: settings.elevenLabsCommitStrategy.rawValue),
       URLQueryItem(name: "no_verbatim", value: settings.elevenLabsNoVerbatim ? "true" : "false"),
@@ -369,5 +308,73 @@ enum ElevenLabsTranscriptionContract {
     }
     queryItems += keyterms.map { URLQueryItem(name: "keyterms", value: $0) }
     return queryItems
+  }
+}
+
+/// Owns Gemini's native Interactions schema; vocabulary and Smart mode never pass through a gateway.
+enum GeminiTranscriptionContract {
+  static func requestBody(audio: Data, settings: DictationSettings) throws -> Data {
+    try TranscriptionContract.validate(settings: settings)
+    let terms = try TranscriptionContract.validatedKeyterms(
+      settings.keytermList, provider: .gemini, mode: .upload)
+    let languageCodes = settings.geminiLanguageCodes
+    var config: [String: Any] = [
+      "mode": settings.geminiSmartTranscription
+        ? "smart" as Any : ["type": "verbatim"] as Any
+    ]
+    if !terms.isEmpty { config["custom_vocabulary"] = terms }
+    if !languageCodes.isEmpty {
+      config["language_codes"] = languageCodes
+    }
+    return try JSONSerialization.data(withJSONObject: [
+      "model": settings.geminiModel.trimmingCharacters(in: .whitespacesAndNewlines),
+      "input": [["type": "audio", "data": audio.base64EncodedString(), "mime_type": "audio/wav"]],
+      "generation_config": ["transcription_config": config],
+      "store": false,
+    ])
+  }
+}
+
+/// Builds OpenAI's multipart fields; `languages[]` and `keywords[]` follow the default model's API, so a model without those fields rejects the request.
+enum OpenAITranscriptionContract {
+  static func uploadFields(settings: DictationSettings) throws -> [(String, String)] {
+    try settings.validateLocalConfiguration()
+    let keywords = try TranscriptionContract.validatedKeyterms(
+      settings.keytermList,
+      provider: .openAI,
+      mode: .upload
+    )
+    let language = settings.language.trimmingCharacters(in: .whitespacesAndNewlines)
+    var fields: [(String, String)] = [
+      ("model", settings.openAIModel.trimmingCharacters(in: .whitespacesAndNewlines))
+    ]
+    if !language.isEmpty {
+      fields.append(("languages[]", language))
+    }
+    fields += keywords.map { ("keywords[]", $0) }
+    return fields
+  }
+}
+
+/// Builds Vercel AI Gateway's transcription request, which names the model in a header and carries base64 audio in JSON because the gateway accepts no file uploads.
+enum VercelTranscriptionContract {
+  static let endpoint = URL(string: "https://ai-gateway.vercel.sh/v4/ai/transcription-model")!
+
+  /// The gateway versions its transcription route through the two protocol headers.
+  static func headers(settings: DictationSettings) throws -> [String: String] {
+    try settings.validateLocalConfiguration()
+    return [
+      "ai-gateway-protocol-version": "0.0.1",
+      "ai-transcription-model-specification-version": "4",
+      "ai-model-id": settings.vercelModel.trimmingCharacters(in: .whitespacesAndNewlines),
+      "Content-Type": "application/json",
+    ]
+  }
+
+  static func requestBody(audio: Data) throws -> Data {
+    try JSONSerialization.data(withJSONObject: [
+      "audio": audio.base64EncodedString(),
+      "mediaType": "audio/wav",
+    ])
   }
 }

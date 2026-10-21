@@ -4,8 +4,6 @@ import Foundation
 
 /// A model on the Hugging Face Hub, named the way the transformers pipeline takes it: `owner/name`.
 struct HuggingFaceModelReference: Equatable, Sendable {
-  static let whisperTurbo = "openai/whisper-large-v3-turbo"
-
   let id: String
 
   /// Accepts `owner/name`, or a bare `name` for the few models without an owner. Parts follow the Hub's own character rules, so an ID can neither leave the Models folder nor collide with the cache's `--` separator.
@@ -15,7 +13,7 @@ struct HuggingFaceModelReference: Equatable, Sendable {
     guard (1...2).contains(parts.count), trimmed.count <= 96, parts.allSatisfy(Self.isValidPart)
     else {
       throw ConfigurationValidationError(
-        "Enter a Hugging Face model ID such as \(Self.whisperTurbo).")
+        "Enter a Hugging Face model ID such as \(DictationSettings.defaultHuggingFaceModel).")
     }
     self.id = trimmed
   }

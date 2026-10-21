@@ -1,112 +1,6 @@
-// Owns persistent dictation preferences and the provider capabilities that constrain capture and cleanup.
+// Owns persistent dictation preferences: their defaults, the bounds recording validates, and the decoding that keeps older saved values loading.
 
 import Foundation
-
-enum STTProvider: String, CaseIterable, Codable, Identifiable, Sendable {
-  case xai
-  case elevenLabs
-  case gemini
-  case openAI
-  case vercel
-  case parakeet
-  case huggingFace
-
-  var id: String { rawValue }
-
-  var title: String {
-    switch self {
-    case .xai:
-      "xAI"
-    case .elevenLabs:
-      "ElevenLabs"
-    case .gemini:
-      "Gemini"
-    case .openAI:
-      "OpenAI"
-    case .vercel:
-      "Vercel"
-    case .parakeet:
-      "Parakeet"
-    case .huggingFace:
-      "Hugging Face"
-    }
-  }
-
-  var availableModes: [TranscriptionMode] {
-    switch self {
-    case .xai, .elevenLabs: TranscriptionMode.allCases
-    case .gemini, .openAI, .vercel, .parakeet, .huggingFace: [.upload]
-    }
-  }
-
-  /// False for providers whose recognition ignores the shared vocabulary, leaving it to LLM polishing alone.
-  var takesVocabularyHints: Bool {
-    switch self {
-    case .xai, .elevenLabs, .gemini, .openAI: true
-    case .vercel, .parakeet, .huggingFace: false
-    }
-  }
-
-  var location: ProviderLocation {
-    switch self {
-    case .xai, .elevenLabs, .gemini, .openAI, .vercel: .cloud
-    case .parakeet, .huggingFace: .local
-    }
-  }
-
-  var detail: String {
-    switch self {
-    case .xai: "Grok speech recognition with optional filler removal and number formatting."
-    case .elevenLabs: "Scribe speech recognition with verbatim controls and realtime streaming."
-    case .gemini: "Gemini 3.5 Transcribe with optional Smart transcription."
-    case .openAI: "GPT Transcribe with an optional language hint."
-    case .vercel:
-      "Any transcription model on Vercel AI Gateway, reached with one gateway key."
-    case .parakeet:
-      "NVIDIA Parakeet TDT 0.6B v3 running on this Mac. No API key, and no network once downloaded."
-    case .huggingFace:
-      "Any Hugging Face speech model the transformers pipeline accepts, running on this Mac. No API key, and no network once downloaded."
-    }
-  }
-}
-
-enum ProviderLocation: String, CaseIterable, Identifiable, Sendable {
-  case cloud
-  case local
-
-  var id: String { rawValue }
-
-  var title: String {
-    switch self {
-    case .cloud: "Cloud"
-    case .local: "Local"
-    }
-  }
-
-  /// Lists this location's providers alphabetically, the order every picker and the credential rows present them in.
-  var providers: [STTProvider] {
-    STTProvider.allCases
-      .filter { $0.location == self }
-      .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
-  }
-}
-
-enum TranscriptionMode: String, CaseIterable, Codable, Identifiable, Sendable {
-  case upload
-  case realtime
-
-  var id: String { rawValue }
-
-  /// Names after-stop transcription by where it runs, so on-device recognition never reads as an upload.
-  func title(for provider: STTProvider) -> String {
-    switch self {
-    case .upload:
-      provider.location == .local ? "After stop" : "Upload"
-    case .realtime:
-      "Realtime"
-    }
-  }
-}
 
 enum ElevenLabsCommitStrategy: String, CaseIterable, Codable, Identifiable, Sendable {
   case manual
@@ -179,10 +73,20 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var noiseReductionDB: Double = 6
   var inputDeviceUID: String = ""
   var vercelModel: String = defaultVercelModel
-  var huggingFaceModel: String = HuggingFaceModelReference.whisperTurbo
+  var huggingFaceModel: String = defaultHuggingFaceModel
+  var geminiModel: String = defaultGeminiModel
+  var openAIModel: String = defaultOpenAIModel
+  var elevenLabsModel: String = defaultElevenLabsModel
+  var elevenLabsRealtimeModel: String = defaultElevenLabsRealtimeModel
+  var convertChineseOutput: Bool = true
 
   /// Vercel AI Gateway's identifier for xAI's speech-to-text.
   static let defaultVercelModel = "spacexai/grok-stt"
+  static let defaultGeminiModel = "gemini-3.5-transcribe"
+  static let defaultOpenAIModel = "gpt-transcribe"
+  static let defaultElevenLabsModel = "scribe_v2"
+  static let defaultElevenLabsRealtimeModel = "scribe_v2_realtime"
+  static let defaultHuggingFaceModel = "openai/whisper-large-v3-turbo"
   static let legacyDefaultAdjustmentPrompt = """
     Rewrite the transcript into polished text that is ready to insert into the active app. Fix obvious speech-to-text mistakes, punctuation, casing, and awkward phrasing while preserving intent. Use the screenshot only as context. Return only the final text.
     """
@@ -283,6 +187,20 @@ struct DictationSettings: Codable, Equatable, Sendable {
     transcriptionMode.title(for: provider)
   }
 
+  /// The setting naming the model the selected provider and mode send, with its default; `nil` where requests name no model (xAI) or the model is set up on this Mac.
+  var transcriptionModelSetting:
+    (keyPath: WritableKeyPath<DictationSettings, String>, defaultValue: String)?
+  {
+    switch (provider, transcriptionMode) {
+    case (.gemini, _): (\.geminiModel, Self.defaultGeminiModel)
+    case (.openAI, _): (\.openAIModel, Self.defaultOpenAIModel)
+    case (.elevenLabs, .upload): (\.elevenLabsModel, Self.defaultElevenLabsModel)
+    case (.elevenLabs, .realtime): (\.elevenLabsRealtimeModel, Self.defaultElevenLabsRealtimeModel)
+    case (.vercel, _): (\.vercelModel, Self.defaultVercelModel)
+    case (.xai, _), (.parakeet, _), (.huggingFace, _): nil
+    }
+  }
+
   /// Rejects persisted or imported values that cannot be produced by Vhrase's bounded controls.
   func validateLocalConfiguration() throws {
     guard (-6...6).contains(inputGainDB), (0...12).contains(noiseReductionDB) else {
@@ -295,7 +213,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
       )
     }
     guard (0...1).contains(xaiVADThreshold) else {
-      throw ConfigurationValidationError("Grok speech sensitivity must be between 0 and 1.")
+      throw ConfigurationValidationError("xAI speech sensitivity must be between 0 and 1.")
     }
     guard (0...5_000).contains(xaiRealtimeEndpointing) else {
       throw ConfigurationValidationError("xAI endpointing must be between 0 and 5,000 ms.")
@@ -331,12 +249,13 @@ struct DictationSettings: Codable, Equatable, Sendable {
     guard shortcutGestures.tapToToggle || shortcutGestures.holdToTalk else {
       throw ConfigurationValidationError("Turn on tap or hold so the shortcut can start dictation.")
     }
-    // A free-text model name blocks recording only for the provider that would use it.
-    guard
-      provider != .vercel || !vercelModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    else {
+    // A free-text model name blocks recording only for the provider and mode that would send it.
+    if let model = transcriptionModelSetting,
+      self[keyPath: model.keyPath].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    {
+      let service = provider == .vercel ? "Vercel AI Gateway" : provider.title
       throw ConfigurationValidationError(
-        "Enter a Vercel AI Gateway transcription model, such as \(Self.defaultVercelModel).")
+        "Enter the \(service) transcription model to use, such as \(model.defaultValue).")
     }
     if provider == .huggingFace {
       _ = try HuggingFaceModelReference(huggingFaceModel)
@@ -383,6 +302,11 @@ extension DictationSettings {
     case inputDeviceUID
     case vercelModel
     case huggingFaceModel
+    case geminiModel
+    case openAIModel
+    case elevenLabsModel
+    case elevenLabsRealtimeModel
+    case convertChineseOutput
   }
 
   init(from decoder: Decoder) throws {
@@ -443,7 +367,19 @@ extension DictationSettings {
       try values.decodeIfPresent(String.self, forKey: .vercelModel) ?? Self.defaultVercelModel
     huggingFaceModel =
       try values.decodeIfPresent(String.self, forKey: .huggingFaceModel)
-      ?? HuggingFaceModelReference.whisperTurbo
+      ?? Self.defaultHuggingFaceModel
+    geminiModel =
+      try values.decodeIfPresent(String.self, forKey: .geminiModel) ?? Self.defaultGeminiModel
+    openAIModel =
+      try values.decodeIfPresent(String.self, forKey: .openAIModel) ?? Self.defaultOpenAIModel
+    elevenLabsModel =
+      try values.decodeIfPresent(String.self, forKey: .elevenLabsModel)
+      ?? Self.defaultElevenLabsModel
+    elevenLabsRealtimeModel =
+      try values.decodeIfPresent(String.self, forKey: .elevenLabsRealtimeModel)
+      ?? Self.defaultElevenLabsRealtimeModel
+    convertChineseOutput =
+      try values.decodeIfPresent(Bool.self, forKey: .convertChineseOutput) ?? true
   }
 }
 

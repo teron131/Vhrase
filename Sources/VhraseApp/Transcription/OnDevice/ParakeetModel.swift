@@ -4,6 +4,8 @@ import FluidAudio
 import Foundation
 
 struct ParakeetModel: OnDeviceModel {
+  /// The Hugging Face repository of the Core ML model FluidAudio downloads and loads as its version 3.
+  static let repository = Repo.parakeetV3.rawValue
   /// FluidAudio stores each repository under its own folder name, so Vhrase uses the same name inside its Models folder.
   static let defaultDirectory = OnDeviceModelFiles.directory
     .appendingPathComponent(Repo.parakeetV3.folderName, isDirectory: true)

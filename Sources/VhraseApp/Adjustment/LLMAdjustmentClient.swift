@@ -1,71 +1,87 @@
-// Calls an OpenAI-compatible language model through a validated endpoint with optional application context.
+// Calls an OpenAI-compatible language model through a validated endpoint: polishing text with its application and optional screen context for both dictation cleanup and double-tap polishing, probing model access, and reading list prices.
 
 import Foundation
 
+/// What a polish request rewrites, named for the model in the request's user message.
+enum PolishSource {
+  case transcript
+  case focusedText
+
+  fileprivate var label: String {
+    switch self {
+    case .transcript: "Transcript"
+    case .focusedText: "Text"
+    }
+  }
+}
+
 final class LLMAdjustmentClient: Sendable {
+  /// Captures the display showing the app, or returns `nil` when capture is unavailable.
+  typealias ScreenCapture = @Sendable (FrontmostApp?, ScreenshotResolution) async -> String?
+
+  static let captureDisplay: ScreenCapture = {
+    await ScreenContext().displayJPEGDataURL(showing: $0, resolution: $1)
+  }
+
   private let apiKey: String
   private let baseURL: String
+  private let captureScreen: ScreenCapture
 
   init(
     apiKey: String,
-    baseURL: String
+    baseURL: String,
+    captureScreen: @escaping ScreenCapture = captureDisplay
   ) {
     self.apiKey = apiKey
     self.baseURL = baseURL
+    self.captureScreen = captureScreen
   }
 
-  func adjust(
-    transcript: String,
-    screenshotDataURL: String?,
+  /// Attaches a capture of the app's display when screen context is on; a failed capture still sends the text, and `includedScreenshot` records which happened.
+  func polish(
+    _ text: String,
+    as source: PolishSource,
     settings: DictationSettings,
     app: FrontmostApp?
   ) async throws -> LLMRefinement {
-    try validateConfiguration()
-
-    let instruction = systemInstruction(for: settings)
+    try validateConfiguration(model: settings.adjustmentModel)
+    let model = settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
+    let screenshotDataURL: String? =
+      if settings.includeScreenshot {
+        await captureScreen(app, settings.screenshotResolution)
+      } else {
+        nil
+      }
+    let instruction = settings.polishPreferences.systemInstruction(
+      preferredVocabulary: settings.keytermList,
+      additionalInstructions: settings.adjustmentPrompt
+    )
     let userText = """
       \(appContextText(app))
 
-      Transcript:
-      \(transcript)
+      \(source.label):
+      \(text)
       """
-    let response = try await adjustWithChatCompletions(
-      systemInstruction: instruction,
-      userText: userText,
-      screenshotDataURL: screenshotDataURL,
-      model: settings.adjustmentModel
+    let request = try Self.chatCompletionsRequest(
+      apiKey: apiKey,
+      baseURL: baseURL,
+      timeout: 60,
+      body: Self.requestBody(
+        systemInstruction: instruction,
+        userText: userText,
+        screenshotDataURL: screenshotDataURL,
+        model: model
+      )
     )
-
+    let response = try chatResponse(
+      from: await Self.send(request, errorDomain: "Vhrase.AdjustmentChatHTTP"))
     return LLMRefinement(
-      input: transcript,
-      output: response.text.trimmingCharacters(in: .whitespacesAndNewlines),
-      model: settings.adjustmentModel,
+      input: text,
+      output: response.text,
+      model: model,
       systemInstruction: instruction,
       includedScreenshot: screenshotDataURL != nil,
       usage: response.usage
-    )
-  }
-
-  func polish(
-    text: String,
-    screenshotDataURL: String?,
-    settings: DictationSettings,
-    app: FrontmostApp
-  ) async throws -> (text: String, usage: LLMUsage?) {
-    try validateConfiguration()
-
-    let userText = """
-      \(appContextText(app))
-
-      Text:
-      \(text)
-      """
-
-    return try await adjustWithChatCompletions(
-      systemInstruction: systemInstruction(for: settings),
-      userText: userText,
-      screenshotDataURL: screenshotDataURL,
-      model: settings.adjustmentModel
     )
   }
 
@@ -135,8 +151,15 @@ final class LLMAdjustmentClient: Sendable {
       in: await Self.send(request, errorDomain: "Vhrase.LLMModelsHTTP"))
   }
 
-  /// Call before capturing screen context, so nothing sensitive is gathered for a request that cannot be sent.
-  func validateConfiguration() throws {
+  /// Lets a caller fail before starting work a polish request would waste; `polish` also runs it before capturing the screen, so nothing sensitive is gathered for a request that cannot be sent.
+  func validateConfiguration(model: String) throws {
+    guard !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      throw NSError(
+        domain: "Vhrase.Adjustment",
+        code: 3,
+        userInfo: [NSLocalizedDescriptionKey: "Choose an LLM model before polishing text."]
+      )
+    }
     guard !apiKey.isEmpty else {
       throw NSError(
         domain: "Vhrase.Adjustment",
@@ -145,27 +168,6 @@ final class LLMAdjustmentClient: Sendable {
       )
     }
     _ = try LLMEndpoint(baseURL: baseURL)
-  }
-
-  private func adjustWithChatCompletions(
-    systemInstruction: String,
-    userText: String,
-    screenshotDataURL: String?,
-    model: String
-  ) async throws -> (text: String, usage: LLMUsage?) {
-    let request = try Self.chatCompletionsRequest(
-      apiKey: apiKey,
-      baseURL: baseURL,
-      timeout: 60,
-      body: Self.requestBody(
-        systemInstruction: systemInstruction,
-        userText: userText,
-        screenshotDataURL: screenshotDataURL,
-        model: model
-      )
-    )
-    return try chatResponse(
-      from: await Self.send(request, errorDomain: "Vhrase.AdjustmentChatHTTP"))
   }
 
   static func requestBody(
@@ -247,13 +249,6 @@ final class LLMAdjustmentClient: Sendable {
       )
     }
     return data
-  }
-
-  private func systemInstruction(for settings: DictationSettings) -> String {
-    settings.polishPreferences.systemInstruction(
-      preferredVocabulary: settings.keytermList,
-      additionalInstructions: settings.adjustmentPrompt
-    )
   }
 
   private func appContextText(_ app: FrontmostApp?) -> String {

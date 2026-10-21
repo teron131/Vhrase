@@ -486,7 +486,9 @@ private final class AudioTapProcessor: @unchecked Sendable {
       try file.write(from: buffer)
     } catch {
       captureState.recordError(error)
-      NSLog("Vhrase audio write failed: \(error.localizedDescription)")
+      let failure = error as NSError
+      logger.error(
+        "Audio write failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
     }
   }
 }

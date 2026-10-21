@@ -42,6 +42,18 @@ struct SetupDiagnosticsCheck {
     precondition(readyModel.map(\.id) == [.ready])
     precondition(readyModel.first?.detail.contains("on-device model") == true)
 
+    // Missing OpenCC is a setup step only while Chinese output is on.
+    let missingOpenCC = diagnostics(
+      settings: settings, accessibility: .granted, inputMonitoring: .granted,
+      chineseConversionIsAvailable: false)
+    precondition(missingOpenCC.map(\.id) == [.openCC])
+    var withoutChineseOutput = settings
+    withoutChineseOutput.convertChineseOutput = false
+    let openCCNotNeeded = diagnostics(
+      settings: withoutChineseOutput, accessibility: .granted, inputMonitoring: .granted,
+      chineseConversionIsAvailable: false)
+    precondition(openCCNotNeeded.map(\.id) == [.ready])
+
     print("setup diagnostics ok")
   }
 
@@ -49,7 +61,8 @@ struct SetupDiagnosticsCheck {
     settings: DictationSettings,
     accessibility: PermissionState,
     inputMonitoring: PermissionState,
-    providerReadiness: ProviderReadiness = .ready
+    providerReadiness: ProviderReadiness = .ready,
+    chineseConversionIsAvailable: Bool = true
   ) -> [SetupDiagnostic] {
     SetupDiagnostics(
       settings: settings,
@@ -61,7 +74,7 @@ struct SetupDiagnosticsCheck {
         PermissionSnapshot(permission: .screenRecording, state: .granted),
         PermissionSnapshot(permission: .accessibility, state: accessibility),
       ],
-      chineseConversionIsAvailable: true
+      chineseConversionIsAvailable: chineseConversionIsAvailable
     ).build()
   }
 }

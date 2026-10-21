@@ -1,4 +1,4 @@
-// Owns the sidebar, which draws the dictation stages as one route above the style sheet they read, shows each destination's live state, and keeps the theme and the System gear in its bottom corner; also the notice banner the destinations share.
+// Owns the sidebar, which draws the dictation stages as one route above the style sheet they read, shows each destination's live state, and keeps the theme and the System gear in its bottom corner.
 
 import AVFoundation
 import AppKit
@@ -348,36 +348,5 @@ private struct RouteLine: Shape {
     path.move(to: CGPoint(x: rect.midX, y: rect.minY))
     path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
     return path
-  }
-}
-
-extension MainWindowView {
-  var actionNoticeBanner: some View {
-    HStack(spacing: 9) {
-      Image(systemName: "info.circle.fill")
-        .foregroundStyle(VhraseTheme.accent)
-        .accessibilityHidden(true)
-
-      Text(appState.customizationNotice)
-        .font(.callout)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .textSelection(.enabled)
-
-      Button {
-        appState.dismissCustomizationNotice(appState.customizationNotice)
-      } label: {
-        Image(systemName: "xmark")
-      }
-      .buttonStyle(.plain)
-      .help("Dismiss")
-      .accessibilityLabel("Dismiss notification")
-    }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 10)
-    .background(.bar)
-    .overlay(alignment: .bottom) {
-      Divider()
-    }
-    .accessibilityElement(children: .contain)
   }
 }

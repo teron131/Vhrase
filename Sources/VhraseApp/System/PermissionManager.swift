@@ -121,7 +121,7 @@ struct OptionalPermissionRequestPlan {
 
 @MainActor
 final class PermissionManager {
-  private let defaults = UserDefaults(suiteName: "local.codex.Vhrase") ?? .standard
+  private let defaults = UserDefaults.standard
   private let accessibilityPromptKey = "permissionPrompt.accessibility"
   private let inputMonitoringPromptKey = "permissionPrompt.inputMonitoring"
   private let screenPromptKey = "permissionPrompt.screenRecording"

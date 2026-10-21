@@ -77,7 +77,7 @@ struct HuggingFaceOptionsCheck {
     legacy["settings"] = legacySettings
     let migrated = try JSONDecoder().decode(
       CustomizationSnapshot.self, from: JSONSerialization.data(withJSONObject: legacy))
-    precondition(migrated.settings.huggingFaceModel == HuggingFaceModelReference.whisperTurbo)
+    precondition(migrated.settings.huggingFaceModel == DictationSettings.defaultHuggingFaceModel)
     precondition(migrated.settings.vercelModel == DictationSettings.defaultVercelModel)
     print("hugging face options ok")
   }

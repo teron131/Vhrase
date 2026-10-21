@@ -1,4 +1,4 @@
-// Prices LLM polishing at the endpoint's published list rates: Vercel AI Gateway's `/models` catalog lists per-token prices, while endpoints that publish none leave polishing uncounted.
+// Prices LLM polishing at the endpoint's published list rates, fetched once per model each session: Vercel AI Gateway's `/models` catalog lists per-token prices, while endpoints that publish none leave polishing uncounted.
 
 import Foundation
 
@@ -23,6 +23,23 @@ struct LLMPrice: Equatable, Sendable {
       return nil
     }
     return LLMPrice(inputPerToken: input, outputPerToken: output)
+  }
+}
+
+/// Fetches an endpoint's catalog only for a model's first polish in a session; an endpoint that lists no price for it is remembered too, so it is not asked again.
+@MainActor
+final class LLMPriceList {
+  private var prices: [String: LLMPrice?] = [:]
+
+  func price(of model: String, at baseURL: String, apiKey: String) async throws -> LLMPrice? {
+    let key = "\(baseURL) \(model)"
+    if let listed = prices[key] {
+      return listed
+    }
+    let price = try await LLMAdjustmentClient(apiKey: apiKey, baseURL: baseURL).listPrice(
+      for: model)
+    prices[key] = price
+    return price
   }
 }
 

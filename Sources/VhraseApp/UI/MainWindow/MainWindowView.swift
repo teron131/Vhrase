@@ -1,4 +1,4 @@
-// Hosts Vhrase's sidebar route and the selected destination, and carries a page's request to open a System credential field.
+// Hosts Vhrase's sidebar route and the selected destination under the notice banner pages share, and carries a page's request to open a System credential field.
 
 import AppKit
 import SwiftUI
@@ -74,6 +74,35 @@ struct MainWindowView: View {
       }
       appState.dismissCustomizationNotice(notice)
     }
+  }
+
+  private var actionNoticeBanner: some View {
+    HStack(spacing: 9) {
+      Image(systemName: "info.circle.fill")
+        .foregroundStyle(VhraseTheme.accent)
+        .accessibilityHidden(true)
+
+      Text(appState.customizationNotice)
+        .font(.callout)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .textSelection(.enabled)
+
+      Button {
+        appState.dismissCustomizationNotice(appState.customizationNotice)
+      } label: {
+        Image(systemName: "xmark")
+      }
+      .buttonStyle(.plain)
+      .help("Dismiss")
+      .accessibilityLabel("Dismiss notification")
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 10)
+    .background(.bar)
+    .overlay(alignment: .bottom) {
+      Divider()
+    }
+    .accessibilityElement(children: .contain)
   }
 
   private var tabTransition: AnyTransition {
