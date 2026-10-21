@@ -124,7 +124,11 @@ struct HistorySearch {
     let day: CalendarDay
   }
 
-  /// Filters the whole archive, then ranks the matches BM25-style.
+  /// Ranks in stages:
+  /// 1. Keep transcripts inside the date and provider filters; an empty query returns them newest first.
+  /// 2. Keep those matching at least 60% of the query's distinct terms in their text or metadata.
+  /// 3. Score them BM25-style, metadata matches counting double and the whole query as a phrase earning a bonus.
+  /// 4. Sort by score, newest first among ties.
   private static func rank(
     _ documents: [SearchDocument], query: Query
   ) -> [TranscriptHistoryItem] {
@@ -242,6 +246,7 @@ struct HistorySearch {
     let score: Double
   }
 
+  /// `"  Café\tＮＯＴＥＳ "` → `"cafe notes"`: case, accents, and full-width forms fold away, and whitespace collapses.
   private static func normalize(_ value: String) -> String {
     value
       .folding(

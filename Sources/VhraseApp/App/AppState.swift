@@ -1,4 +1,4 @@
-// Coordinates Vhrase's observable application state and user-triggered workflows.
+// Owns Vhrase's observable state and runs its workflows: dictation from shortcut press to delivered and saved transcript, double-tap polishing of the focused text, the setup recording test, and the settings, history, and permission actions the main window and menu bar call.
 
 import AppKit
 import Combine
@@ -296,7 +296,7 @@ final class AppState: ObservableObject {
     localModelStore(for: settings.provider)
   }
 
-  /// Ignored while a recording is active; the outcome arrives as a customization notice.
+  /// Ignored while dictation, polishing, or the setup test is running; the outcome arrives as a customization notice.
   func removeLocalModel(_ store: OnDeviceModelStore) {
     guard canStartRecording else {
       return
@@ -406,6 +406,7 @@ final class AppState: ObservableObject {
     )
   }
 
+  /// Ignored while the setup test runs. A transcription mode the chosen provider lacks falls back to `.upload` with a notice.
   func updateSettings(_ update: (inout DictationSettings) -> Void) {
     guard !transcriptionTest.state.isActive else { return }
     let previousSettings = settings
@@ -885,12 +886,12 @@ final class AppState: ObservableObject {
     }
   }
 
-  /// Persists changed preferences and refreshes global listeners only when their key definition changed.
   private func persistSettings(previous: DictationSettings) {
     settingsStore.save(settings)
     if previous.provider == .huggingFace, settings.provider != .huggingFace {
       huggingFaceModelStore.cancelPreparation()
       Task { [weak self] in
+        // Switching back to Hugging Face before this runs keeps its model loaded.
         guard let self, self.settings.provider != .huggingFace else { return }
         await self.huggingFaceRecognizer.unload()
       }

@@ -77,7 +77,7 @@ def query_url(base_url: str, items: list[tuple[str, str]]) -> str:
 
 
 def merge_incremental_text(existing: str, update: str) -> str:
-    """Merge cumulative or segmented xAI updates without duplicating their shared text."""
+    """Keep whichever xAI revision extends the other and join unrelated fragments with a space: ("Hello", "Hello world"), ("Hello world", "Hello"), and ("Hello", "world") all give "Hello world"."""
 
     if not existing:
         return update

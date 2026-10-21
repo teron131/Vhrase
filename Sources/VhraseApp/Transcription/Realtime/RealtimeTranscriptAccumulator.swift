@@ -176,7 +176,7 @@ actor RealtimeTranscriptAccumulator {
     return segments.joined(separator: " ")
   }
 
-  /// Keeps the fuller prefix revision, joining only distinct incremental fragments with a space.
+  /// Keeps whichever revision extends the other and joins unrelated fragments with a space: (`Hello`, `Hello world`), (`Hello world`, `Hello`), and (`Hello`, `world`) all give `Hello world`.
   private func mergeIncrementalText(_ existing: String, _ update: String) -> String {
     let existing = existing.trimmingCharacters(in: .whitespacesAndNewlines)
     let update = update.trimmingCharacters(in: .whitespacesAndNewlines)

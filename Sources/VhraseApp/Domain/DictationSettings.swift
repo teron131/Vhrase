@@ -244,7 +244,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
       .filter { !$0.isEmpty }
   }
 
-  /// Converts retired substitution targets into reference vocabulary without retaining executable replacement rules.
+  /// Keeps each retired replacement rule's target as a vocabulary term and drops the rule: `Vhrase` with rules `v phrase => Vhrase` and `open ai -> OpenAI` becomes `Vhrase` and `OpenAI`, one per line. A rule splits at `=>`, else `->`, else `=`.
   static func migratingVocabulary(_ vocabulary: String, replacementRules: String) -> String {
     let targets = replacementRules.split(whereSeparator: \.isNewline).compactMap {
       line -> String? in
@@ -272,7 +272,9 @@ struct DictationSettings: Codable, Equatable, Sendable {
     switch provider {
     case .gemini: geminiLanguageCodes.joined(separator: ", ")
     case .parakeet, .vercel: ""
-    case .xai, .elevenLabs, .openAI, .huggingFace:
+    case .xai:
+      xaiFormatText ? language.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+    case .elevenLabs, .openAI, .huggingFace:
       language.trimmingCharacters(in: .whitespacesAndNewlines)
     }
   }

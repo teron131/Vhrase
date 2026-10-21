@@ -71,7 +71,7 @@ final class TranscriptionTest: ObservableObject {
     }
   }
 
-  /// Ends capture early or at five seconds, then returns only the provider's recognized text.
+  /// Ends capture early, or at five seconds when the countdown calls it, and publishes the recognized text in `state`.
   func stopAndTranscribe() {
     guard case .recording = state, let recording else { return }
     countdown?.cancel()

@@ -22,6 +22,7 @@ struct ChineseTextConverter: Sendable {
     defaultExecutableURL() != nil
   }
 
+  /// Blocks until OpenCC exits or `timeoutSeconds` pass. When OpenCC is missing or fails, the text comes back unchanged with a warning.
   func convert(_ text: String) -> (text: String, warning: String?) {
     guard let executableURL else {
       return (text, "OpenCC s2hk unavailable. Final transcript was not normalized.")

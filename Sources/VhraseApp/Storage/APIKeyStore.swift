@@ -57,7 +57,7 @@ final class APIKeyStore: Sendable {
     self.defaultsSuiteName = defaultsSuiteName
   }
 
-  /// Resolves supported development credentials without executing or expanding the environment file.
+  /// Adds `.env` lines such as `XAI_API_KEY="xai-123"`, with `export` optional and one pair of quotes stripped, for supported names `baseEnvironment` leaves empty; values are taken literally, never expanded or executed.
   static func developmentEnvironment(
     fileURL: URL,
     baseEnvironment: [String: String] = ProcessInfo.processInfo.environment
@@ -70,7 +70,7 @@ final class APIKeyStore: Sendable {
     )
   }
 
-  /// Reads direct literal API-key exports from zsh configuration without executing shell code.
+  /// Adds literal `export NAME=value` lines, such as `export XAI_API_KEY='xai-123'`, for supported names `baseEnvironment` leaves empty; a value the shell would expand or run, like `"$HOME/key"` or `$(cat key)`, is skipped rather than executed.
   static func zshrcEnvironment(
     fileURL: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".zshrc"),
     baseEnvironment: [String: String] = ProcessInfo.processInfo.environment
@@ -219,6 +219,7 @@ final class APIKeyStore: Sendable {
     }
   }
 
+  /// True for an upper-case shell variable name ending in `_KEY`, such as `AI_GATEWAY_API_KEY`, which the LLM field treats as a reference to that variable rather than as the secret itself.
   static func isCredentialEnvironmentVariableName(_ value: String) -> Bool {
     guard value.hasSuffix("_KEY"), let first = value.utf8.first,
       first == 95 || (65...90).contains(first)

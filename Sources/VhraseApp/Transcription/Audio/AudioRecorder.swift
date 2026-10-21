@@ -21,7 +21,7 @@ final class AudioRecorder {
     deviceCapture?.isRunning ?? engine.isRunning
   }
 
-  /// Captures the system microphone and snapshots input-only enhancement settings for this recording.
+  /// Captures the chosen microphone, or the system default when none is chosen, with enhancement settings fixed for this recording.
   /// Failures after startup cancel capture before notifying the workflow through onFailure.
   func start(
     settings: DictationSettings = .defaults, onAudioChunk: AudioChunkHandler? = nil,
@@ -390,6 +390,7 @@ final class AudioCaptureState: @unchecked Sendable {
     condition.withLock { error }
   }
 
+  /// `false` once `stopAndWait` has begun; a `true` must be paired with `endCallback`, which `stopAndWait` waits for.
   func beginCallback() -> Bool {
     condition.withLock {
       guard !isStopping else {

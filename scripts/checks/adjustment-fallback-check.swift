@@ -111,7 +111,6 @@ struct AdjustmentFallbackCheck {
     print("adjustment fallback ok")
   }
 
-  /// Protects the access check from falling back to a catalog listing that says nothing about the configured model.
   private static func validateTargetedModelAccessRequest() throws {
     let request: URLRequest = try LLMAdjustmentClient.modelCheckRequest(
       apiKey: "test-key",

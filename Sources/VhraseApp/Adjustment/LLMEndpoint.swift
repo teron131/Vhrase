@@ -10,6 +10,7 @@ struct LLMEndpoint {
     self.baseURL = try Self.validatedBaseURL(baseURL)
   }
 
+  /// Canonicalizes the base, such as `HTTPS://api.example.com/v1/` → `https://api.example.com/v1`. Anything but HTTPS, or HTTP to a loopback host, with no credentials, query, fragment, or ambiguous path segment throws a message the setting can show.
   static func validatedBaseURL(_ rawValue: String) throws -> URL {
     let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !value.isEmpty,
@@ -79,7 +80,7 @@ struct LLMEndpoint {
     return canonicalURL
   }
 
-  /// Appends a relative API path without allowing it to replace or reinterpret the validated base URL.
+  /// `chat/completions` on `https://api.example.com/v1` gives `https://api.example.com/v1/chat/completions`; a path that could replace or reinterpret the base, such as `/chat`, `../models`, or `a?b`, throws.
   func appending(_ path: String) throws -> URL {
     let segments = path.split(
       separator: "/",

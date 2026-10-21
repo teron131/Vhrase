@@ -170,7 +170,6 @@ private struct GeminiTranscriptionResponse: Decodable {
   let status: String
   let steps: [Step]
 
-  /// Retains ordered model text while ignoring non-text content and non-output steps.
   var text: String {
     steps.filter { $0.type == "model_output" }
       .flatMap(\.content)
@@ -202,7 +201,6 @@ private func missingKey(_ name: String) -> NSError {
   )
 }
 
-/// Preserves useful provider and HTTP context while keeping response bodies bounded.
 private func perform(
   _ request: URLRequest,
   providerName: String

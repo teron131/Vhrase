@@ -48,7 +48,7 @@ struct ProviderPicker: NSViewRepresentable {
     icons[provider]
   }
 
-  /// Reuses cached provider artwork for persisted history labels, including Smart and Realtime variants.
+  /// Matches a saved transcript's provider label, such as `Gemini · Smart` or `xAI Realtime`, to that provider's cached artwork; `Local Demo` gets a computer symbol.
   static func icon(forHistoryLabel label: String) -> NSImage? {
     if label == "Local Demo" {
       return NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: nil)

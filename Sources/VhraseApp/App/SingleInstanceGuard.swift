@@ -6,6 +6,7 @@ import Foundation
 
 @MainActor
 final class SingleInstanceGuard {
+  /// Also true when the lock file cannot be opened, since a process that does not own the instance quits.
   let ownsInstance: Bool
 
   private var lockFileDescriptor: Int32 = -1

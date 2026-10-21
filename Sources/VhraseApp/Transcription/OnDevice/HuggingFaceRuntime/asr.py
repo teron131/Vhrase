@@ -41,7 +41,7 @@ MAX_PIECE_SECONDS = 28
 CUT_SEARCH_SECONDS = 5
 PROGRESS_INTERVAL_SECONDS = 0.5
 ERROR_MESSAGE_LIMIT = 300
-# transformers loads safetensors weights when a repository has them and PyTorch weights otherwise; other frameworks' copies are never fetched.
+# transformers loads safetensors weights when a repository has them and PyTorch weights otherwise, as one file or as shards such as `model-00001-of-00002.safetensors`; other frameworks' copies are never fetched.
 SAFETENSORS_WEIGHTS = re.compile(r"model(-\d+-of-\d+)?\.safetensors")
 PYTORCH_WEIGHTS = re.compile(r"pytorch_model(-\d+-of-\d+)?\.bin")
 SMALL_FILE_SUFFIXES = (".json", ".txt", ".model")

@@ -32,6 +32,7 @@ final class TranscriptHistoryStore {
     }
   }
 
+  /// While saving is off, returns `history` unchanged, so the transcript appears nowhere in History.
   func prepend(_ item: TranscriptHistoryItem, to history: [TranscriptHistoryItem])
     -> [TranscriptHistoryItem]
   {
