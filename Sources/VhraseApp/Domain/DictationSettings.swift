@@ -171,18 +171,6 @@ struct DictationSettings: Codable, Equatable, Sendable {
     case replacementRules
   }
 
-  /// Reports the language hint the selected provider actually receives; Parakeet and the gateway always detect the language.
-  var recognitionLanguage: String {
-    switch provider {
-    case .gemini: geminiLanguageCodes.joined(separator: ", ")
-    case .parakeet, .vercel: ""
-    case .xai:
-      xaiFormatText ? language.trimmingCharacters(in: .whitespacesAndNewlines) : ""
-    case .elevenLabs, .openAI, .huggingFace:
-      language.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-  }
-
   var transcriptionModeTitle: String {
     transcriptionMode.title(for: provider)
   }

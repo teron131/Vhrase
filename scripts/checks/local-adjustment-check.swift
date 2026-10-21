@@ -1,13 +1,8 @@
-// Verifies the production local demo adjustment remains deterministic and provider-free.
+// Verifies the deterministic local cleanup that runs when LLM polishing fails and in the Run demo dictation.
 
 @main
-struct DemoAdjustmentCheck {
+struct LocalAdjustmentCheck {
   static func main() {
-    let input = "Please send this custom dictation demo to OpenAI and xAI using ElevenLabs."
-    let output = DemoAdjustmentPreview().adjust(input)
-    precondition(output.contains("OpenAI"))
-    precondition(output == input)
-
     let fallback = LocalAdjustmentFallback()
     precondition(
       fallback.adjust("  send this to open AI , x AI, and eleven labs  ")
@@ -28,6 +23,6 @@ struct DemoAdjustmentCheck {
         == "Keep reopenai, xair and elevenlabsx?"
     )
     precondition(fallback.adjust(" \t\n ").isEmpty)
-    print("demo adjustment preview ok")
+    print("local adjustment ok")
   }
 }

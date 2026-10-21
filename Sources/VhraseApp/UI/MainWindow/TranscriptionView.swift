@@ -154,9 +154,9 @@ struct TranscriptionView: View {
   @ViewBuilder private var providerSetup: some View {
     switch provider {
     case .parakeet:
-      OnDeviceModelControls(appState: appState, store: appState.parakeetModelStore)
+      LocalModelControls(appState: appState, store: appState.localModels.parakeet)
     case .huggingFace:
-      OnDeviceModelControls(appState: appState, store: appState.huggingFaceModelStore)
+      LocalModelControls(appState: appState, store: appState.localModels.huggingFace)
     case .xai, .elevenLabs, .gemini, .openAI, .vercel:
       if let key = SecretKey(provider) {
         CredentialSummaryRow(

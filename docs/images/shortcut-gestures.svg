@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 448" width="1180" height="448" role="img" aria-labelledby="title">
+  <title id="title">Vhrase's shortcut gestures. Tap starts recording and a second tap finishes it. Hold records while the key is held and finishes on release. Double-tap polishes the selected text, or the whole field when nothing is selected. Esc cancels the recording, and nothing is pasted or saved.</title>
+  <!-- The global shortcut's gestures as timing diagrams: the key's presses on a line, recording as an orange bar beneath, and polishing as a violet spark. -->
+  <style>
+    .bg { fill: #161412; }
+    text { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; }
+    .title { fill: #F7F4EF; font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: 800; font-size: 26px; }
+    .sub { fill: #A9A198; font-style: italic; font-size: 15px; }
+    .legend { fill: #A9A198; font-size: 14px; }
+    .name { fill: #F7F4EF; font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: 800; font-size: 24px; }
+    .key { fill: none; stroke: #F7F4EF; stroke-width: 2.4; stroke-linejoin: round; }
+    .record { fill: #FF6242; }
+    .spark { fill: #9D86FF; }
+    .cancel { stroke: #F7F4EF; stroke-width: 3; stroke-linecap: round; }
+    .caption { fill: #A9A198; font-size: 17px; }
+  </style>
+  <rect class="bg" width="1180" height="448" rx="24"/>
+  <g transform="translate(30 0)">
+    <text class="title" x="40" y="62">One shortcut, four gestures</text>
+    <text class="sub" x="40" y="90">Key presses over time, and what each one does</text>
+    <rect class="record" x="822" y="56" width="34" height="10" rx="5"/>
+    <text class="legend" x="866" y="66">Recording</text>
+    <path class="spark" transform="translate(988 61) scale(0.55)" d="M 0 -17 C 2 -6 4 -5 14 -3 C 4 -1 2 1 0 11 C -2 1 -4 -1 -14 -3 C -4 -5 -2 -6 0 -17 Z"/>
+    <text class="legend" x="1004" y="66">Polishing</text>
+    <text class="name" x="40" y="160">Tap</text>
+    <rect class="record" x="76" y="288" width="166" height="11" rx="5.5"/>
+    <path class="key" d="M 40 258 H 64 V 222 H 88 V 258 H 230 V 222 H 254 V 258 H 280"/>
+    <text class="caption" x="40" y="364">Starts recording. Tap again</text>
+    <text class="caption" x="40" y="388">to finish.</text>
+    <text class="name" x="310" y="160">Hold</text>
+    <rect class="record" x="334" y="288" width="182" height="11" rx="5.5"/>
+    <path class="key" d="M 310 258 H 334 V 222 H 516 V 258 H 550"/>
+    <text class="caption" x="310" y="364">Records while you hold the</text>
+    <text class="caption" x="310" y="388">key, and finishes on release.</text>
+    <text class="name" x="580" y="160">Double-tap</text>
+    <path class="key" d="M 580 258 H 604 V 222 H 624 V 258 H 638 V 222 H 658 V 258 H 820"/>
+    <path class="spark" transform="translate(712 240)" d="M 0 -17 C 2 -6 4 -5 14 -3 C 4 -1 2 1 0 11 C -2 1 -4 -1 -14 -3 C -4 -5 -2 -6 0 -17 Z"/>
+    <path class="spark" transform="translate(730 224) scale(0.45)" d="M 0 -17 C 2 -6 4 -5 14 -3 C 4 -1 2 1 0 11 C -2 1 -4 -1 -14 -3 C -4 -5 -2 -6 0 -17 Z"/>
+    <text class="caption" x="580" y="364">Polishes the selected text, or</text>
+    <text class="caption" x="580" y="388">the whole field when nothing</text>
+    <text class="caption" x="580" y="412">is selected.</text>
+    <text class="name" x="850" y="160">Esc</text>
+    <rect class="record" x="850" y="288" width="150" height="11" rx="5.5"/>
+    <path class="key" d="M 850 258 H 1000 V 222 H 1022 V 258 H 1090"/>
+    <path class="cancel" d="M 1037 284 l 18 18 M 1055 284 l -18 18"/>
+    <text class="caption" x="850" y="364">Cancels the recording.</text>
+    <text class="caption" x="850" y="388">Nothing is pasted or saved.</text>
+  </g>
+</svg>

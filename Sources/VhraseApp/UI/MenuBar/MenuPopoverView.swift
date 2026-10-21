@@ -62,7 +62,9 @@ struct MenuPopoverView: View {
         presentation: presentation,
         meter: appState.recordingMeter,
         style: .compact,
-        action: handleRecordButton
+        action: {
+          appState.performRecordAction(presentation.recordAction) { openMainWindow(.system) }
+        }
       )
 
       VStack(alignment: .leading, spacing: 1) {
@@ -362,19 +364,6 @@ struct MenuPopoverView: View {
       return nil
     }
     return presentation.insertionPermissionActionTitle
-  }
-
-  private func handleRecordButton() {
-    switch presentation.recordAction {
-    case .toggleRecording:
-      appState.toggleRecording()
-    case .cancelRecording:
-      appState.cancelRecording()
-    case .openSetup:
-      openMainWindow(.system)
-    case .disabled:
-      break
-    }
   }
 
   private func openMainWindow(_ tab: MainWindowTab = .dictation) {

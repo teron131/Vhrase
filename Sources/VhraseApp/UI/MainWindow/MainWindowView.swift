@@ -39,7 +39,7 @@ struct MainWindowView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VhraseTheme.canvas)
         .overlay(alignment: .top) {
-          if !appState.customizationNotice.isEmpty {
+          if !appState.notice.isEmpty {
             actionNoticeBanner
               .transition(.move(edge: .top).combined(with: .opacity))
               .zIndex(1)
@@ -62,8 +62,8 @@ struct MainWindowView: View {
     .onChange(of: scenePhase) { _, newPhase in
       if newPhase == .active { appState.refreshPermissions() }
     }
-    .task(id: appState.customizationNotice) {
-      let notice = appState.customizationNotice
+    .task(id: appState.notice) {
+      let notice = appState.notice
       guard !notice.isEmpty else {
         return
       }
@@ -72,7 +72,7 @@ struct MainWindowView: View {
       } catch {
         return
       }
-      appState.dismissCustomizationNotice(notice)
+      appState.dismissNotice(notice)
     }
   }
 
@@ -82,13 +82,13 @@ struct MainWindowView: View {
         .foregroundStyle(VhraseTheme.accent)
         .accessibilityHidden(true)
 
-      Text(appState.customizationNotice)
+      Text(appState.notice)
         .font(.callout)
         .frame(maxWidth: .infinity, alignment: .leading)
         .textSelection(.enabled)
 
       Button {
-        appState.dismissCustomizationNotice(appState.customizationNotice)
+        appState.dismissNotice(appState.notice)
       } label: {
         Image(systemName: "xmark")
       }

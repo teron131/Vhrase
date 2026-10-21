@@ -1,4 +1,4 @@
-// Verifies OpenAI's fixed-model upload fields, its keyword policy, and that it stays an after-stop cloud provider.
+// Verifies OpenAI's upload fields and editable model, its keyword policy, and that it stays an after-stop cloud provider.
 
 import Foundation
 
@@ -12,7 +12,6 @@ struct OpenAISTTOptionsCheck {
     settings.keyterms = " Vercel\nrefactor\nVercel\n\nMonte Carlo"
     precondition(STTProvider.openAI.location == .cloud)
     precondition(STTProvider.openAI.availableModes == [.upload])
-    precondition(settings.recognitionLanguage == "yue")
 
     let fields = try OpenAITranscriptionContract.uploadFields(settings: settings)
     precondition(fields.first! == ("model", "gpt-transcribe"))

@@ -60,7 +60,7 @@ struct TranscriptFinalizer {
           cleanup = fallback.cleanup
         }
       case .localDemo:
-        finalText = DemoAdjustmentPreview().adjust(finalText)
+        finalText = LocalAdjustmentFallback().adjust(finalText)
         cleanup = .demo
       }
       try validateTranscript(finalText)

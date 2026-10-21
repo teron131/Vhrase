@@ -13,10 +13,11 @@ import weakref
 def main() -> None:
     helper = (
         Path(__file__).resolve().parents[2]
-        / "Sources/VhraseApp/Transcription/OnDevice/HuggingFaceRuntime/asr.py"
+        / "Sources/VhraseApp/Transcription/Local/HuggingFaceRuntime/asr.py"
     )
     spec = importlib.util.spec_from_file_location("asr", helper)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     asr = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(asr)
     references: list[weakref.ReferenceType] = []
@@ -66,7 +67,8 @@ def main() -> None:
         True,
         True,
     ], replies
-    assert replies[1]["text"] == "first/model" and replies[6]["text"] == "third/model"
+    assert replies[1]["text"] == "first/model"
+    assert replies[6]["text"] == "third/model"
     assert replies[4]["error"] == "Model could not load"
     assert builds == ["first/model", "second/model", "broken/model", "third/model"]
     assert not any(reference() is not None for reference in references)

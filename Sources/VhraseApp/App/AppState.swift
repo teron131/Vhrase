@@ -29,10 +29,7 @@ final class AppState: ObservableObject {
   let audioInputPreview = AudioInputPreview()
   let transcriptionTest = TranscriptionTest()
   let openCCSetup = OpenCCSetup()
-  let parakeetModelStore = OnDeviceModelStore(model: ParakeetModel())
-  /// Follows the Hugging Face model named in settings; one recognizer serves every model so only one stays in memory.
-  let huggingFaceModelStore: OnDeviceModelStore
-  private let huggingFaceRecognizer = HuggingFaceRecognizer()
+  let localModels: LocalModels
   @Published private(set) var permissions: [PermissionSnapshot] = []
   @Published private(set) var history: [TranscriptHistoryItem] = [] {
     didSet {
@@ -44,7 +41,7 @@ final class AppState: ObservableObject {
   @Published private(set) var lastAdjustmentWarning = ""
   @Published private(set) var lastCompletion: WorkflowCompletion = .transcript(.none)
   @Published private(set) var targetAppLabel = ""
-  @Published private(set) var customizationNotice = ""
+  @Published private(set) var notice = ""
   @Published private(set) var isCheckingLLMModelAccess = false
   @Published private(set) var isWorkflowPopupDismissed = false {
     didSet {
@@ -97,8 +94,7 @@ final class AppState: ObservableObject {
     self.ownsInstance = ownsInstance
     let settings = settingsStore.load()
     self.settings = settings
-    huggingFaceModelStore = OnDeviceModelStore(
-      model: HuggingFaceModel(id: settings.huggingFaceModel, recognizer: huggingFaceRecognizer))
+    localModels = LocalModels(settings: settings)
     history = historyStore.load()
     activityDays = activityStore.load()
     savesTranscriptHistory = historyStore.savesHistory
@@ -106,18 +102,18 @@ final class AppState: ObservableObject {
     if ownsInstance {
       AudioRecorder.removeAbandonedRecordings()
     }
-    customizationNotice = credentials.environmentNotice
+    notice = credentials.environmentNotice
     credentials.onNotice = { [weak self] notice in
-      self?.customizationNotice = notice
+      self?.notice = notice
     }
     openCCSetup.onNotice = { [weak self] notice in
-      self?.customizationNotice = notice
+      self?.notice = notice
     }
     // Readiness and recording availability depend on child workflows, so their changes refresh AppState observers.
     childStateObservations = [
       credentials.objectWillChange,
-      parakeetModelStore.objectWillChange,
-      huggingFaceModelStore.objectWillChange,
+      localModels.parakeet.objectWillChange,
+      localModels.huggingFace.objectWillChange,
       transcriptionTest.objectWillChange,
       openCCSetup.objectWillChange,
     ].map { changes in
@@ -128,7 +124,7 @@ final class AppState: ObservableObject {
     refreshPermissions()
     registerHotkey()
     if ownsInstance {
-      warmUpSelectedLocalModel()
+      localModels.prepareSelected()
     }
   }
 
@@ -160,7 +156,7 @@ final class AppState: ObservableObject {
     textPolishID != nil
   }
 
-  /// Only on-device recognition stops cleanly mid-request; a cloud provider has already received the audio.
+  /// Only local recognition stops cleanly mid-request; a cloud provider has already received the audio.
   var canCancelTranscription: Bool {
     status == .transcribing && recordingConfiguration?.settings.provider.location == .local
   }
@@ -189,6 +185,20 @@ final class AppState: ObservableObject {
     }
   }
 
+  /// Runs the record button's current action; only the calling surface knows how to show the System page.
+  func performRecordAction(_ action: RecordAction, openSetup: () -> Void) {
+    switch action {
+    case .toggleRecording:
+      toggleRecording()
+    case .cancelRecording:
+      cancelRecording()
+    case .openSetup:
+      openSetup()
+    case .disabled:
+      break
+    }
+  }
+
   func retryLastWorkflow() {
     switch activeWorkflow {
     case .dictation:
@@ -206,10 +216,10 @@ final class AppState: ObservableObject {
     releaseRecording()
     liveTranscript = ""
     status = .idle
-    customizationNotice = "Recording cancelled."
+    notice = "Recording cancelled."
   }
 
-  /// Stops on-device recognition of a finished recording; its audio is discarded and nothing is delivered or saved.
+  /// Stops local recognition of a finished recording; its audio is discarded and nothing is delivered or saved.
   func cancelTranscription() {
     guard canCancelTranscription else {
       return
@@ -219,23 +229,11 @@ final class AppState: ObservableObject {
     processingTask = nil
     releaseRecording()
     status = .idle
-    customizationNotice = "Transcription cancelled."
+    notice = "Transcription cancelled."
   }
 
-  func localModelStore(for provider: STTProvider) -> OnDeviceModelStore? {
-    switch provider {
-    case .parakeet: parakeetModelStore
-    case .huggingFace: huggingFaceModelStore
-    case .xai, .elevenLabs, .gemini, .openAI, .vercel: nil
-    }
-  }
-
-  var selectedLocalModelStore: OnDeviceModelStore? {
-    localModelStore(for: settings.provider)
-  }
-
-  /// Ignored while dictation, polishing, or the setup test is running; the outcome arrives as a customization notice.
-  func removeLocalModel(_ store: OnDeviceModelStore) {
+  /// Ignored while dictation, polishing, or the setup test is running; the outcome arrives as a notice.
+  func removeLocalModel(_ store: LocalModelStore) {
     guard canStartRecording else {
       return
     }
@@ -243,9 +241,9 @@ final class AppState: ObservableObject {
     Task {
       do {
         try await store.remove()
-        customizationNotice = "\(title) model removed. Download it again to transcribe on this Mac."
+        notice = "\(title) model removed. Download it again to transcribe on this Mac."
       } catch {
-        customizationNotice = "Couldn't remove the \(title) model: \(error.localizedDescription)"
+        notice = "Couldn't remove the \(title) model: \(error.localizedDescription)"
       }
     }
   }
@@ -284,10 +282,10 @@ final class AppState: ObservableObject {
       dismissWorkflowOutcome()
       return true
     case .idle:
-      guard !customizationNotice.isEmpty else {
+      guard !notice.isEmpty else {
         return false
       }
-      customizationNotice = ""
+      notice = ""
       return true
     }
   }
@@ -322,7 +320,7 @@ final class AppState: ObservableObject {
       return
     }
 
-    customizationNotice = "Shortcut \(settings.hotkeyDisplay) pressed."
+    notice = "Shortcut \(settings.hotkeyDisplay) pressed."
     let action = shortcutGesture.press(
       at: ProcessInfo.processInfo.systemUptime,
       status: status,
@@ -351,7 +349,7 @@ final class AppState: ObservableObject {
     update(&settings)
     if !settings.provider.availableModes.contains(settings.transcriptionMode) {
       settings.transcriptionMode = .upload
-      customizationNotice =
+      notice =
         "\(settings.provider.title) transcribes after you stop recording. Switched to \(settings.transcriptionModeTitle)."
     }
     guard settings != previousSettings else {
@@ -360,13 +358,9 @@ final class AppState: ObservableObject {
     persistSettings(previous: previousSettings)
   }
 
-  private func warmUpSelectedLocalModel() {
-    selectedLocalModelStore?.prepare()
-  }
-
   func beginShortcutCapture() {
     isShortcutCaptureActive = true
-    customizationNotice = "Listening for a shortcut. Press Esc to cancel."
+    notice = "Listening for a shortcut. Press Esc to cancel."
   }
 
   func setCustomShortcut(_ hotkey: CustomHotkey) {
@@ -375,7 +369,7 @@ final class AppState: ObservableObject {
       settings.hotkeyPreset = .custom
       settings.customHotkey = hotkey
     }
-    customizationNotice = "STT shortcut set to \(hotkey.display)."
+    notice = "STT shortcut set to \(hotkey.display)."
   }
 
   func setFnShortcut() {
@@ -384,24 +378,24 @@ final class AppState: ObservableObject {
       settings.hotkeyPreset = .fn
       settings.customHotkey = nil
     }
-    customizationNotice = "STT shortcut set to Fn/Globe."
+    notice = "STT shortcut set to Fn/Globe."
   }
 
   func cancelShortcutCapture() {
     isShortcutCaptureActive = false
-    customizationNotice = "Shortcut capture cancelled."
+    notice = "Shortcut capture cancelled."
   }
 
   func rejectShortcutCapture(_ message: String) {
-    customizationNotice = message
+    notice = message
   }
 
   /// Clears a transient action message without dismissing a newer replacement.
-  func dismissCustomizationNotice(_ notice: String) {
-    guard customizationNotice == notice else {
+  func dismissNotice(_ notice: String) {
+    guard self.notice == notice else {
       return
     }
-    customizationNotice = ""
+    self.notice = ""
   }
 
   func disableShortcut() {
@@ -409,7 +403,7 @@ final class AppState: ObservableObject {
       settings.hotkeyPreset = .disabled
       settings.customHotkey = nil
     }
-    customizationNotice = "STT shortcut disabled."
+    notice = "STT shortcut disabled."
   }
 
   func refreshPermissions() {
@@ -419,7 +413,7 @@ final class AppState: ObservableObject {
 
   /// Opens the privacy pane for granted access; otherwise requests it, falling back to the pane where macOS requires it.
   func handlePermissionAction(_ permission: AppPermission) {
-    guard permissionState(for: permission)?.isReady != true else {
+    guard !permissions.isReady(permission) else {
       permissionManager.openSettings(for: permission)
       return
     }
@@ -432,9 +426,9 @@ final class AppState: ObservableObject {
   func copyHistoryItem(_ item: TranscriptHistoryItem) {
     do {
       try inserter.copy(item.text)
-      customizationNotice = "Transcript copied."
+      notice = "Transcript copied."
     } catch {
-      customizationNotice = error.localizedDescription
+      notice = error.localizedDescription
     }
   }
 
@@ -444,9 +438,9 @@ final class AppState: ObservableObject {
     }
     do {
       try inserter.copy(lastTranscript)
-      customizationNotice = "Last transcript copied."
+      notice = "Last transcript copied."
     } catch {
-      customizationNotice = error.localizedDescription
+      notice = error.localizedDescription
     }
   }
 
@@ -493,9 +487,7 @@ final class AppState: ObservableObject {
     audioInputPreview.stop()
     transcriptionTest.cancel()
     credentials.flushPendingSave()
-    parakeetModelStore.cancelDownload()
-    huggingFaceModelStore.cancelDownload()
-    huggingFaceModelStore.cancelPreparation()
+    localModels.cancelDownloadsAndPreparation()
     processingTask?.cancel()
     processingTask = nil
     textPolishID = nil
@@ -522,10 +514,10 @@ final class AppState: ObservableObject {
   func exportCustomization() {
     do {
       if try customizationTransfer.export(settings) {
-        customizationNotice = "Customization exported."
+        notice = "Customization exported."
       }
     } catch {
-      customizationNotice = "Export failed: \(error.localizedDescription)"
+      notice = "Export failed: \(error.localizedDescription)"
     }
   }
 
@@ -535,15 +527,15 @@ final class AppState: ObservableObject {
       case .dismissed:
         break
       case .reviewCancelled:
-        customizationNotice = "Customization import cancelled."
+        notice = "Customization import cancelled."
       case .imported(let importedSettings):
         let previousSettings = settings
         settings = importedSettings
         persistSettings(previous: previousSettings)
-        customizationNotice = "Customization imported."
+        notice = "Customization imported."
       }
     } catch {
-      customizationNotice = "Import failed: \(error.localizedDescription)"
+      notice = "Import failed: \(error.localizedDescription)"
     }
   }
 
@@ -553,14 +545,14 @@ final class AppState: ObservableObject {
     }
     let apiKey = credentials.effectiveValue(.llmAPIKey)
     guard !apiKey.isEmpty else {
-      customizationNotice = "Add LLM API key before checking model access."
+      notice = "Add LLM API key before checking model access."
       return
     }
 
     let model = settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
     let baseURL = effectiveLLMBaseURL
     isCheckingLLMModelAccess = true
-    customizationNotice = "Checking LLM model: \(model)…"
+    notice = "Checking LLM model: \(model)…"
     Task {
       defer { isCheckingLLMModelAccess = false }
       do {
@@ -569,9 +561,9 @@ final class AppState: ObservableObject {
           baseURL: baseURL
         )
         .checkModel(model)
-        customizationNotice = "LLM model ready: \(model)."
+        notice = "LLM model ready: \(model)."
       } catch {
-        customizationNotice = "LLM model check failed for \(model): \(error.localizedDescription)"
+        notice = "LLM model check failed for \(model): \(error.localizedDescription)"
       }
     }
   }
@@ -615,7 +607,7 @@ final class AppState: ObservableObject {
       try validateSelectedProvider(
         settings: configuration.settings, apiKey: configuration.providerAPIKey)
       // Loading overlaps the user's speech when the model was released while idle.
-      warmUpSelectedLocalModel()
+      localModels.prepareSelected()
       try await recording.start(
         onLevel: { [weak self, weak recording] level in
           Task { @MainActor in
@@ -644,7 +636,7 @@ final class AppState: ObservableObject {
 
   private func validateRecordingPermissions() throws {
     refreshPermissions()
-    guard permissionState(for: .microphone)?.isReady == true else {
+    guard permissions.isReady(.microphone) else {
       throw NSError(
         domain: "Vhrase.Permissions",
         code: 1,
@@ -728,8 +720,8 @@ final class AppState: ObservableObject {
       case .gemini: GeminiTranscriptionClient(apiKey: apiKey)
       case .openAI: OpenAITranscriptionClient(apiKey: apiKey)
       case .vercel: VercelTranscriptionClient(apiKey: apiKey)
-      case .parakeet: parakeetModelStore.model.recognizer
-      case .huggingFace: huggingFaceModelStore.model.recognizer
+      case .parakeet: localModels.parakeet.model.recognizer
+      case .huggingFace: localModels.huggingFace.model.recognizer
       }
     return TranscriptionRecording(settings: settings, apiKey: apiKey, client: client)
   }
@@ -744,7 +736,7 @@ final class AppState: ObservableObject {
       try validateRecordingPermissions()
       try validateSelectedProvider(settings: settings, apiKey: apiKey)
       audioInputPreview.stop()
-      warmUpSelectedLocalModel()
+      localModels.prepareSelected()
       transcriptionTest.start(transcriptionRecording(settings: settings, apiKey: apiKey))
     } catch {
       transcriptionTest.reportFailure(error)
@@ -792,10 +784,6 @@ final class AppState: ObservableObject {
     }
   }
 
-  private func permissionState(for permission: AppPermission) -> PermissionState? {
-    permissions.first { $0.permission == permission }?.state
-  }
-
   private func currentRecordingConfiguration() -> RecordingConfiguration {
     var resolvedSettings = settings
     resolvedSettings.adjustmentBaseURL = effectiveLLMBaseURL
@@ -818,32 +806,18 @@ final class AppState: ObservableObject {
   private func providerReadiness(_ provider: STTProvider, apiKey: String) -> ProviderReadiness {
     switch provider.location {
     case .cloud: apiKey.isEmpty ? .missingAPIKey : .ready
-    case .local: localModelStore(for: provider)?.isInstalled == true ? .ready : .missingLocalModel
+    case .local:
+      localModels.store(for: provider)?.isInstalled == true ? .ready : .missingLocalModel
     }
   }
 
   private func persistSettings(previous: DictationSettings) {
     settingsStore.save(settings)
-    if previous.provider == .huggingFace, settings.provider != .huggingFace {
-      huggingFaceModelStore.cancelPreparation()
-      Task { [weak self] in
-        // Switching back to Hugging Face before this runs keeps its model loaded.
-        guard let self, self.settings.provider != .huggingFace else { return }
-        await self.huggingFaceRecognizer.unload()
-      }
-    }
+    localModels.settingsChanged(from: previous, to: settings)
     if settings.hotkeyPreset != previous.hotkeyPreset
       || settings.customHotkey != previous.customHotkey
     {
       registerHotkey()
-    }
-    let huggingFaceModelChanged = settings.huggingFaceModel != previous.huggingFaceModel
-    if huggingFaceModelChanged {
-      huggingFaceModelStore.select(
-        HuggingFaceModel(id: settings.huggingFaceModel, recognizer: huggingFaceRecognizer))
-    }
-    if settings.provider != previous.provider || huggingFaceModelChanged {
-      warmUpSelectedLocalModel()
     }
   }
 
@@ -958,7 +932,7 @@ final class AppState: ObservableObject {
     let id = UUID()
     textPolishID = id
     status = .adjusting
-    customizationNotice = "Polishing text in \(target.app.name)…"
+    notice = "Polishing text in \(target.app.name)…"
     textPolishTask = Task { [weak self] in
       guard let self else { return }
       do {
@@ -981,7 +955,7 @@ final class AppState: ObservableObject {
         self.textPolishTask = nil
         self.textPolishID = nil
         self.lastCompletion = .textPolished
-        self.customizationNotice = "Polished the focused text in \(target.app.name)."
+        self.notice = "Polished the focused text in \(target.app.name)."
         self.status = .completed
         await self.recordPolishingCost(of: polished, baseURL: baseURL)
       } catch is CancellationError {
@@ -1007,7 +981,7 @@ final class AppState: ObservableObject {
     textPolishTask?.cancel()
     textPolishTask = nil
     status = .idle
-    customizationNotice = "Text polishing cancelled."
+    notice = "Text polishing cancelled."
   }
 
   private func partialTranscriptHandler(
@@ -1129,7 +1103,7 @@ final class AppState: ObservableObject {
     var warnings: [String] = []
     if case .insert(let keepOnClipboard) = plan {
       refreshPermissions()
-      if permissionState(for: .accessibility)?.isReady != true {
+      if !permissions.isReady(.accessibility) {
         warnings.append("Copied the transcript because Accessibility permission is unavailable.")
       } else if let targetApp, await appContext.activate(targetApp) {
         do {

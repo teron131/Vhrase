@@ -232,7 +232,7 @@ struct MainWindowSidebar: View {
       let model = settings.adjustmentModel.split(separator: "/").last.map(String.init) ?? ""
       return model.isEmpty ? "No model chosen" : model
     case .delivery:
-      if !presentation.permissionIsReady(.accessibility) { return "Clipboard only" }
+      if !presentation.permissions.isReady(.accessibility) { return "Clipboard only" }
       return settings.keepTranscriptOnClipboard ? "Paste and keep a copy" : "Paste into your app"
     case .vocabulary:
       let count = settings.keytermList.count
@@ -253,7 +253,7 @@ struct MainWindowSidebar: View {
     case .shortcut:
       return !presentation.selectedShortcutReady
     case .microphone:
-      return !presentation.permissionIsReady(.microphone)
+      return !presentation.permissions.isReady(.microphone)
     case .transcription:
       return presentation.providerReadiness != .ready
         || (presentation.transcriptionConfigurationIssue != nil
@@ -262,9 +262,9 @@ struct MainWindowSidebar: View {
       guard settings.adjustWithLLM else { return false }
       return appState.credentials.effectiveValue(.llmAPIKey).isEmpty
         || settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        || (settings.includeScreenshot && !presentation.permissionIsReady(.screenRecording))
+        || (settings.includeScreenshot && !presentation.permissions.isReady(.screenRecording))
     case .delivery:
-      return !presentation.permissionIsReady(.accessibility)
+      return !presentation.permissions.isReady(.accessibility)
     case .vocabulary:
       return presentation.vocabularyIssue != nil
     case .system:

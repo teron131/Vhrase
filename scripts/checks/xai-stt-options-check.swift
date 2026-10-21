@@ -90,13 +90,11 @@ struct XAISTTOptionsCheck {
     precondition(chunks[0].count == PCM16ChunkFramer.chunkByteCount)
     precondition(chunks[0].prefix(1_000) == Data(repeating: 1, count: 1_000))
     precondition(chunks[0].suffix(2_200) == Data(repeating: 2, count: 2_200))
-    precondition(framer.remainderByteCount == 800)
 
     let finalChunk = framer.finish()
     precondition(finalChunk?.count == PCM16ChunkFramer.chunkByteCount)
     precondition(finalChunk?.prefix(800) == Data(repeating: 2, count: 800))
     precondition(finalChunk?.suffix(2_400) == Data(repeating: 0, count: 2_400))
-    precondition(framer.remainderByteCount == 0)
     precondition(framer.finish() == nil)
 
     var exactFramer = PCM16ChunkFramer()

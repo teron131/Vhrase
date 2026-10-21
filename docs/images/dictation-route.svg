@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 505" width="1180" height="505" role="img" aria-labelledby="title">
+  <title id="title">One dictation through Vhrase. Shortcut: tap, hold or double-tap, and Esc cancels. Microphone: volume leveling and noise reduction. Transcription: a cloud or local model, after you stop or while you speak, turns the speech into raw words. Refinement: an optional language model, reading the vocabulary, the writing style and the screen, cleans them up, with local cleanup if it fails. Delivery: the text is pasted back where you were typing, and the clipboard is restored.</title>
+  <!-- One dictation's route through the five stages Vhrase's sidebar names, in the app's palette: violet marks the model stages, orange the context they read. -->
+  <style>
+    .bg { fill: #161412; }
+    text { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; }
+    .route { stroke: #6B645D; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 0 13; }
+    .node { fill: #211E1B; stroke: #F7F4EF; stroke-width: 1.6; }
+    .node.model { fill: #9D86FF; stroke: #9D86FF; }
+    .glyph { fill: none; stroke: #F7F4EF; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .glyph.on-model { stroke: #161412; }
+    .glyph .fill { fill: #F7F4EF; stroke: none; }
+    .glyph.on-model .fill { fill: #161412; }
+    .name { fill: #F7F4EF; font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: 800; font-size: 20px; text-anchor: middle; }
+    .note { fill: #A9A198; font-size: 15px; text-anchor: middle; }
+    .chip { fill: #161412; stroke: #FF6242; stroke-width: 1.6; }
+    .chip-label { fill: #FF6242; font-weight: 650; font-size: 14px; text-anchor: middle; }
+    .feed { fill: none; stroke: #FF6242; stroke-width: 1.6; stroke-dasharray: 5 5; }
+    .arrow { fill: none; stroke: #FF6242; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .strip-label { fill: #A9A198; font-style: italic; font-size: 15px; }
+    .pulse { fill: none; stroke: #F7F4EF; stroke-width: 2; stroke-linejoin: round; }
+    .tiny { fill: #A9A198; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; text-anchor: middle; }
+    .pill { fill: #000; stroke: #3A3531; stroke-width: 1.4; }
+    .bar, .dot { fill: #FFF; }
+    .dot { opacity: 0.55; }
+    .card { fill: none; stroke: #3A3531; stroke-width: 1.4; }
+    .raw, .clean, .typed { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+    .raw { fill: #A9A198; }
+    .mark { fill: #9D86FF; }
+    .clean { fill: #161412; }
+    .field { fill: #211E1B; stroke: #3A3531; stroke-width: 1.4; }
+    .window-dot { fill: #6B645D; }
+    .typed { fill: #F7F4EF; }
+    .typed.before { fill: #6B645D; }
+    .caret { stroke: #FF6242; stroke-width: 2; }
+    .chevron { fill: none; stroke: #6B645D; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrow" d="M2 1 8 5 2 9"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1180" height="505" rx="24"/>
+  <g transform="translate(30 -45)">
+    <line class="route" x1="112" x2="1008" y1="236" y2="236"/>
+    <path class="feed" d="M 630 115 C 630 162, 560 140.0, 560 190.0" marker-end="url(#arrow)"/>
+    <path class="feed" d="M 630 115 C 630 162, 770 143.53262412077183, 770 193.53262412077183" marker-end="url(#arrow)"/>
+    <path class="feed" d="M 800 115 C 800 162, 786 140.0, 786 190.0" marker-end="url(#arrow)"/>
+    <path class="feed" d="M 978 115 C 978 162, 802 143.53262412077183, 802 193.53262412077183" marker-end="url(#arrow)"/>
+    <rect class="chip" x="573.0" y="85" width="114.0" height="30" rx="15"/>
+    <text class="chip-label" x="630" y="105">Vocabulary</text>
+    <rect class="chip" x="755.6" y="85" width="88.8" height="30" rx="15"/>
+    <text class="chip-label" x="800" y="105">Writing</text>
+    <rect class="chip" x="904.2" y="85" width="147.6" height="30" rx="15"/>
+    <text class="chip-label" x="978" y="105">Screen context</text>
+    <circle class="node" cx="112" cy="236" r="38"/>
+    <g class="glyph" transform="translate(112 236)"><rect x="-18" y="-12" width="36" height="24" rx="5"/><circle class="fill" cx="-10" cy="-5" r="1.6"/><circle class="fill" cx="-5" cy="-5" r="1.6"/><circle class="fill" cx="0" cy="-5" r="1.6"/><circle class="fill" cx="5" cy="-5" r="1.6"/><circle class="fill" cx="10" cy="-5" r="1.6"/><circle class="fill" cx="-10" cy="0" r="1.6"/><circle class="fill" cx="-5" cy="0" r="1.6"/><circle class="fill" cx="0" cy="0" r="1.6"/><circle class="fill" cx="5" cy="0" r="1.6"/><circle class="fill" cx="10" cy="0" r="1.6"/><path d="M -7 6 H 7"/></g>
+    <text class="name" x="112" y="306">Shortcut</text>
+    <text class="note" x="112" y="331">Tap, hold or double-tap</text>
+    <text class="note" x="112" y="351">Esc cancels</text>
+    <circle class="node" cx="334" cy="236" r="38"/>
+    <g class="glyph" transform="translate(334 236)"><rect x="-6" y="-17" width="12" height="21" rx="6"/><path d="M -11 -3 a 11 11 0 0 0 22 0 M 0 8 V 16 M -7 16 H 7"/></g>
+    <text class="name" x="334" y="306">Microphone</text>
+    <text class="note" x="334" y="331">Volume leveling and</text>
+    <text class="note" x="334" y="351">noise reduction</text>
+    <circle class="node model" cx="560" cy="236" r="38"/>
+    <g class="glyph on-model" transform="translate(560 236)"><path d="M -16 -5 V 5 M -11 -11 V 11 M -6 -4 V 4 M 2 -7 H 17 M 2 0 H 13 M 2 7 H 17"/></g>
+    <text class="name" x="560" y="306">Transcription</text>
+    <text class="note" x="560" y="331">Cloud or local model,</text>
+    <text class="note" x="560" y="351">Upload or Realtime</text>
+    <circle class="node model" cx="786" cy="236" r="38"/>
+    <g class="glyph on-model" transform="translate(786 236)"><path class="fill" d="M -3 -17 C -1 -6 1 -5 11 -3 C 1 -1 -1 1 -3 11 C -5 1 -7 -1 -17 -3 C -7 -5 -5 -6 -3 -17 Z"/><path class="fill" d="M 11 6 C 12 10 13 11 17 12 C 13 13 12 14 11 18 C 10 14 9 13 5 12 C 9 11 10 10 11 6 Z"/></g>
+    <text class="name" x="786" y="306">Refinement</text>
+    <text class="note" x="786" y="331">Optional language model,</text>
+    <text class="note" x="786" y="351">local cleanup if it fails</text>
+    <circle class="node" cx="1008" cy="236" r="38"/>
+    <g class="glyph" transform="translate(1008 236)"><rect x="-18" y="-11" width="36" height="22" rx="4"/><path d="M 7 -6 V 6 M 4 -6 H 10 M 4 6 H 10 M -11 0 H 0"/></g>
+    <text class="name" x="1008" y="306">Delivery</text>
+    <text class="note" x="1008" y="331">Back where you were typing,</text>
+    <text class="note" x="1008" y="351">clipboard restored</text>
+    <text class="strip-label" x="36" y="408">What leaves each stage</text>
+    <path class="pulse" d="M 36 480 H 58 V 454 H 78 V 480 H 104 V 454 H 172 V 480 H 188"/>
+    <text class="tiny" x="68" y="502">tap</text>
+    <text class="tiny" x="138" y="502">hold</text>
+    <rect class="pill" x="242" y="441" width="184" height="50" rx="25"/>
+    <circle class="dot" cx="259.75" cy="466" r="2.6"/>
+    <rect class="bar" x="266.5" y="459.0" width="4.5" height="14" rx="2.25" opacity="0.68"/>
+    <rect class="bar" x="275.5" y="455.0" width="4.5" height="22" rx="2.25" opacity="0.81"/>
+    <circle class="dot" cx="286.75" cy="466" r="2.6"/>
+    <rect class="bar" x="293.5" y="452.0" width="4.5" height="28" rx="2.25" opacity="0.90"/>
+    <rect class="bar" x="302.5" y="457.0" width="4.5" height="18" rx="2.25" opacity="0.74"/>
+    <rect class="bar" x="311.5" y="450.0" width="4.5" height="32" rx="2.25" opacity="0.97"/>
+    <rect class="bar" x="320.5" y="454.0" width="4.5" height="24" rx="2.25" opacity="0.84"/>
+    <circle class="dot" cx="331.75" cy="466" r="2.6"/>
+    <rect class="bar" x="338.5" y="451.0" width="4.5" height="30" rx="2.25" opacity="0.94"/>
+    <rect class="bar" x="347.5" y="456.0" width="4.5" height="20" rx="2.25" opacity="0.77"/>
+    <rect class="bar" x="356.5" y="449.0" width="4.5" height="34" rx="2.25" opacity="1.00"/>
+    <rect class="bar" x="365.5" y="454.0" width="4.5" height="24" rx="2.25" opacity="0.84"/>
+    <circle class="dot" cx="376.75" cy="466" r="2.6"/>
+    <rect class="bar" x="383.5" y="453.0" width="4.5" height="26" rx="2.25" opacity="0.87"/>
+    <rect class="bar" x="392.5" y="458.0" width="4.5" height="16" rx="2.25" opacity="0.71"/>
+    <rect class="bar" x="401.5" y="455.0" width="4.5" height="22" rx="2.25" opacity="0.81"/>
+    <circle class="dot" cx="412.75" cy="466" r="2.6"/>
+    <rect class="card" x="456" y="428" width="208" height="76" rx="10"/>
+    <text class="raw" x="472" y="450" textLength="136" lengthAdjust="spacing">Then ask cloud to</text>
+    <text class="raw" x="472" y="469" textLength="160" lengthAdjust="spacing">open the reaper. Um,</text>
+    <text class="raw" x="472" y="488" textLength="176" lengthAdjust="spacing">no, the codecs config.</text>
+    <rect class="mark" x="708.0" y="443" width="156" height="22" rx="4"/>
+    <text class="clean" x="786" y="459" text-anchor="middle" textLength="144" lengthAdjust="spacing">Then ask Claude to</text>
+    <rect class="mark" x="692.0" y="467" width="188" height="22" rx="4"/>
+    <text class="clean" x="786" y="483" text-anchor="middle" textLength="176" lengthAdjust="spacing">open the Codex config.</text>
+    <rect class="field" x="906" y="422" width="206" height="88" rx="10"/>
+    <circle class="window-dot" cx="920" cy="434" r="3"/>
+    <circle class="window-dot" cx="930" cy="434" r="3"/>
+    <circle class="window-dot" cx="940" cy="434" r="3"/>
+    <text class="typed before" x="920" y="456" textLength="160" lengthAdjust="spacing">&#8230;below in AGENTS.md.</text>
+    <text class="typed" x="920" y="475" textLength="144" lengthAdjust="spacing">Then ask Claude to</text>
+    <text class="typed" x="920" y="494" textLength="176" lengthAdjust="spacing">open the Codex config.</text>
+    <line class="caret" x1="1099" x2="1099" y1="480" y2="498"/>
+    <path class="chevron" d="M 219.0 458 L 227.0 466 L 219.0 474"/>
+    <path class="chevron" d="M 443.0 458 L 451.0 466 L 443.0 474"/>
+    <path class="chevron" d="M 669.0 458 L 677.0 466 L 669.0 474"/>
+    <path class="chevron" d="M 893.0 458 L 901.0 466 L 893.0 474"/>
+  </g>
+</svg>

@@ -1,4 +1,4 @@
-// Verifies insertion access remains required without treating optional Fn monitoring as a blocker, and that on-device recognition asks for its model instead of a key.
+// Verifies insertion access remains required without treating optional Fn monitoring as a blocker, and that local recognition asks for its model instead of a key.
 
 import Foundation
 
@@ -31,16 +31,16 @@ struct SetupDiagnosticsCheck {
     )
     precondition(invalidConfiguration.first?.id == .transcriptionConfiguration)
 
-    var onDevice = settings
-    onDevice.provider = .parakeet
+    var localSettings = settings
+    localSettings.provider = .parakeet
     let missingModel = diagnostics(
-      settings: onDevice, accessibility: .granted, inputMonitoring: .granted,
+      settings: localSettings, accessibility: .granted, inputMonitoring: .granted,
       providerReadiness: .missingLocalModel)
     precondition(missingModel.map(\.id) == [.localModel])
     let readyModel = diagnostics(
-      settings: onDevice, accessibility: .granted, inputMonitoring: .granted)
+      settings: localSettings, accessibility: .granted, inputMonitoring: .granted)
     precondition(readyModel.map(\.id) == [.ready])
-    precondition(readyModel.first?.detail.contains("on-device model") == true)
+    precondition(readyModel.first?.detail.contains("local model") == true)
 
     // Missing OpenCC is a setup step only while Chinese output is on.
     let missingOpenCC = diagnostics(

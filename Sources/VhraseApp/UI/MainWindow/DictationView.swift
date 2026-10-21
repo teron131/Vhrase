@@ -47,7 +47,9 @@ struct DictationView: View {
         presentation: presentation,
         meter: appState.recordingMeter,
         style: .hero,
-        action: handleRecordButton
+        action: {
+          appState.performRecordAction(presentation.recordAction) { navigation.open(.system) }
+        }
       )
 
       VStack(alignment: .leading, spacing: 2) {
@@ -369,7 +371,7 @@ struct DictationView: View {
         return
           "Download the \(appState.settings.provider.title) model once to transcribe on this Mac."
       }
-      if !presentation.permissionIsReady(.microphone) {
+      if !presentation.permissions.isReady(.microphone) {
         return "Allow microphone access before recording."
       }
       if let transcriptionConfigurationIssue = presentation.transcriptionConfigurationIssue {
@@ -426,19 +428,6 @@ struct DictationView: View {
       return true
     case .idle, .completed, .failed:
       return false
-    }
-  }
-
-  private func handleRecordButton() {
-    switch presentation.recordAction {
-    case .toggleRecording:
-      appState.toggleRecording()
-    case .cancelRecording:
-      appState.cancelRecording()
-    case .openSetup:
-      navigation.open(.system)
-    case .disabled:
-      break
     }
   }
 }

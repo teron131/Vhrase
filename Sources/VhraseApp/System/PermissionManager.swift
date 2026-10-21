@@ -98,6 +98,16 @@ struct PermissionSnapshot: Identifiable, Sendable {
   }
 }
 
+extension [PermissionSnapshot] {
+  func snapshot(for permission: AppPermission) -> PermissionSnapshot? {
+    first { $0.permission == permission }
+  }
+
+  func isReady(_ permission: AppPermission) -> Bool {
+    snapshot(for: permission)?.state.isReady == true
+  }
+}
+
 enum OptionalPermissionRequestStep: Equatable {
   case requestSystemAccess
   case openSettingsIfRequestDenied

@@ -313,7 +313,7 @@ struct SystemView: View {
     case .openCC:
       appState.openCCSetup.failureMessage
     case .localModel:
-      if case .failed(let message) = appState.selectedLocalModelStore?.state {
+      if case .failed(let message) = appState.localModels.selected?.state {
         message
       } else {
         nil
@@ -326,7 +326,7 @@ struct SystemView: View {
   private func isDiagnosticActionRunning(_ diagnostic: SetupDiagnostic) -> Bool {
     switch diagnostic.id {
     case .openCC: appState.openCCSetup.installation == .installing
-    case .localModel: appState.selectedLocalModelStore?.isDownloading == true
+    case .localModel: appState.localModels.selected?.isDownloading == true
     default: false
     }
   }
@@ -338,13 +338,13 @@ struct SystemView: View {
     case .providerKey, .adjustmentKey:
       "Add Key"
     case .localModel:
-      switch appState.selectedLocalModelStore?.state {
+      switch appState.localModels.selected?.state {
       case .downloading(let fraction, let isIndeterminate):
-        OnDeviceModelStore.State.progressTitle(fraction: fraction, isIndeterminate: isIndeterminate)
+        LocalModelStore.State.progressTitle(fraction: fraction, isIndeterminate: isIndeterminate)
       case .failed:
         "Retry Download"
       case .missing, .installed, nil:
-        appState.selectedLocalModelStore?.downloadTitle
+        appState.localModels.selected?.downloadTitle
       }
     case .microphonePermission:
       "Request Access"
@@ -367,7 +367,7 @@ struct SystemView: View {
     case .providerKey:
       credentialRequest = SecretKey(appState.settings.provider)
     case .localModel:
-      appState.selectedLocalModelStore?.download()
+      appState.localModels.selected?.download()
     case .adjustmentKey:
       credentialRequest = .llmAPIKey
     case .microphonePermission:

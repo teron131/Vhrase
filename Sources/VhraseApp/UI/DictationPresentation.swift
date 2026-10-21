@@ -35,19 +35,19 @@ struct DictationPresentation {
 
   var coreRecordingReady: Bool {
     providerReadiness == .ready
-      && permissionIsReady(.microphone)
+      && permissions.isReady(.microphone)
       && transcriptionConfigurationIssue == nil
   }
 
   var selectedShortcutReady: Bool {
     settings.hotkeyPreset != .fn
-      || permissionIsReady(.inputMonitoring)
-      || permissionIsReady(.accessibility)
+      || permissions.isReady(.inputMonitoring)
+      || permissions.isReady(.accessibility)
   }
 
   /// `nil` once Accessibility is granted.
   var insertionPermissionActionTitle: String? {
-    guard let snapshot = permissionSnapshot(.accessibility), !snapshot.state.isReady else {
+    guard let snapshot = permissions.snapshot(for: .accessibility), !snapshot.state.isReady else {
       return nil
     }
     return snapshot.requestedBefore ? "Open Accessibility" : "Allow Accessibility"
@@ -64,7 +64,7 @@ struct DictationPresentation {
   var displayStatusTitle: String {
     switch status {
     case .idle:
-      if providerReadiness != .ready || !permissionIsReady(.microphone) {
+      if providerReadiness != .ready || !permissions.isReady(.microphone) {
         "Needs setup"
       } else if transcriptionConfigurationIssue != nil {
         "Check settings"
@@ -136,7 +136,7 @@ struct DictationPresentation {
     case .idle:
       if let providerSetupSystemImage {
         providerSetupSystemImage
-      } else if !permissionIsReady(.microphone) {
+      } else if !permissions.isReady(.microphone) {
         "mic.slash.fill"
       } else if transcriptionConfigurationIssue != nil {
         "slider.horizontal.3"
@@ -171,7 +171,7 @@ struct DictationPresentation {
     if let providerSetupSystemImage {
       return providerSetupSystemImage
     }
-    if !permissionIsReady(.microphone) {
+    if !permissions.isReady(.microphone) {
       return "mic.slash.fill"
     }
     if transcriptionConfigurationIssue != nil {
@@ -195,7 +195,7 @@ struct DictationPresentation {
     case .missingLocalModel:
       return "Download Model"
     }
-    if !permissionIsReady(.microphone) {
+    if !permissions.isReady(.microphone) {
       return "Set Up Microphone"
     }
     if transcriptionConfigurationIssue != nil {
@@ -223,7 +223,7 @@ struct DictationPresentation {
     case (.missingLocalModel, .full):
       return "Runs on this Mac"
     }
-    if !permissionIsReady(.microphone) {
+    if !permissions.isReady(.microphone) {
       return "Microphone permission is required"
     }
     if let transcriptionConfigurationIssue {
@@ -266,14 +266,6 @@ struct DictationPresentation {
     return "Live recording details will appear here while you speak."
   }
 
-  func permissionIsReady(_ permission: AppPermission) -> Bool {
-    permissionSnapshot(permission)?.state.isReady ?? false
-  }
-
-  func permissionSnapshot(_ permission: AppPermission) -> PermissionSnapshot? {
-    permissions.first { $0.permission == permission }
-  }
-
   static func historyMetadata(
     _ item: TranscriptHistoryItem,
     relativeTo date: Date? = Date()
@@ -304,7 +296,7 @@ struct DictationPresentation {
       return "Listening for realtime transcript…"
     }
     return settings.provider.location == .local
-      ? "Recording audio for on-device transcription…" : "Recording audio for upload transcription…"
+      ? "Recording audio for local transcription…" : "Recording audio for upload transcription…"
   }
 
   private var providerSetupSystemImage: String? {

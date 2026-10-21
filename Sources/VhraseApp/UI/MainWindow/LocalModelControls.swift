@@ -1,10 +1,10 @@
-// Shows an on-device provider's model, its one-time download, preparation, and readiness, and where text goes after on-device recognition.
+// Shows a local provider's model, its one-time download, preparation, and readiness, and where text goes after local recognition.
 
 import SwiftUI
 
-struct OnDeviceModelControls: View {
+struct LocalModelControls: View {
   @ObservedObject var appState: AppState
-  @ObservedObject var store: OnDeviceModelStore
+  @ObservedObject var store: LocalModelStore
   /// Keeps the ID field open while it still holds the built-in model's ID, which is where a custom ID starts.
   @State private var editsHuggingFaceModelID = false
 
@@ -24,7 +24,7 @@ struct OnDeviceModelControls: View {
   }
 
   private var showsHuggingFace: Bool {
-    store === appState.huggingFaceModelStore
+    store === appState.localModels.huggingFace
   }
 
   @ViewBuilder private var modelRows: some View {
@@ -104,7 +104,7 @@ struct OnDeviceModelControls: View {
     case .missing:
       "One-time \(store.model.downloadSizeLabel.map { "\($0) " } ?? "")download from Hugging Face\(runtimeNote). Recognition never uses the network afterwards."
     case .downloading(let fraction, let isIndeterminate):
-      OnDeviceModelStore.State.progressTitle(fraction: fraction, isIndeterminate: isIndeterminate)
+      LocalModelStore.State.progressTitle(fraction: fraction, isIndeterminate: isIndeterminate)
     case .installed:
       store.isPreparing
         ? "Preparing for this Mac… \(store.model.loadingNote)"
@@ -171,7 +171,7 @@ struct OnDeviceModelControls: View {
     }
   }
 
-  /// Keeps the on-device claim honest: optional LLM polishing still sends the transcript to its endpoint.
+  /// Keeps the promise that audio stays on this Mac honest: optional LLM polishing still sends the transcript to its endpoint.
   @ViewBuilder private var privacyNote: some View {
     if appState.settings.adjustWithLLM {
       HStack(alignment: .center, spacing: 12) {

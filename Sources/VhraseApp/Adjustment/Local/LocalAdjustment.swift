@@ -2,13 +2,6 @@
 
 import Foundation
 
-struct DemoAdjustmentPreview {
-  /// Ignores its input and returns the demo dictation's cleaned-up sentence.
-  func adjust(_: String) -> String {
-    "Please send this custom dictation demo to OpenAI and xAI using ElevenLabs."
-  }
-}
-
 struct LocalAdjustmentFallback {
   /// `send  it to open ai , then x ai` → `Send it to OpenAI, then xAI.`
   func adjust(_ text: String) -> String {

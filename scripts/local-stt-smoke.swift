@@ -1,10 +1,13 @@
-// Exercises Vhrase's on-device Parakeet or Hugging Face path on WAV recordings: model setup, recognition, finalization into history, silence, and cancellation.
+// Exercises Vhrase's local Parakeet or Hugging Face path on WAV recordings: model setup, recognition, finalization into history, silence, and cancellation.
+// After `swift build`, compile it against the app's sources and FluidAudio's objects:
+// B=.build/arm64-apple-macosx/debug C=.build/checkouts/FluidAudio/Sources
+// swiftc -parse-as-library -I $B/Modules -I $C/FastClusterWrapper/include -I $C/MachTaskSelfWrapper/include Sources/VhraseApp/Domain/*.swift Sources/VhraseApp/Transcription/ProviderContracts.swift Sources/VhraseApp/Transcription/Upload/*.swift Sources/VhraseApp/Transcription/Local/*.swift Sources/VhraseApp/System/ScreenContext.swift Sources/VhraseApp/Adjustment/Local/*.swift Sources/VhraseApp/Adjustment/*.swift Sources/VhraseApp/Storage/TranscriptHistoryStore.swift Sources/VhraseApp/System/ResourceBundle.swift $B/VhraseApp.build/DerivedSources/resource_bundle_accessor.swift scripts/local-stt-smoke.swift $B/FluidAudio.build/*.o $B/FastClusterWrapper.build/*.o $B/MachTaskSelfWrapper.build/*.o -lc++ -o .cache/checks/local-stt-smoke
 
 import AVFoundation
 import Foundation
 
 @main
-struct OnDeviceSTTSmoke {
+struct LocalSTTSmoke {
   @MainActor
   static func main() async throws {
     // Progress lines must survive a failing run when output is redirected to a file.
@@ -35,7 +38,7 @@ struct OnDeviceSTTSmoke {
     }
     guard !arguments.isEmpty, arguments.count.isMultiple(of: 2) else {
       print(
-        "Usage: on-device-stt-smoke [--hugging-face [model]] [--language code|auto] [--download] recording.wav \"expected phrase\" [recording.wav \"expected phrase\" ...]"
+        "Usage: local-stt-smoke [--hugging-face [model]] [--language code|auto] [--download] recording.wav \"expected phrase\" [recording.wav \"expected phrase\" ...]"
       )
       return
     }
@@ -48,10 +51,10 @@ struct OnDeviceSTTSmoke {
     // The same stores AppState builds, so a model downloaded here is the one the app finds.
     let store =
       settings.provider == .huggingFace
-      ? OnDeviceModelStore(
+      ? LocalModelStore(
         model: HuggingFaceModel(
           id: settings.huggingFaceModel, recognizer: HuggingFaceRecognizer()))
-      : OnDeviceModelStore(model: ParakeetModel())
+      : LocalModelStore(model: ParakeetModel())
     if !store.isInstalled {
       guard allowsDownload else {
         throw SmokeFailure("The \(title) model is not downloaded; rerun with --download.")
@@ -65,7 +68,7 @@ struct OnDeviceSTTSmoke {
     let recognizer = store.model.recognizer
 
     // The same recognition, finalization, and history calls AppState makes after a recording stops.
-    let suite = "Vhrase.OnDeviceSmoke"
+    let suite = "Vhrase.LocalSmoke"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
     let historyStore = TranscriptHistoryStore(defaults: defaults)
@@ -109,7 +112,7 @@ struct OnDeviceSTTSmoke {
     print("history ok: \(saved.count) \(title) entries, mode After stop, cleanup Raw")
 
     let workDirectory = FileManager.default.temporaryDirectory
-      .appendingPathComponent("on-device-stt-smoke-\(UUID().uuidString)", isDirectory: true)
+      .appendingPathComponent("local-stt-smoke-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: workDirectory) }
 
@@ -157,7 +160,7 @@ struct OnDeviceSTTSmoke {
   }
 
   @MainActor
-  private static func download(_ store: OnDeviceModelStore) async throws {
+  private static func download(_ store: LocalModelStore) async throws {
     store.download()
     var lastReport = ""
     while store.isDownloading {

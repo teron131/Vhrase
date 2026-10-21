@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds Vhrase, assembles dist/Vhrase.app from the executable, its SwiftPM resources, third-party licenses, and a rendered icon, and signs it through sign-app.sh.
+# Builds Vhrase, assembles dist/Vhrase.app from the executable, its SwiftPM resources, third-party licenses, and a rendered icon, then signs it and verifies the signature and microphone entitlement.
+# Signing uses VHRASE_CODESIGN_IDENTITY when set, else the local development identity from ensure-local-codesign-identity.sh, else ad-hoc.
 
 set -euo pipefail
 
@@ -13,6 +14,9 @@ BINARY="$ROOT/.build/$BUILD_CONFIG/Vhrase"
 ICON_SOURCE="$ROOT/Resources/VhraseAppIcon.png"
 ICONSET="$ROOT/.cache/Vhrase.iconset"
 APP_ICON="$RESOURCES/Vhrase.icns"
+ENTITLEMENTS="$ROOT/Vhrase.entitlements"
+LOCAL_IDENTITY="${VHRASE_LOCAL_CODESIGN_IDENTITY:-Vhrase Local Development}"
+SIGN_IDENTITY="${VHRASE_CODESIGN_IDENTITY:-}"
 
 export CLANG_MODULE_CACHE_PATH="$ROOT/.build/ModuleCache"
 
@@ -66,9 +70,9 @@ cat > "$CONTENTS/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.17.0</string>
+  <string>0.17.1</string>
   <key>CFBundleVersion</key>
-  <string>39</string>
+  <string>40</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>
@@ -83,6 +87,22 @@ cat > "$CONTENTS/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-bash "$ROOT/scripts/sign-app.sh" "$APP_DIR"
+if [[ -z "$SIGN_IDENTITY" ]]; then
+  if /usr/bin/security find-identity -v -p codesigning 2>/dev/null | /usr/bin/grep -F "\"$LOCAL_IDENTITY\"" >/dev/null; then
+    SIGN_IDENTITY="$LOCAL_IDENTITY"
+  else
+    SIGN_IDENTITY="-"
+    echo "warn: signing Vhrase ad-hoc; run scripts/ensure-local-codesign-identity.sh once to keep macOS permissions stable across rebuilds." >&2
+  fi
+fi
+
+/usr/bin/codesign --force --deep --options runtime --entitlements "$ENTITLEMENTS" --sign "$SIGN_IDENTITY" "$APP_DIR"
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+
+SIGNED_ENTITLEMENTS="$(/usr/bin/codesign -d --entitlements :- "$APP_DIR" 2>/dev/null)"
+if [[ "$(/usr/bin/plutil -extract 'com\.apple\.security\.device\.audio-input' raw -o - - <<<"$SIGNED_ENTITLEMENTS")" != "true" ]]; then
+  echo "Signed app is missing the microphone entitlement." >&2
+  exit 1
+fi
 
 echo "$APP_DIR"
