@@ -29,9 +29,8 @@ final class TranscriptionTest: ObservableObject {
   private var operation: Task<Void, Never>?
   private var countdown: Task<Void, Never>?
 
-  func start(settings: DictationSettings, apiKey: String, client: SpeechToTextClient) {
+  func start(_ recording: TranscriptionRecording) {
     guard !state.isActive else { return }
-    let recording = TranscriptionRecording(settings: settings, apiKey: apiKey, client: client)
     self.recording = recording
     partialTranscript = ""
     state = .starting

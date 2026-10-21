@@ -36,7 +36,7 @@ final class RealtimeTranscriptionSession: @unchecked Sendable {
     switch settings.provider {
     case .xai:
       guard !apiKey.isEmpty else {
-        throw missingKey("XAI_API_KEY")
+        throw MissingAPIKeyError(name: "XAI_API_KEY")
       }
       var components = URLComponents(string: "wss://api.x.ai/v1/stt")!
       components.queryItems = try XAITranscriptionContract.realtimeQueryItems(settings: settings)
@@ -45,7 +45,7 @@ final class RealtimeTranscriptionSession: @unchecked Sendable {
       provider = .xai
     case .elevenLabs:
       guard !apiKey.isEmpty else {
-        throw missingKey("ELEVENLABS_API_KEY")
+        throw MissingAPIKeyError(name: "ELEVENLABS_API_KEY")
       }
       var components = URLComponents(string: "wss://api.elevenlabs.io/v1/speech-to-text/realtime")!
       components.queryItems = try ElevenLabsTranscriptionContract.realtimeQueryItems(
@@ -275,17 +275,6 @@ final class RealtimeTranscriptionSession: @unchecked Sendable {
         await accumulator.fail(error)
       }
     }
-  }
-
-  private static func missingKey(_ name: String) -> NSError {
-    NSError(
-      domain: "Vhrase.Realtime",
-      code: 1,
-      userInfo: [
-        NSLocalizedDescriptionKey:
-          "\(name) is missing. Add it in Settings before using realtime transcription."
-      ]
-    )
   }
 }
 

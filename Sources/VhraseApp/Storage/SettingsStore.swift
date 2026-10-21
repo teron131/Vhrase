@@ -109,6 +109,12 @@ final class SettingsStore {
       "noiseReductionDB", fallback.noiseReductionDB, range: 0...12)
     settings.vercelModel = storedString("vercelModel", fallback.vercelModel)
     settings.huggingFaceModel = storedString("huggingFaceModel", fallback.huggingFaceModel)
+    settings.geminiModel = storedString("geminiModel", fallback.geminiModel)
+    settings.openAIModel = storedString("openAIModel", fallback.openAIModel)
+    settings.elevenLabsModel = storedString("elevenLabsModel", fallback.elevenLabsModel)
+    settings.elevenLabsRealtimeModel = storedString(
+      "elevenLabsRealtimeModel", fallback.elevenLabsRealtimeModel)
+    settings.convertChineseOutput = bool("convertChineseOutput", fallback.convertChineseOutput)
     settings.shortcutGestures = ShortcutGestures(
       tapToToggle: bool("shortcutTapToToggle", fallback.shortcutGestures.tapToToggle),
       holdToTalk: bool("shortcutHoldToTalk", fallback.shortcutGestures.holdToTalk),
@@ -185,6 +191,11 @@ final class SettingsStore {
     set(settings.inputDeviceUID, forKey: "inputDeviceUID")
     set(settings.vercelModel, forKey: "vercelModel")
     set(settings.huggingFaceModel, forKey: "huggingFaceModel")
+    set(settings.geminiModel, forKey: "geminiModel")
+    set(settings.openAIModel, forKey: "openAIModel")
+    set(settings.elevenLabsModel, forKey: "elevenLabsModel")
+    set(settings.elevenLabsRealtimeModel, forKey: "elevenLabsRealtimeModel")
+    set(settings.convertChineseOutput, forKey: "convertChineseOutput")
   }
 
   private func nonEmptyString(_ key: String, _ fallback: String) -> String {

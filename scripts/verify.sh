@@ -53,6 +53,7 @@ APP_DOMAIN_SOURCES=(
   Sources/VhraseApp/Domain/HuggingFaceModelReference.swift
   Sources/VhraseApp/Domain/PolishPreferences.swift
   Sources/VhraseApp/Domain/Shortcut.swift
+  Sources/VhraseApp/Domain/STTProvider.swift
   Sources/VhraseApp/Domain/Transcript.swift
   Sources/VhraseApp/Domain/WorkflowStatus.swift
 )

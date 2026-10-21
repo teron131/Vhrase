@@ -23,6 +23,19 @@ enum AppStatus: Equatable, Sendable {
     }
   }
 
+  /// Names the phase for logs, leaving out a failure's message because it can quote a provider's response.
+  var phaseName: String {
+    switch self {
+    case .idle: "idle"
+    case .preparing: "preparing"
+    case .recording: "recording"
+    case .transcribing: "transcribing"
+    case .adjusting: "adjusting"
+    case .completed: "completed"
+    case .failed: "failed"
+    }
+  }
+
   var isProcessing: Bool {
     switch self {
     case .transcribing, .adjusting: true

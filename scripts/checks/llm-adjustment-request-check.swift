@@ -1,4 +1,4 @@
-// Verifies polishing policy is sent as a system message and editable source remains user content, and that each request's token usage and the model's catalog price are read back.
+// Verifies polishing policy is sent as a system message and editable source remains user content, that a polish request sends the trimmed model and records whether screen context was attached, and that each request's token usage and the model's catalog price are read back.
 
 import Foundation
 
@@ -39,8 +39,7 @@ struct LLMAdjustmentRequestCheck {
       precondition(error.localizedDescription == "Access denied")
     }
     do {
-      _ = try await client.adjust(
-        transcript: "Source", screenshotDataURL: nil, settings: .defaults, app: nil)
+      _ = try await client.polish("Source", as: .transcript, settings: .defaults, app: nil)
       preconditionFailure("Expected adjustment to fail.")
     } catch {
       precondition((error as NSError).domain == "Vhrase.AdjustmentChatHTTP")
@@ -56,17 +55,20 @@ private func verifyUsageAndPrice() async throws {
   URLProtocol.registerClass(StubbedEndpoint.self)
   defer { URLProtocol.unregisterClass(StubbedEndpoint.self) }
   var settings = DictationSettings.defaults
-  settings.adjustmentModel = "gpt-6-luna"
-  let priced = LLMAdjustmentClient(apiKey: "test-key", baseURL: "https://vhrase-priced.invalid/v1")
+  settings.adjustmentModel = " gpt-6-luna\n"
+  settings.includeScreenshot = true
+  let priced = LLMAdjustmentClient(
+    apiKey: "test-key", baseURL: "https://vhrase-priced.invalid/v1",
+    captureScreen: { _, _ in "data:image/jpeg;base64,AAAA" })
 
-  let refinement = try await priced.adjust(
-    transcript: "source", screenshotDataURL: nil, settings: settings, app: nil)
+  let refinement = try await priced.polish("source", as: .transcript, settings: settings, app: nil)
   let usage = LLMUsage(inputTokens: 2_480, outputTokens: 120)
   precondition(refinement.output == "Polished." && refinement.usage == usage)
+  precondition(refinement.model == "gpt-6-luna" && refinement.includedScreenshot)
   let polished = try await priced.polish(
-    text: "source", screenshotDataURL: nil, settings: settings,
+    "source", as: .focusedText, settings: settings,
     app: FrontmostApp(name: "Notes", bundleIdentifier: "com.apple.Notes"))
-  precondition(polished.text == "Polished." && polished.usage == usage)
+  precondition(polished.output == "Polished." && polished.usage == usage)
 
   // A bare model name finds the gateway's provider-qualified entry; the price is per token.
   let price = try await priced.listPrice(for: "gpt-6-luna")
@@ -76,10 +78,12 @@ private func verifyUsageAndPrice() async throws {
   let unlisted = try await priced.listPrice(for: "missing-model")
   precondition(inputOnly == nil && unlisted == nil)
 
-  let plain = LLMAdjustmentClient(apiKey: "test-key", baseURL: "https://vhrase-plain.invalid/v1")
-  let unreported = try await plain.adjust(
-    transcript: "source", screenshotDataURL: nil, settings: settings, app: nil)
+  // A failed capture still sends the text, without screen context.
+  let plain = LLMAdjustmentClient(
+    apiKey: "test-key", baseURL: "https://vhrase-plain.invalid/v1", captureScreen: { _, _ in nil })
+  let unreported = try await plain.polish("source", as: .transcript, settings: settings, app: nil)
   precondition(unreported.output == "Polished." && unreported.usage == nil)
+  precondition(!unreported.includedScreenshot)
   let unpublished = try await plain.listPrice(for: "gpt-6-luna")
   precondition(unpublished == nil)
 }

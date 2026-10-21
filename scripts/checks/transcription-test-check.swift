@@ -89,7 +89,7 @@ struct TranscriptionTestCheck {
     // Successful capture must return raw text and delete its temporary WAV.
     let test = TranscriptionTest()
     let client = Client()
-    test.start(settings: DictationSettings(), apiKey: "", client: client)
+    test.start(TranscriptionRecording(settings: DictationSettings(), apiKey: "", client: client))
     await settle { test.state == .recording(secondsRemaining: 5) }
     test.stopAndTranscribe()
     await settle { test.state == .completed("a short phrase") }
@@ -99,7 +99,7 @@ struct TranscriptionTestCheck {
 
     // Providers that ignore cancellation must not publish their late result; cancellation deletes the WAV immediately.
     let delayed = Client(isDelayed: true)
-    test.start(settings: DictationSettings(), apiKey: "", client: delayed)
+    test.start(TranscriptionRecording(settings: DictationSettings(), apiKey: "", client: delayed))
     await settle { test.state == .recording(secondsRemaining: 5) }
     test.stopAndTranscribe()
     for _ in 0..<1000 {
@@ -117,12 +117,13 @@ struct TranscriptionTestCheck {
 
     // Cancelling permission/startup invalidates its continuation before a new realtime test takes ownership.
     AudioRecorder.delayedStartup = true
-    test.start(settings: DictationSettings(), apiKey: "", client: client)
+    test.start(TranscriptionRecording(settings: DictationSettings(), apiKey: "", client: client))
     await settle { AudioRecorder.startup != nil }
     test.cancel()
     AudioRecorder.delayedStartup = false
     test.start(
-      settings: DictationSettings(transcriptionMode: .realtime), apiKey: "", client: client)
+      TranscriptionRecording(
+        settings: DictationSettings(transcriptionMode: .realtime), apiKey: "", client: client))
     await settle { test.state == .recording(secondsRemaining: 5) }
     AudioRecorder.startup?.resume()
     AudioRecorder.startup = nil
@@ -136,13 +137,14 @@ struct TranscriptionTestCheck {
     // Cancellation before the startup task runs must not open a paid realtime session.
     let starts = RealtimeTranscriptionSession.starts
     test.start(
-      settings: DictationSettings(transcriptionMode: .realtime), apiKey: "", client: client)
+      TranscriptionRecording(
+        settings: DictationSettings(transcriptionMode: .realtime), apiKey: "", client: client))
     test.cancel()
     for _ in 0..<20 { await Task.yield() }
     precondition(RealtimeTranscriptionSession.starts == starts)
 
     // The automatic five-second stop follows the same recognition path as an explicit stop.
-    test.start(settings: DictationSettings(), apiKey: "", client: client)
+    test.start(TranscriptionRecording(settings: DictationSettings(), apiKey: "", client: client))
     let deadline = ContinuousClock.now + .seconds(7)
     while test.state != .completed("a short phrase"), ContinuousClock.now < deadline {
       try await Task.sleep(for: .milliseconds(20))

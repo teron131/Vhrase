@@ -53,7 +53,7 @@ struct AdjustmentFallbackCheck {
       rawTranscript: "raw",
       includeScreenshot: true,
       useLocalFallback: false,
-      screenshotDataURLProvider: { _, _ in
+      captureScreen: { _, _ in
         screenshotProbe.recordCall()
         return nil
       }
@@ -68,7 +68,7 @@ struct AdjustmentFallbackCheck {
       adjustWithLLM: false,
       chineseTextConverter: ChineseTextConverter(
         executableURL: try fakeOpenCCExecutable(),
-        configName: "s2hk.json"
+        configName: "s2t.json"
       )
     )
     precondition(chinese.text == "漢語發佈後")
@@ -79,34 +79,52 @@ struct AdjustmentFallbackCheck {
       executableURL: try largeOutputOpenCCExecutable(),
       timeoutSeconds: 2
     )
-    .convert("large output")
+    .convert("大量输出")
     precondition(largeConversion.text.count == 100_000)
     precondition(largeConversion.warning == nil)
 
     let failedConversion = ChineseTextConverter(
       executableURL: try failingOpenCCExecutable()
     )
-    .convert("preserve me")
-    precondition(failedConversion.text == "preserve me")
-    precondition(failedConversion.warning == "OpenCC s2hk failed: conversion exploded")
+    .convert("保留原文")
+    precondition(failedConversion.text == "保留原文")
+    precondition(failedConversion.warning == "OpenCC s2t failed: conversion exploded")
 
     let timedOutConversion = ChineseTextConverter(
       executableURL: try slowOpenCCExecutable(),
       timeoutSeconds: 0.1
     )
-    .convert("preserve me")
-    precondition(timedOutConversion.text == "preserve me")
+    .convert("保留原文")
+    precondition(timedOutConversion.text == "保留原文")
     precondition(
-      timedOutConversion.warning == "OpenCC s2hk failed: OpenCC timed out after 0.1 seconds.")
+      timedOutConversion.warning == "OpenCC s2t failed: OpenCC timed out after 0.1 seconds.")
 
     let missingOpenCC = try await finalize(
-      rawTranscript: "plain text",
+      rawTranscript: "汉语发布后",
       adjustWithLLM: false,
       chineseTextConverter: ChineseTextConverter(executableURL: nil)
     )
-    precondition(missingOpenCC.text == "plain text")
+    precondition(missingOpenCC.text == "汉语发布后")
     precondition(
-      missingOpenCC.warning == "OpenCC s2hk unavailable. Final transcript was not normalized.")
+      missingOpenCC.warning == "OpenCC s2t unavailable. Final transcript was not normalized.")
+
+    // With Chinese output off, OpenCC is never involved, even for Chinese text.
+    let conversionOff = try await finalize(
+      rawTranscript: "汉语发布后",
+      adjustWithLLM: false,
+      convertChineseOutput: false,
+      chineseTextConverter: ChineseTextConverter(executableURL: nil)
+    )
+    precondition(conversionOff.text == "汉语发布后" && conversionOff.warning.isEmpty)
+
+    // Only Chinese text needs OpenCC, so its absence leaves other text untouched and silent.
+    let notChinese = try await finalize(
+      rawTranscript: "Kana カナ, Hangul 한글, and café stay as they are.",
+      adjustWithLLM: false,
+      chineseTextConverter: ChineseTextConverter(executableURL: nil)
+    )
+    precondition(notChinese.text == "Kana カナ, Hangul 한글, and café stay as they are.")
+    precondition(notChinese.warning.isEmpty)
 
     print("adjustment fallback ok")
   }
@@ -223,8 +241,9 @@ struct AdjustmentFallbackCheck {
     vocabulary: String = "",
     includeScreenshot: Bool = false,
     useLocalFallback: Bool = false,
+    convertChineseOutput: Bool = true,
     chineseTextConverter: ChineseTextConverter? = nil,
-    screenshotDataURLProvider:
+    captureScreen:
       @escaping @Sendable (FrontmostApp?, ScreenshotResolution) -> String? = {
         _, _ in
         "data:image/jpeg;base64,abc"
@@ -235,17 +254,18 @@ struct AdjustmentFallbackCheck {
     settings.keyterms = vocabulary
     settings.includeScreenshot = includeScreenshot
     settings.useLocalAdjustmentFallback = useLocalFallback
+    settings.convertChineseOutput = convertChineseOutput
     let converter =
       try chineseTextConverter
       ?? ChineseTextConverter(
         executableURL: fakeOpenCCExecutable(),
-        configName: "s2hk.json"
+        configName: "s2t.json"
       )
 
     return try await TranscriptFinalizer(
       settings: settings,
       llmAPIKey: "",
-      screenshotDataURLProvider: screenshotDataURLProvider,
+      captureScreen: captureScreen,
       chineseTextConverter: converter
     )
     .finalize(

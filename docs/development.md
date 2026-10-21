@@ -33,6 +33,7 @@ To inspect a recent stuck popup after the fact:
 
 The `FnHotkey` category records key edges, unavailable event taps, and recovery after macOS disables a tap; `Dictation` records attempt numbers, workflow phases, and provider error domains/codes.
 `AudioRecorder` records capture mode, format, PCM counts, failures, and cleanup; `DeviceCapture` records hardware start/stop completion and runtime errors.
+`Hotkey` records shortcuts macOS refused to register, and `History` and `Activity` record saved records that could not be read or written.
 `AudioDevice` records the numeric device, alive/running state, and exclusive owner PID; `-1` means no exclusive owner and `unknown` means the driver did not expose that property.
 An input already running elsewhere is diagnostic evidence, not itself a conflict, so Vhrase does not reject it or change system defaults or exclusive ownership.
 Logs exclude audio, transcripts, credentials, request URLs, device names, and device UIDs.
@@ -79,7 +80,7 @@ To check local readiness without recording audio, calling providers, opening set
 bash scripts/doctor.sh
 ```
 
-The doctor reports whether `opencc` is available for unconditional final transcript `s2hk` conversion.
+The doctor reports whether `opencc` is available for `s2t` conversion of final transcripts that contain Chinese characters.
 It reports credential presence from macOS Keychain or an environment fallback without printing secret values.
 
 ## Credentials
@@ -135,7 +136,7 @@ The on-device paths can be exercised end to end on WAV files without a microphon
 ```sh
 B=.build/arm64-apple-macosx/debug
 C=.build/checkouts/FluidAudio/Sources
-swiftc -parse-as-library -I $B/Modules -I $C/FastClusterWrapper/include -I $C/MachTaskSelfWrapper/include Sources/VhraseApp/Domain/*.swift Sources/VhraseApp/Transcription/ProviderContracts.swift Sources/VhraseApp/Transcription/Upload/*.swift Sources/VhraseApp/Transcription/OnDevice/*.swift Sources/VhraseApp/System/ScreenContext.swift Sources/VhraseApp/Adjustment/Local/*.swift Sources/VhraseApp/Adjustment/LLMEndpoint.swift Sources/VhraseApp/Adjustment/LLMAdjustmentClient.swift Sources/VhraseApp/Adjustment/TranscriptFinalization.swift Sources/VhraseApp/Storage/TranscriptHistoryStore.swift Sources/VhraseApp/System/ResourceBundle.swift $B/VhraseApp.build/DerivedSources/resource_bundle_accessor.swift scripts/on-device-stt-smoke.swift $B/FluidAudio.build/*.o $B/FastClusterWrapper.build/*.o $B/MachTaskSelfWrapper.build/*.o -lc++ -o .cache/checks/on-device-stt-smoke
+swiftc -parse-as-library -I $B/Modules -I $C/FastClusterWrapper/include -I $C/MachTaskSelfWrapper/include Sources/VhraseApp/Domain/*.swift Sources/VhraseApp/Transcription/ProviderContracts.swift Sources/VhraseApp/Transcription/Upload/*.swift Sources/VhraseApp/Transcription/OnDevice/*.swift Sources/VhraseApp/System/ScreenContext.swift Sources/VhraseApp/Adjustment/Local/*.swift Sources/VhraseApp/Adjustment/*.swift Sources/VhraseApp/Storage/TranscriptHistoryStore.swift Sources/VhraseApp/System/ResourceBundle.swift $B/VhraseApp.build/DerivedSources/resource_bundle_accessor.swift scripts/on-device-stt-smoke.swift $B/FluidAudio.build/*.o $B/FastClusterWrapper.build/*.o $B/MachTaskSelfWrapper.build/*.o -lc++ -o .cache/checks/on-device-stt-smoke
 .cache/checks/on-device-stt-smoke --download recording.wav "expected phrase"
 .cache/checks/on-device-stt-smoke --hugging-face --language auto --download recording.wav "expected phrase"
 ```
@@ -179,7 +180,7 @@ bash scripts/live-stt-smoke.sh --provider elevenlabs --mode realtime
 The live smoke test creates a provider-and-mode-named WAV under `.cache/live-stt-smoke/` with macOS `say`, submits it to the selected provider, and checks that the transcript contains `custom dictation`.
 It resolves the matching `Vhrase` Keychain item first, then uses a nonempty `XAI_API_KEY` or `ELEVENLABS_API_KEY` environment value only as a fallback, and it may consume provider STT usage.
 Upload smokes compile `scripts/live-stt-smoke.swift`, while realtime smokes use `uv` with the system Python, `websockets`, and `scripts/live-realtime-stt-smoke.py`.
-ElevenLabs model IDs are fixed to `scribe_v2` for upload and `scribe_v2_realtime` for realtime, matching the app rather than exposing drift-prone model flags.
+The smokes send `scribe_v2` for ElevenLabs upload and `scribe_v2_realtime` for realtime, the app's default models.
 xAI realtime smoke audio is paced in exact 3,200-byte (100 ms) PCM frames and its fallback transcript commits complete utterances only on `speech_final`.
 
 To record from the real microphone and send that audio through the same smoke path:

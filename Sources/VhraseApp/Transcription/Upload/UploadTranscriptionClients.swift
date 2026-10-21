@@ -11,27 +11,17 @@ final class XAITranscriptionClient: SpeechToTextClient {
 
   func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult {
     guard !apiKey.isEmpty else {
-      throw missingKey("XAI_API_KEY")
+      throw MissingAPIKeyError(name: "XAI_API_KEY")
     }
-
-    let form = try MultipartForm(
-      fields: try XAITranscriptionContract.uploadFields(settings: settings),
-      fileField: "file",
+    let text = try await uploadForm(
+      fields: XAITranscriptionContract.uploadFields(settings: settings),
       fileURL: fileURL,
-      mimeType: "audio/wav"
+      to: URL(string: "https://api.x.ai/v1/stt")!,
+      authorization: ("Authorization", "Bearer \(apiKey)"),
+      timeout: 10,
+      providerName: "xAI"
     )
-
-    var request = URLRequest(url: URL(string: "https://api.x.ai/v1/stt")!)
-    request.httpMethod = "POST"
-    request.timeoutInterval = 10
-    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-    request.setValue(
-      "multipart/form-data; boundary=\(form.boundary)", forHTTPHeaderField: "Content-Type")
-    request.httpBody = form.body
-
-    let data = try await perform(request, providerName: "xAI")
-    let response = try JSONDecoder().decode(TextTranscriptionResponse.self, from: data)
-    return TranscriptionResult(text: response.text, providerName: "xAI")
+    return TranscriptionResult(text: text, providerName: "xAI")
   }
 }
 
@@ -44,27 +34,17 @@ final class ElevenLabsTranscriptionClient: SpeechToTextClient {
 
   func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult {
     guard !apiKey.isEmpty else {
-      throw missingKey("ELEVENLABS_API_KEY")
+      throw MissingAPIKeyError(name: "ELEVENLABS_API_KEY")
     }
-
-    let form = try MultipartForm(
-      fields: try ElevenLabsTranscriptionContract.uploadFields(settings: settings),
-      fileField: "file",
+    let text = try await uploadForm(
+      fields: ElevenLabsTranscriptionContract.uploadFields(settings: settings),
       fileURL: fileURL,
-      mimeType: "audio/wav"
+      to: URL(string: "https://api.elevenlabs.io/v1/speech-to-text")!,
+      authorization: ("xi-api-key", apiKey),
+      timeout: 60,
+      providerName: "ElevenLabs"
     )
-
-    var request = URLRequest(url: URL(string: "https://api.elevenlabs.io/v1/speech-to-text")!)
-    request.httpMethod = "POST"
-    request.timeoutInterval = 60
-    request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
-    request.setValue(
-      "multipart/form-data; boundary=\(form.boundary)", forHTTPHeaderField: "Content-Type")
-    request.httpBody = form.body
-
-    let data = try await perform(request, providerName: "ElevenLabs")
-    let response = try JSONDecoder().decode(TextTranscriptionResponse.self, from: data)
-    return TranscriptionResult(text: response.text, providerName: "ElevenLabs")
+    return TranscriptionResult(text: text, providerName: "ElevenLabs")
   }
 }
 
@@ -75,7 +55,7 @@ final class GeminiTranscriptionClient: SpeechToTextClient {
 
   /// Submits one non-stored native interaction and rejects incomplete responses before insertion.
   func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult {
-    guard !apiKey.isEmpty else { throw missingKey("GEMINI_API_KEY") }
+    guard !apiKey.isEmpty else { throw MissingAPIKeyError(name: "GEMINI_API_KEY") }
     var request = URLRequest(
       url: URL(string: "https://generativelanguage.googleapis.com/v1beta/interactions")!)
     request.httpMethod = "POST"
@@ -108,27 +88,17 @@ final class OpenAITranscriptionClient: SpeechToTextClient {
 
   func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult {
     guard !apiKey.isEmpty else {
-      throw missingKey("OPENAI_API_KEY")
+      throw MissingAPIKeyError(name: "OPENAI_API_KEY")
     }
-
-    let form = try MultipartForm(
-      fields: try OpenAITranscriptionContract.uploadFields(settings: settings),
-      fileField: "file",
+    let text = try await uploadForm(
+      fields: OpenAITranscriptionContract.uploadFields(settings: settings),
       fileURL: fileURL,
-      mimeType: "audio/wav"
+      to: URL(string: "https://api.openai.com/v1/audio/transcriptions")!,
+      authorization: ("Authorization", "Bearer \(apiKey)"),
+      timeout: 60,
+      providerName: "OpenAI"
     )
-
-    var request = URLRequest(url: URL(string: "https://api.openai.com/v1/audio/transcriptions")!)
-    request.httpMethod = "POST"
-    request.timeoutInterval = 60
-    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-    request.setValue(
-      "multipart/form-data; boundary=\(form.boundary)", forHTTPHeaderField: "Content-Type")
-    request.httpBody = form.body
-
-    let data = try await perform(request, providerName: "OpenAI")
-    let response = try JSONDecoder().decode(TextTranscriptionResponse.self, from: data)
-    return TranscriptionResult(text: response.text, providerName: "OpenAI")
+    return TranscriptionResult(text: text, providerName: "OpenAI")
   }
 }
 
@@ -142,7 +112,7 @@ final class VercelTranscriptionClient: SpeechToTextClient {
   /// Sends the recording to whichever gateway model the settings name; the gateway forwards no vocabulary or language hint.
   func transcribe(fileURL: URL, settings: DictationSettings) async throws -> TranscriptionResult {
     guard !apiKey.isEmpty else {
-      throw missingKey("AI_GATEWAY_API_KEY")
+      throw MissingAPIKeyError(name: "AI_GATEWAY_API_KEY")
     }
 
     var request = URLRequest(url: VercelTranscriptionContract.endpoint)
@@ -190,15 +160,25 @@ private struct GeminiTranscriptionResponse: Decodable {
   }
 }
 
-private func missingKey(_ name: String) -> NSError {
-  NSError(
-    domain: "Vhrase.STT",
-    code: 1,
-    userInfo: [
-      NSLocalizedDescriptionKey:
-        "\(name) is missing. Add it in Settings or export it before launch."
-    ]
-  )
+private func uploadForm(
+  fields: [(String, String)],
+  fileURL: URL,
+  to url: URL,
+  authorization: (header: String, value: String),
+  timeout: TimeInterval,
+  providerName: String
+) async throws -> String {
+  let form = try MultipartForm(
+    fields: fields, fileField: "file", fileURL: fileURL, mimeType: "audio/wav")
+  var request = URLRequest(url: url)
+  request.httpMethod = "POST"
+  request.timeoutInterval = timeout
+  request.setValue(authorization.value, forHTTPHeaderField: authorization.header)
+  request.setValue(
+    "multipart/form-data; boundary=\(form.boundary)", forHTTPHeaderField: "Content-Type")
+  request.httpBody = form.body
+  let data = try await perform(request, providerName: providerName)
+  return try JSONDecoder().decode(TextTranscriptionResponse.self, from: data).text
 }
 
 private func perform(

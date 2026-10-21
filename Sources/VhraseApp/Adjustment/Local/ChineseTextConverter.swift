@@ -1,4 +1,4 @@
-// Normalizes final transcript text to Hong Kong Traditional Chinese through OpenCC when available.
+// Converts the Chinese in final transcripts to Traditional Chinese through OpenCC's s2t profile when OpenCC is installed.
 
 import Darwin
 import Foundation
@@ -10,7 +10,7 @@ struct ChineseTextConverter: Sendable {
 
   init(
     executableURL: URL? = Self.defaultExecutableURL(),
-    configName: String = "s2hk.json",
+    configName: String = "s2t.json",
     timeoutSeconds: TimeInterval = 10
   ) {
     self.executableURL = executableURL
@@ -22,16 +22,20 @@ struct ChineseTextConverter: Sendable {
     defaultExecutableURL() != nil
   }
 
-  /// Blocks until OpenCC exits or `timeoutSeconds` pass. When OpenCC is missing or fails, the text comes back unchanged with a warning.
+  /// Text without Chinese characters comes back untouched and without a warning, whether or not OpenCC is installed. Chinese text blocks until OpenCC exits or `timeoutSeconds` pass, and comes back unchanged with a warning when OpenCC is missing or fails.
   func convert(_ text: String) -> (text: String, warning: String?) {
+    // Every key in the s2t dictionaries contains an ideograph, so OpenCC could not change this text.
+    guard text.unicodeScalars.contains(where: \.properties.isIdeographic) else {
+      return (text, nil)
+    }
     guard let executableURL else {
-      return (text, "OpenCC s2hk unavailable. Final transcript was not normalized.")
+      return (text, "OpenCC s2t unavailable. Final transcript was not normalized.")
     }
 
     do {
       return (try runOpenCC(text, executableURL: executableURL), nil)
     } catch {
-      return (text, "OpenCC s2hk failed: \(error.localizedDescription)")
+      return (text, "OpenCC s2t failed: \(error.localizedDescription)")
     }
   }
 

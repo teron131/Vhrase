@@ -6,21 +6,18 @@ import Foundation
 struct TranscriptFinalizer {
   let settings: DictationSettings
   let llmAPIKey: String
-  let screenshotDataURLProvider: @Sendable (FrontmostApp?, ScreenshotResolution) async -> String?
+  let captureScreen: LLMAdjustmentClient.ScreenCapture
   let chineseTextConverter: ChineseTextConverter
 
   init(
     settings: DictationSettings,
     llmAPIKey: String,
-    screenshotDataURLProvider:
-      @escaping @Sendable (FrontmostApp?, ScreenshotResolution) async -> String? = {
-        await ScreenContext().displayJPEGDataURL(showing: $0, resolution: $1)
-      },
+    captureScreen: @escaping LLMAdjustmentClient.ScreenCapture = LLMAdjustmentClient.captureDisplay,
     chineseTextConverter: ChineseTextConverter = ChineseTextConverter()
   ) {
     self.settings = settings
     self.llmAPIKey = llmAPIKey
-    self.screenshotDataURLProvider = screenshotDataURLProvider
+    self.captureScreen = captureScreen
     self.chineseTextConverter = chineseTextConverter
   }
 
@@ -42,21 +39,15 @@ struct TranscriptFinalizer {
       switch adjustment {
       case .provider:
         do {
-          let client = LLMAdjustmentClient(
+          let appliedRefinement = try await LLMAdjustmentClient(
             apiKey: llmAPIKey,
-            baseURL: settings.adjustmentBaseURL
+            baseURL: settings.adjustmentBaseURL,
+            captureScreen: captureScreen
           )
-          try client.validateConfiguration()
-          let screenshot = await screenshotDataURL(showing: targetApp)
-          if settings.includeScreenshot, screenshot == nil {
+          .polish(finalText, as: .transcript, settings: settings, app: targetApp)
+          if settings.includeScreenshot, !appliedRefinement.includedScreenshot {
             warnings.append("Screenshot context unavailable.")
           }
-          let appliedRefinement = try await client.adjust(
-            transcript: finalText,
-            screenshotDataURL: screenshot,
-            settings: settings,
-            app: targetApp
-          )
           refinement = appliedRefinement
           finalText = appliedRefinement.output
           cleanup = .llm
@@ -75,12 +66,14 @@ struct TranscriptFinalizer {
       try validateTranscript(finalText)
     }
 
-    let conversion = await convertChinese(finalText)
-    finalText = conversion.text
-    if let warning = conversion.warning {
-      warnings.append(warning)
+    if settings.convertChineseOutput {
+      let conversion = await convertChinese(finalText)
+      finalText = conversion.text
+      if let warning = conversion.warning {
+        warnings.append(warning)
+      }
+      try validateTranscript(finalText)
     }
-    try validateTranscript(finalText)
 
     return FinalizedTranscript(
       text: finalText,
@@ -88,13 +81,6 @@ struct TranscriptFinalizer {
       cleanup: cleanup,
       refinement: refinement
     )
-  }
-
-  private func screenshotDataURL(showing targetApp: FrontmostApp?) async -> String? {
-    guard settings.includeScreenshot else {
-      return nil
-    }
-    return await screenshotDataURLProvider(targetApp, settings.screenshotResolution)
   }
 
   private func fallbackTranscript(

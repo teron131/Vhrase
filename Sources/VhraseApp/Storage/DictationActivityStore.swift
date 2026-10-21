@@ -1,6 +1,7 @@
 // Retains content-free daily totals independently of transcript history and derives usage estimates.
 
 import Foundation
+import OSLog
 
 struct DictationActivityDay: Codable {
   private static let typingWordsPerMinute = 55.0
@@ -58,6 +59,7 @@ extension DictationActivityDay {
 final class DictationActivityStore {
   private let defaults: UserDefaults
   private let storageKey = "dictationActivityDays"
+  private let logger = Logger(subsystem: "local.codex.Vhrase", category: "Activity")
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
@@ -68,7 +70,9 @@ final class DictationActivityStore {
     do {
       return try JSONDecoder().decode([DictationActivityDay].self, from: data)
     } catch {
-      NSLog("Vhrase activity decode failed: \(error.localizedDescription)")
+      let failure = error as NSError
+      logger.error(
+        "Activity decode failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
       return []
     }
   }
@@ -113,7 +117,9 @@ final class DictationActivityStore {
     do {
       defaults.set(try JSONEncoder().encode(updated), forKey: storageKey)
     } catch {
-      NSLog("Vhrase activity encode failed: \(error.localizedDescription)")
+      let failure = error as NSError
+      logger.error(
+        "Activity encode failed domain=\(failure.domain, privacy: .public) code=\(failure.code)")
     }
     return updated
   }

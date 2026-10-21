@@ -30,6 +30,7 @@ struct TranscriptionView: View {
 
       settingsGroup(provider.title) {
         providerSetup
+        modelRow
         providerOptions
       }
       .disabled(appState.transcriptionTest.state.isActive)
@@ -122,7 +123,7 @@ struct TranscriptionView: View {
         "The gateway forwards no language hint, so the model detects the spoken language.")
     case .xai:
       languageCodeRow(
-        "Grok detects the spoken language itself. This code, such as en, only sets how numbers and currency are formatted when that option is on."
+        "xAI detects the spoken language itself. This code, such as en, only sets how numbers and currency are formatted when that option is on."
       )
     case .huggingFace:
       languageCodeRow(
@@ -166,33 +167,29 @@ struct TranscriptionView: View {
     }
   }
 
-  @ViewBuilder
-  private var providerOptions: some View {
-    switch provider {
-    case .parakeet, .huggingFace:
-      EmptyView()
-    case .openAI:
+  /// Edits the model the selected provider and mode send; ElevenLabs keeps one for each mode.
+  @ViewBuilder private var modelRow: some View {
+    if let model = appState.settings.transcriptionModelSetting {
       settingsRow(
         "Model",
-        detail: "OpenAI's recorded-speech model."
+        detail: provider == .vercel
+          ? "Any transcription model in the gateway's catalog, such as \(model.defaultValue)."
+          : "Defaults to \(model.defaultValue). The options here follow that model's API, so a model without them can reject the request."
       ) {
-        Text(OpenAITranscriptionContract.modelID)
-          .font(.callout.monospaced())
-          .foregroundStyle(.secondary)
-          .textSelection(.enabled)
-      }
-    case .vercel:
-      settingsRow(
-        "Model",
-        detail:
-          "Any transcription model in the gateway's catalog, such as \(DictationSettings.defaultVercelModel), openai/gpt-transcribe, or google/gemini-3.5-transcribe."
-      ) {
-        TextField("Model", text: appState.settingsBinding(\.vercelModel))
+        TextField("Model", text: appState.settingsBinding(model.keyPath))
           .textFieldStyle(.roundedBorder)
           .labelsHidden()
           .font(.callout.monospaced())
           .frame(width: 260)
       }
+    }
+  }
+
+  @ViewBuilder
+  private var providerOptions: some View {
+    switch provider {
+    case .parakeet, .huggingFace, .openAI, .vercel:
+      EmptyView()
     case .gemini:
       settingsToggle(
         "Smart transcription",
@@ -240,7 +237,7 @@ struct TranscriptionView: View {
         )
         settingsStepper(
           "Endpointing",
-          detail: "How long a pause must last before Grok ends a phrase.",
+          detail: "How long a pause must last before xAI ends a phrase.",
           value: appState.settingsBinding(\.xaiRealtimeEndpointing),
           in: 0...5000,
           step: 100,
@@ -271,20 +268,9 @@ struct TranscriptionView: View {
         }
       }
     case .elevenLabs:
-      settingsRow("Model") {
-        Text(
-          appState.settings.transcriptionMode == .realtime
-            ? ElevenLabsTranscriptionContract.realtimeModelID
-            : ElevenLabsTranscriptionContract.uploadModelID
-        )
-        .font(.callout.monospaced())
-        .foregroundStyle(.secondary)
-        .textSelection(.enabled)
-      }
-
       settingsToggle(
         "Clean up spoken disfluencies",
-        detail: "Uses Scribe's non-verbatim mode for more readable text.",
+        detail: "Uses ElevenLabs' non-verbatim mode for more readable text.",
         isOn: appState.settingsBinding(\.elevenLabsNoVerbatim))
 
       if appState.settings.transcriptionMode == .realtime {

@@ -2,6 +2,7 @@
 
 import Carbon
 import Foundation
+import OSLog
 
 @MainActor
 final class GlobalHotkeyManager {
@@ -9,6 +10,7 @@ final class GlobalHotkeyManager {
   private var eventHandlerRef: EventHandlerRef?
   private var onPressed: (() -> Void)?
   private var onReleased: (() -> Void)?
+  private let logger = Logger(subsystem: "local.codex.Vhrase", category: "Hotkey")
 
   func register(
     _ settings: DictationSettings,
@@ -39,7 +41,9 @@ final class GlobalHotkeyManager {
     )
 
     if status != noErr {
-      NSLog("Vhrase failed to register hotkey \(settings.hotkeyDisplay): \(status)")
+      logger.error(
+        "Shortcut registration failed shortcut=\(settings.hotkeyDisplay, privacy: .public) status=\(status)"
+      )
     }
   }
 
@@ -94,7 +98,7 @@ final class GlobalHotkeyManager {
     )
 
     if status != noErr {
-      NSLog("Vhrase failed to install hotkey handler: \(status)")
+      logger.error("Shortcut handler installation failed status=\(status)")
     }
   }
 }

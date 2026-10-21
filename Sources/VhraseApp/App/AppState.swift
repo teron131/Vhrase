@@ -1,23 +1,8 @@
 // Owns Vhrase's observable state and runs its workflows: dictation from shortcut press to delivered and saved transcript, double-tap polishing of the focused text, the setup recording test, and the settings, history, and permission actions the main window and menu bar call.
 
-import AppKit
 import Combine
 import Foundation
 import OSLog
-
-enum OpenCCInstallationState: Equatable {
-  case idle
-  case installing
-  case installed
-  case failed(String)
-
-  var failureMessage: String? {
-    guard case .failed(let message) = self else {
-      return nil
-    }
-    return message
-  }
-}
 
 @MainActor
 final class AppState: ObservableObject {
@@ -28,17 +13,9 @@ final class AppState: ObservableObject {
       guard status != oldValue else { return }
       scheduleWorkflowOutcomeDismissal(for: status)
       updateEscapeKeyMonitoring()
-      let phase: String
-      switch status {
-      case .idle: phase = "idle"
-      case .preparing: phase = "preparing"
-      case .recording: phase = "recording"
-      case .transcribing: phase = "transcribing"
-      case .adjusting: phase = "adjusting"
-      case .completed: phase = "completed"
-      case .failed: phase = "failed"
-      }
-      logger.notice("Workflow attempt=\(self.recordingSequence) phase=\(phase, privacy: .public)")
+      logger.notice(
+        "Workflow attempt=\(self.recordingSequence) phase=\(self.status.phaseName, privacy: .public)"
+      )
     }
   }
   @Published private(set) var settings: DictationSettings
@@ -51,6 +28,7 @@ final class AppState: ObservableObject {
   let recordingMeter = RecordingMeter()
   let audioInputPreview = AudioInputPreview()
   let transcriptionTest = TranscriptionTest()
+  let openCCSetup = OpenCCSetup()
   let parakeetModelStore = OnDeviceModelStore(model: ParakeetModel())
   /// Follows the Hugging Face model named in settings; one recognizer serves every model so only one stays in memory.
   let huggingFaceModelStore: OnDeviceModelStore
@@ -67,7 +45,6 @@ final class AppState: ObservableObject {
   @Published private(set) var lastCompletion: WorkflowCompletion = .transcript(.none)
   @Published private(set) var targetAppLabel = ""
   @Published private(set) var customizationNotice = ""
-  @Published private(set) var openCCInstallationState = OpenCCInstallationState.idle
   @Published private(set) var isCheckingLLMModelAccess = false
   @Published private(set) var isWorkflowPopupDismissed = false {
     didSet {
@@ -93,7 +70,6 @@ final class AppState: ObservableObject {
   private let focusedTextService = FocusedTextService()
   private let permissionManager = PermissionManager()
   private let appContext = AppContext()
-  private let openCCInstaller = OpenCCInstaller()
   private let hotkeyManager = GlobalHotkeyManager()
   private let fnHotkeyManager = FnHotkeyManager()
   private let escapeKeyMonitor = EscapeKeyMonitor()
@@ -114,8 +90,7 @@ final class AppState: ObservableObject {
   private var activeWorkflow = ActiveWorkflow.dictation
   private var cachedHistoryIndex: HistorySearch.Index?
   private var historyIndexIsCurrent = false
-  /// List prices by endpoint and model, looked up once per session; a `nil` value records an endpoint that publishes none.
-  private var llmPrices: [String: LLMPrice?] = [:]
+  private let llmPrices = LLMPriceList()
   private let ownsInstance: Bool
 
   init(ownsInstance: Bool) {
@@ -135,12 +110,16 @@ final class AppState: ObservableObject {
     credentials.onNotice = { [weak self] notice in
       self?.customizationNotice = notice
     }
+    openCCSetup.onNotice = { [weak self] notice in
+      self?.customizationNotice = notice
+    }
     // Readiness and recording availability depend on child workflows, so their changes refresh AppState observers.
     childStateObservations = [
       credentials.objectWillChange,
       parakeetModelStore.objectWillChange,
       huggingFaceModelStore.objectWillChange,
       transcriptionTest.objectWillChange,
+      openCCSetup.objectWillChange,
     ].map { changes in
       changes.sink { [weak self] _ in
         self?.objectWillChange.send()
@@ -193,49 +172,8 @@ final class AppState: ObservableObject {
       providerReadiness: selectedProviderReadiness,
       hasLLMKey: !credentials.effectiveValue(.llmAPIKey).isEmpty,
       permissions: permissions,
-      chineseConversionIsAvailable: ChineseTextConverter.isAvailable
+      chineseConversionIsAvailable: openCCSetup.isInstalled
     ).build()
-  }
-
-  var canInstallOpenCC: Bool {
-    OpenCCInstaller.isHomebrewAvailable
-  }
-
-  func installOpenCC() {
-    guard openCCInstallationState != .installing else {
-      return
-    }
-
-    openCCInstallationState = .installing
-    customizationNotice = "Installing OpenCC with Homebrew…"
-    let installer = openCCInstaller
-    Task {
-      do {
-        try await installer.install()
-        guard ChineseTextConverter.isAvailable else {
-          throw NSError(
-            domain: "Vhrase.OpenCCInstaller",
-            code: 1,
-            userInfo: [
-              NSLocalizedDescriptionKey:
-                "Homebrew completed, but the OpenCC executable was not found."
-            ]
-          )
-        }
-        openCCInstallationState = .installed
-        customizationNotice = "OpenCC installed. New transcripts will use s2hk conversion."
-      } catch {
-        openCCInstallationState = .failed(error.localizedDescription)
-        customizationNotice = error.localizedDescription
-      }
-    }
-  }
-
-  func openHomebrewSetup() {
-    guard let url = URL(string: "https://brew.sh") else {
-      return
-    }
-    NSWorkspace.shared.open(url)
   }
 
   func toggleRecording() {
@@ -651,12 +589,8 @@ final class AppState: ObservableObject {
       "Begin attempt=\(self.recordingSequence) provider=\(self.settings.provider.rawValue, privacy: .public) mode=\(self.settings.transcriptionMode.rawValue, privacy: .public)"
     )
     let configuration = currentRecordingConfiguration()
-    let recording = TranscriptionRecording(
-      settings: configuration.settings,
-      apiKey: configuration.providerAPIKey,
-      client: transcriptionClient(
-        provider: configuration.settings.provider, apiKey: configuration.providerAPIKey)
-    )
+    let recording = transcriptionRecording(
+      settings: configuration.settings, apiKey: configuration.providerAPIKey)
     self.recording = recording
     recordingConfiguration = configuration
     status = .preparing
@@ -740,6 +674,7 @@ final class AppState: ObservableObject {
       // Cancelling while capture drains may already have started a newer recording that owns the meter.
       try ensureCurrentRecording(recording)
       recordingMeter.reset()
+      let screenshot = startScreenshot(for: configuration)
       let transcriptionStarted = ContinuousClock.now
       let result = try await recording.transcribe()
       // A cancelled or superseded recording must not deliver or save a late transcript.
@@ -749,6 +684,7 @@ final class AppState: ObservableObject {
         result,
         adjustment: .provider,
         configuration: configuration,
+        screenshot: screenshot,
         timing: DictationTiming(
           recordingSeconds: recording.recordedSeconds,
           transcriptionSeconds: transcriptionStarted.duration(to: .now) / .seconds(1),
@@ -767,23 +703,35 @@ final class AppState: ObservableObject {
     }
   }
 
-  private func transcriptionClient(provider: STTProvider, apiKey: String) -> SpeechToTextClient {
-    switch provider {
-    case .xai:
-      XAITranscriptionClient(apiKey: apiKey)
-    case .elevenLabs:
-      ElevenLabsTranscriptionClient(apiKey: apiKey)
-    case .gemini:
-      GeminiTranscriptionClient(apiKey: apiKey)
-    case .openAI:
-      OpenAITranscriptionClient(apiKey: apiKey)
-    case .vercel:
-      VercelTranscriptionClient(apiKey: apiKey)
-    case .parakeet:
-      parakeetModelStore.model.recognizer
-    case .huggingFace:
-      huggingFaceModelStore.model.recognizer
+  /// Captures the screenshot LLM polishing will attach while the provider transcribes, keeping it off the critical path; nothing is captured unless screen context is on and the polish request could be sent.
+  private func startScreenshot(for configuration: RecordingConfiguration) -> Task<String?, Never>? {
+    let settings = configuration.settings
+    guard settings.adjustWithLLM, settings.includeScreenshot else { return nil }
+    do {
+      try LLMAdjustmentClient(apiKey: configuration.llmAPIKey, baseURL: settings.adjustmentBaseURL)
+        .validateConfiguration(model: settings.adjustmentModel)
+    } catch {
+      // Polishing fails the same check and falls back without a screenshot.
+      return nil
     }
+    let app = recordingTargetApp ?? appContext.targetApp()
+    return Task { await LLMAdjustmentClient.captureDisplay(app, settings.screenshotResolution) }
+  }
+
+  private func transcriptionRecording(
+    settings: DictationSettings, apiKey: String
+  ) -> TranscriptionRecording {
+    let client: any SpeechToTextClient =
+      switch settings.provider {
+      case .xai: XAITranscriptionClient(apiKey: apiKey)
+      case .elevenLabs: ElevenLabsTranscriptionClient(apiKey: apiKey)
+      case .gemini: GeminiTranscriptionClient(apiKey: apiKey)
+      case .openAI: OpenAITranscriptionClient(apiKey: apiKey)
+      case .vercel: VercelTranscriptionClient(apiKey: apiKey)
+      case .parakeet: parakeetModelStore.model.recognizer
+      case .huggingFace: huggingFaceModelStore.model.recognizer
+      }
+    return TranscriptionRecording(settings: settings, apiKey: apiKey, client: client)
   }
 
   /// Tests the selected recognition setup without applying adjustment or invoking dictation delivery and storage.
@@ -797,9 +745,7 @@ final class AppState: ObservableObject {
       try validateSelectedProvider(settings: settings, apiKey: apiKey)
       audioInputPreview.stop()
       warmUpSelectedLocalModel()
-      transcriptionTest.start(
-        settings: settings, apiKey: apiKey,
-        client: transcriptionClient(provider: settings.provider, apiKey: apiKey))
+      transcriptionTest.start(transcriptionRecording(settings: settings, apiKey: apiKey))
     } catch {
       transcriptionTest.reportFailure(error)
     }
@@ -833,7 +779,7 @@ final class AppState: ObservableObject {
     case .ready:
       return
     case .missingAPIKey:
-      throw missingProviderKey(SecretKey(provider)?.rawValue ?? provider.title)
+      throw MissingAPIKeyError(name: SecretKey(provider)?.rawValue ?? provider.title)
     case .missingLocalModel:
       throw NSError(
         domain: "Vhrase.Settings",
@@ -848,16 +794,6 @@ final class AppState: ObservableObject {
 
   private func permissionState(for permission: AppPermission) -> PermissionState? {
     permissions.first { $0.permission == permission }?.state
-  }
-
-  private func missingProviderKey(_ name: String) -> NSError {
-    NSError(
-      domain: "Vhrase.Settings",
-      code: 1,
-      userInfo: [
-        NSLocalizedDescriptionKey: "\(name) is missing. Add it in System before recording."
-      ]
-    )
   }
 
   private func currentRecordingConfiguration() -> RecordingConfiguration {
@@ -1005,46 +941,29 @@ final class AppState: ObservableObject {
     isWorkflowPopupDismissed = false
     audioInputPreview.stop()
     let target: FocusedTextTarget
-    let client: LLMAdjustmentClient
     let polishSettings = settings
-    let model = polishSettings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
     let baseURL = effectiveLLMBaseURL
+    let client = LLMAdjustmentClient(
+      apiKey: credentials.effectiveValue(.llmAPIKey),
+      baseURL: baseURL
+    )
     do {
       target = try focusedTextService.capture()
-      guard !model.isEmpty else {
-        throw TextPolishError.missingModel
-      }
-      client = LLMAdjustmentClient(
-        apiKey: credentials.effectiveValue(.llmAPIKey),
-        baseURL: baseURL
-      )
-      try client.validateConfiguration()
+      try client.validateConfiguration(model: polishSettings.adjustmentModel)
     } catch {
       status = .failed(error.localizedDescription)
       return
     }
 
     let id = UUID()
-    let screenshotResolution = settings.includeScreenshot ? settings.screenshotResolution : nil
     textPolishID = id
     status = .adjusting
     customizationNotice = "Polishing text in \(target.app.name)…"
     textPolishTask = Task { [weak self] in
       guard let self else { return }
-      let screenshotDataURL: String? =
-        if let screenshotResolution {
-          await ScreenContext().displayJPEGDataURL(
-            showing: target.app, resolution: screenshotResolution)
-        } else {
-          nil
-        }
       do {
         let polished = try await client.polish(
-          text: target.text,
-          screenshotDataURL: screenshotDataURL,
-          settings: polishSettings,
-          app: target.app
-        )
+          target.text, as: .focusedText, settings: polishSettings, app: target.app)
         try Task.checkCancellation()
         guard self.textPolishID == id else {
           return
@@ -1055,7 +974,7 @@ final class AppState: ObservableObject {
         // Activation yields to Escape handling; a cancelled rewrite must not alter the editor's selection.
         try Task.checkCancellation()
         try target.prepareReplacement()
-        _ = try await self.inserter.paste(polished.text, keepOnClipboard: false)
+        _ = try await self.inserter.paste(polished.output, keepOnClipboard: false)
         guard self.textPolishID == id else {
           return
         }
@@ -1064,7 +983,7 @@ final class AppState: ObservableObject {
         self.lastCompletion = .textPolished
         self.customizationNotice = "Polished the focused text in \(target.app.name)."
         self.status = .completed
-        await self.recordPolishingCost(polished.usage, model: model, baseURL: baseURL)
+        await self.recordPolishingCost(of: polished, baseURL: baseURL)
       } catch is CancellationError {
         guard self.textPolishID == id else { return }
         self.textPolishTask = nil
@@ -1115,6 +1034,7 @@ final class AppState: ObservableObject {
     _ result: TranscriptionResult,
     adjustment: AdjustmentExecution,
     configuration: RecordingConfiguration,
+    screenshot: Task<String?, Never>? = nil,
     timing: DictationTiming? = nil
   ) async throws {
     let settings = configuration.settings
@@ -1127,7 +1047,11 @@ final class AppState: ObservableObject {
     }
     let finalized = try await TranscriptFinalizer(
       settings: settings,
-      llmAPIKey: configuration.llmAPIKey
+      llmAPIKey: configuration.llmAPIKey,
+      captureScreen: { app, resolution in
+        if let screenshot { return await screenshot.value }
+        return await LLMAdjustmentClient.captureDisplay(app, resolution)
+      }
     )
     .finalize(
       result,
@@ -1177,34 +1101,23 @@ final class AppState: ObservableObject {
     clearRecordingContext()
     status = .completed
     if let refinement = finalized.refinement {
-      await recordPolishingCost(
-        refinement.usage, model: refinement.model, baseURL: settings.adjustmentBaseURL)
+      await recordPolishingCost(of: refinement, baseURL: settings.adjustmentBaseURL)
     }
   }
 
   /// Adds one polish to today's estimated cost at the model's list price, after the result is delivered so a first price lookup never delays it; a polish whose usage or price is unknown stays uncounted.
-  private func recordPolishingCost(_ usage: LLMUsage?, model: String, baseURL: String) async {
-    guard let usage else { return }
+  private func recordPolishingCost(of refinement: LLMRefinement, baseURL: String) async {
+    guard let usage = refinement.usage else { return }
     do {
-      guard let price = try await llmPrice(model: model, baseURL: baseURL) else { return }
+      guard
+        let price = try await llmPrices.price(
+          of: refinement.model, at: baseURL, apiKey: credentials.effectiveValue(.llmAPIKey))
+      else { return }
       activityDays = activityStore.recordPolishing(
         costUSD: price.cost(of: usage), days: activityDays)
     } catch {
       logger.error("LLM price lookup failed: \(error.localizedDescription, privacy: .public)")
     }
-  }
-
-  private func llmPrice(model: String, baseURL: String) async throws -> LLMPrice? {
-    let key = "\(baseURL) \(model)"
-    if let listed = llmPrices[key] {
-      return listed
-    }
-    let price = try await LLMAdjustmentClient(
-      apiKey: credentials.effectiveValue(.llmAPIKey), baseURL: baseURL
-    )
-    .listPrice(for: model)
-    llmPrices[key] = price
-    return price
   }
 
   /// Pastes into the recorded target when possible; otherwise leaves the text on the clipboard and explains why.
@@ -1306,13 +1219,10 @@ private enum ActiveWorkflow {
 }
 
 private enum TextPolishError: LocalizedError {
-  case missingModel
   case targetUnavailable
 
   var errorDescription: String? {
     switch self {
-    case .missingModel:
-      "Choose an LLM model before polishing text."
     case .targetUnavailable:
       "The app containing the text is no longer available. Nothing was replaced."
     }

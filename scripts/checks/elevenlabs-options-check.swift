@@ -28,6 +28,15 @@ struct ElevenLabsOptionsCheck {
     precondition(value("vad_threshold", in: queryItems) == "0.55")
     precondition(value("min_speech_duration_ms", in: queryItems) == "150")
     precondition(value("min_silence_duration_ms", in: queryItems) == "200")
+    // Each transport sends its own model setting.
+    var newerModels = settings
+    newerModels.elevenLabsModel = " scribe_next "
+    newerModels.elevenLabsRealtimeModel = "scribe_next_realtime"
+    let newerUploadFields = try ElevenLabsTranscriptionContract.uploadFields(settings: newerModels)
+    precondition(newerUploadFields.contains { $0 == ("model_id", "scribe_next") })
+    let newerQueryItems = try ElevenLabsTranscriptionContract.realtimeQueryItems(
+      settings: newerModels)
+    precondition(value("model_id", in: newerQueryItems) == "scribe_next_realtime")
     precondition(queryItems.filter { $0.name == "keyterms" }.count == 2)
 
     settings.language = " \n "

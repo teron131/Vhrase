@@ -16,6 +16,10 @@ struct OpenAISTTOptionsCheck {
 
     let fields = try OpenAITranscriptionContract.uploadFields(settings: settings)
     precondition(fields.first! == ("model", "gpt-transcribe"))
+    var newerModel = settings
+    newerModel.openAIModel = " gpt-transcribe-next "
+    let newerFields = try OpenAITranscriptionContract.uploadFields(settings: newerModel)
+    precondition(newerFields.first! == ("model", "gpt-transcribe-next"))
     precondition(fields.filter { $0.0 == "languages[]" }.map(\.1) == ["yue"])
     precondition(
       fields.filter { $0.0 == "keywords[]" }.map(\.1) == ["Vercel", "refactor", "Monte Carlo"])
