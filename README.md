@@ -36,7 +36,7 @@ Local models need no key and run offline after a one-time download, but they are
 
 ## What It Costs
 
-![A year of dictation, five ways to pay: Wispr Flow Pro at \$15 a month reaches \$180, VoiceInk costs \$25 once plus use, and Vhrase costs only its use, about \$24 a year with cloud models and nothing with open-source models](docs/images/dictation-cost.svg)
+![A year of dictation, six ways to pay: Wispr Flow Pro at \$15 a month reaches \$180, Superwhisper Pro at \$8.49 a month reaches \$102, VoiceInk costs \$25 once plus use, and Vhrase costs only its use, about \$24 a year with cloud models and nothing with open-source models](docs/images/dictation-cost.svg)
 
 Regular use is about 8 minutes of speech in 100 dictations a day, from a published 90-day log, at xAI's \$0.10 per hour of audio plus about \$0.0005 per GPT-6 Luna polish with a screenshot.
 App prices are October 2026 list prices; only the yearly totals are estimates.
