@@ -65,9 +65,9 @@ struct ShortcutBehaviorCheck {
 
     precondition(
       ShortcutGestureInterpreter.summary(all)
-        == "Tap to toggle · hold to talk · double-tap to polish")
+        == "Tap to toggle · hold to talk · double-tap to restyle")
     precondition(
-      ShortcutGestureInterpreter.summary(holdOnly) == "Hold to talk · double-tap to polish")
+      ShortcutGestureInterpreter.summary(holdOnly) == "Hold to talk · double-tap to restyle")
 
     var settings = DictationSettings.defaults
     precondition(!settings.availableHotkeyPresets.contains(.custom))

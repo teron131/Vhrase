@@ -1,8 +1,8 @@
-// Owns how a transcript is polished: when the LLM runs and what context it sees, which endpoint and model it uses, and whether OpenCC converts the Chinese in final transcripts; Writing holds how the polished text should read.
+// Owns everything about the LLM pass in one place: whether dictation is refined or restyled, how Refine and Restyle read, the context and model they use, and whether OpenCC converts the Chinese in final transcripts.
 
 import SwiftUI
 
-struct RefinementView: View {
+struct PolishingView: View {
   @ObservedObject var appState: AppState
   let navigation: MainWindowNavigation
   @State private var isOpenCCInstallConfirmationPresented = false
@@ -12,11 +12,14 @@ struct RefinementView: View {
   var body: some View {
     mainWindowPage {
       pageHeader(
-        "Refinement",
-        description: "Polish the transcript with an LLM before it reaches your app."
+        "Polishing",
+        description:
+          "Refine cleans up what you said. Restyle rewrites it in the style you pick, on a double-tap or after every dictation."
       )
 
-      polishingGroup
+      afterTranscriptionGroup
+      PolishPreferencesEditor(appState: appState)
+      contextGroup
       modelGroup
       chineseOutputGroup
     }
@@ -26,36 +29,42 @@ struct RefinementView: View {
       isPresented: $isOpenCCInstallConfirmationPresented, setup: appState.openCCSetup)
   }
 
-  private var polishingGroup: some View {
+  private var afterTranscriptionGroup: some View {
     settingsGroup(
-      "Polishing",
+      "Dictation",
       footer:
-        "Double-tap polishing uses the same model, context, and writing preferences, even when automatic polishing is off."
+        "Double-tap always restyles, even when this is Off. Restyled dictation has no undo; the original stays on Dictation under Before Vhrase cleanup."
     ) {
-      settingsToggle(
-        "Polish new transcripts automatically",
-        detail: "Runs each finished dictation through the model before Vhrase delivers it.",
-        isOn: appState.settingsBinding(\.adjustWithLLM)
-      )
-
-      settingsToggle(
-        "Use screen context",
-        detail:
-          "Sends a screenshot of the screen you're working on with each polish, so the model can spell the names it sees.",
-        isOn: appState.settingsBinding(\.includeScreenshot)
-      )
-
-      if appState.settings.includeScreenshot {
-        screenshotResolutionRow
+      settingsRow("After transcription") {
+        PillPicker(
+          title: "After transcription", selection: appState.settingsBinding(\.afterTranscription),
+          options: DictationPolishing.allCases, label: { $0.title }, fillsWidth: true
+        )
+        .frame(width: 320)
       }
 
-      if appState.settings.adjustWithLLM {
+      if appState.settings.afterTranscription.usesLLM {
         settingsToggle(
           "Use local cleanup if the LLM fails",
           detail:
             "If the model fails, delivers a locally tidied transcript instead of the raw one.",
           isOn: appState.settingsBinding(\.useLocalAdjustmentFallback)
         )
+      }
+    }
+  }
+
+  private var contextGroup: some View {
+    settingsGroup("Context") {
+      settingsToggle(
+        "Use screen context",
+        detail:
+          "Adds a screenshot to dictation and double-tap requests so the model can spell names it sees. Restyle tries on recent dictations never attach your screen.",
+        isOn: appState.settingsBinding(\.includeScreenshot)
+      )
+
+      if appState.settings.includeScreenshot {
+        screenshotResolutionRow
       }
     }
   }
@@ -202,7 +211,7 @@ struct RefinementView: View {
 }
 
 extension View {
-  /// Asks before running Homebrew, wherever an OpenCC install starts: Chinese output on Refinement or the setup summary on System.
+  /// Asks before running Homebrew, wherever an OpenCC install starts: Chinese output on Polishing or the setup summary on System.
   func openCCInstallConfirmation(isPresented: Binding<Bool>, setup: OpenCCSetup) -> some View {
     confirmationDialog("Install OpenCC?", isPresented: isPresented, titleVisibility: .visible) {
       Button("Install with Homebrew") { setup.install() }

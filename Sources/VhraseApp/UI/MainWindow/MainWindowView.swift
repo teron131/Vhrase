@@ -30,6 +30,7 @@ struct MainWindowView: View {
     NavigationSplitView {
       MainWindowSidebar(appState: appState, selection: selection)
         .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 270)
+        .anchorPreference(key: SidebarBoundsKey.self, value: .bounds) { $0 }
     } detail: {
       content
         .id(selectedTab)
@@ -45,6 +46,19 @@ struct MainWindowView: View {
               .zIndex(1)
           }
         }
+    }
+    // Cover the system divider with our hairline while leaving native sidebar resizing intact.
+    .overlayPreferenceValue(SidebarBoundsKey.self) { anchor in
+      GeometryReader { geometry in
+        if let anchor {
+          VhraseTheme.hairline
+            .background(VhraseTheme.canvas)
+            .frame(width: 1, height: geometry.size.height)
+            .position(x: geometry[anchor].maxX + 0.5, y: geometry.size.height / 2)
+        }
+      }
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
     }
     .frame(minWidth: 1020, minHeight: 680)
     .tint(VhraseTheme.accent)
@@ -128,17 +142,23 @@ struct MainWindowView: View {
       MicrophoneView(appState: appState)
     case .transcription:
       TranscriptionView(appState: appState, navigation: navigation)
-    case .refinement:
-      RefinementView(appState: appState, navigation: navigation)
+    case .polishing:
+      PolishingView(appState: appState, navigation: navigation)
     case .delivery:
       DeliveryView(appState: appState, navigation: navigation)
     case .vocabulary:
       VocabularyView(appState: appState, navigation: navigation)
-    case .writing:
-      WritingView(appState: appState)
     case .system:
       SystemView(appState: appState, navigation: navigation, credentialRequest: $credentialRequest)
     }
+  }
+}
+
+private struct SidebarBoundsKey: PreferenceKey {
+  static var defaultValue: Anchor<CGRect>? { nil }
+
+  static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+    value = nextValue() ?? value
   }
 }
 

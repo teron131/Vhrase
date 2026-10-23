@@ -15,18 +15,27 @@ struct HistoryCheck {
       targetAppName: "Code",
       targetAppBundleIdentifier: "com.microsoft.VSCode"
     )
+    let historicalStyle = PolishStyle(
+      title: "Rephrase", instruction: "The instruction that actually ran.")
     item.refinement = LLMRefinement(
       input: "hello from dictation",
       output: "Hello from dictation.",
       model: "test/model",
       systemInstruction: "Polish the transcript.",
       includedScreenshot: false,
-      usage: LLMUsage(inputTokens: 2_480, outputTokens: 120)
+      usage: LLMUsage(inputTokens: 2_480, outputTokens: 120),
+      style: historicalStyle
     )
 
     let data = try JSONEncoder().encode([item])
     let decoded = try JSONDecoder().decode([TranscriptHistoryItem].self, from: data)
     precondition(decoded == [item])
+    precondition(decoded[0].refinement?.style == historicalStyle)
+    precondition(decoded[0].refinement?.style != PolishStyle.rephrase)
+    let records = try JSONSerialization.jsonObject(with: data) as! [[String: Any]]
+    let savedResult = records[0]["refinement"] as! [String: Any]
+    let savedStyle = savedResult["style"] as! [String: Any]
+    precondition(Set(savedStyle.keys) == ["title", "instruction"])
     precondition(decoded[0].wordCount == 3)
     precondition(decoded[0].recordingSeconds == nil)
     var measured = item
@@ -49,11 +58,14 @@ struct HistoryCheck {
     var withoutUsage = try JSONSerialization.jsonObject(with: measuredData) as! [String: Any]
     var savedRefinement = withoutUsage["refinement"] as! [String: Any]
     savedRefinement.removeValue(forKey: "usage")
+    savedRefinement.removeValue(forKey: "style")
     withoutUsage["refinement"] = savedRefinement
     let unmeasured = try JSONDecoder().decode(
       TranscriptHistoryItem.self, from: JSONSerialization.data(withJSONObject: withoutUsage))
     precondition(unmeasured.refinement?.output == "Hello from dictation.")
     precondition(unmeasured.refinement?.usage == nil)
+    precondition(unmeasured.refinement?.style == nil)
+    precondition(unmeasured.cleanupTitle == "Refine")
 
     // A fixed suite keeps repeated runs from leaving one preferences file each in ~/Library/Preferences.
     let suiteName = "Vhrase.HistoryCheck"

@@ -1,4 +1,4 @@
-// Presents provider-independent writing controls with examples that explain each final-output choice.
+// Groups Polishing's style settings by the operation that uses them, heads each group with thumbnails of the gestures that use it, and previews Restyle on recent dictations.
 
 import SwiftUI
 
@@ -8,77 +8,174 @@ struct PolishPreferencesEditor: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 28) {
-      presetEditor
-
-      fineTuningOptions
+      refineEditor
+      restyleEditor
+      sharedEditor
     }
   }
 
-  private var fineTuningOptions: some View {
-    VStack(alignment: .leading, spacing: 28) {
-      preferenceGroup("Flow") {
-        preferenceRow(
-          "Rewrite",
-          selection: appState.settingsBinding(\.polishPreferences.rewriteLevel),
-          options: PolishRewriteLevel.allCases,
-          title: \.title,
-          example: \.example
+  private var hasHistory: Bool { !appState.history.isEmpty }
+
+  private var refineEditor: some View {
+    settingsGroup("Refine") {
+      presetEditor
+      preferenceRow(
+        "Rewrite",
+        selection: appState.settingsBinding(\.polishPreferences.rewriteLevel),
+        options: PolishRewriteLevel.allCases,
+        title: \.title,
+        example: \.example
+      )
+      preferenceRow(
+        "Contractions",
+        selection: appState.settingsBinding(\.polishPreferences.contractionStyle),
+        options: PolishContractionStyle.allCases,
+        title: \.title,
+        example: \.example
+      )
+      preferenceRow(
+        "Sentences",
+        selection: appState.settingsBinding(\.polishPreferences.sentenceStyle),
+        options: PolishSentenceStyle.allCases,
+        title: \.title,
+        example: \.example
+      )
+      preferenceRow(
+        "Paragraphs & lists",
+        selection: appState.settingsBinding(\.polishPreferences.structureStyle),
+        options: PolishStructureStyle.allCases,
+        title: \.title,
+        example: \.example
+      )
+      leadingConjunctionsRow
+
+      if hasHistory {
+        PolishTestView(appState: appState, operation: .refine)
+          .settingsRowStyle()
+      }
+    } accessory: {
+      dictationRoute(isActive: appState.settings.afterTranscription == .refine)
+    }
+  }
+
+  private var restyleEditor: some View {
+    settingsGroup("Restyle") {
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .firstTextBaseline) {
+          Text(appState.settings.polishStyle.title)
+            .font(VhraseFont.title)
+            .foregroundStyle(VhraseTheme.accent)
+          Text(appState.settings.restyleChoice.detail)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        PillPicker(
+          title: "Restyle style", selection: appState.settingsBinding(\.restyleChoice),
+          options: RestyleChoice.allCases, label: { $0.title }, fillsWidth: true
         )
-        fillerWordsRow
-        spokenCorrectionsRow
-        preferenceRow(
-          "Contractions",
-          selection: appState.settingsBinding(\.polishPreferences.contractionStyle),
-          options: PolishContractionStyle.allCases,
-          title: \.title,
-          example: \.example
-        )
-        preferenceRow(
-          "Sentences",
-          selection: appState.settingsBinding(\.polishPreferences.sentenceStyle),
-          options: PolishSentenceStyle.allCases,
-          title: \.title,
-          example: \.example
-        )
-        preferenceRow(
-          "Paragraphs & lists",
-          selection: appState.settingsBinding(\.polishPreferences.structureStyle),
-          options: PolishStructureStyle.allCases,
-          title: \.title,
-          example: \.example
-        )
-        leadingConjunctionsRow
+        // Recent dictations replace the built-in example as the preview once History has any.
+        if !hasHistory, let example = appState.settings.restyleChoice.example {
+          examplePreview(example)
+        }
+      }
+      .settingsRowStyle()
+
+      if appState.settings.restyleChoice == .custom {
+        settingsRow("Name") {
+          TextField("Custom", text: appState.settingsBinding(\.customRestyleName))
+            .textFieldStyle(.roundedBorder)
+            .labelsHidden()
+            .accessibilityLabel("Custom style name")
+            .frame(width: 320)
+        }
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Instruction")
+          editorTile(
+            "Custom Restyle instruction",
+            text: appState.settingsBinding(\.customRestyleInstruction), height: 96,
+            instruction:
+              "Double-tap uses this instruction. Dictation uses it too when After transcription is set to Restyle.",
+            placeholder: "Rewrite as a concise message. Keep every detail and request."
+          )
+        }
+        .settingsRowStyle()
       }
 
-      preferenceGroup("Formatting") {
-        preferenceRow(
-          "Numbers",
-          selection: appState.settingsBinding(\.polishPreferences.numberStyle),
-          options: PolishNumberStyle.allCases,
-          title: \.title,
-          example: \.example
+      if hasHistory {
+        PolishTestView(appState: appState, operation: .restyle(appState.settings.polishStyle))
+          .settingsRowStyle()
+      }
+    } accessory: {
+      HStack(spacing: 6) {
+        doubleTapRoute
+        dictationRoute(isActive: appState.settings.afterTranscription == .restyle)
+      }
+    }
+  }
+
+  private var doubleTapRoute: some View {
+    RouteThumbnail(
+      title: "Double-tap", timeline: .doubleTap, isActive: true,
+      help: "Double-tap restyles the selected text, or the whole field.")
+  }
+
+  private func dictationRoute(isActive: Bool) -> some View {
+    RouteThumbnail(
+      title: "Dictation", timeline: Self.polishedDictation, isActive: isActive,
+      help: "After transcription is set to \(appState.settings.afterTranscription.title).")
+  }
+
+  private static let polishedDictation = GestureTimeline(
+    presses: [0.06...0.15, 0.56...0.65], recording: 0.06...0.60, outcome: "wand.and.stars",
+    outcomeAt: 0.84)
+
+  private var sharedEditor: some View {
+    settingsGroup("All") {
+      fillerWordsRow
+      spokenCorrectionsRow
+      preferenceRow(
+        "Numbers",
+        selection: appState.settingsBinding(\.polishPreferences.numberStyle),
+        options: PolishNumberStyle.allCases,
+        title: \.title,
+        example: \.example
+      )
+      preferenceRow(
+        "Ordinals",
+        selection: appState.settingsBinding(\.polishPreferences.ordinalStyle),
+        options: PolishOrdinalStyle.allCases,
+        title: \.title,
+        example: \.example
+      )
+      preferenceRow(
+        "Money",
+        selection: appState.settingsBinding(\.polishPreferences.moneyStyle),
+        options: PolishMoneyStyle.allCases,
+        title: \.title,
+        example: \.example
+      )
+      preferenceRow(
+        "Units",
+        selection: appState.settingsBinding(\.polishPreferences.unitStyle),
+        options: PolishUnitStyle.allCases,
+        title: \.title,
+        example: \.example
+      )
+      VStack(alignment: .leading, spacing: 8) {
+        Text("Additional instructions")
+        editorTile(
+          "Additional instructions", text: appState.settingsBinding(\.adjustmentPrompt), height: 96,
+          instruction:
+            "Optional instructions for the LLM. These take priority over Refine preferences and shared formatting, but not the chosen Restyle style.",
+          placeholder: "Keep Jira issue keys unchanged. Use British spelling."
         )
-        preferenceRow(
-          "Ordinals",
-          selection: appState.settingsBinding(\.polishPreferences.ordinalStyle),
-          options: PolishOrdinalStyle.allCases,
-          title: \.title,
-          example: \.example
-        )
-        preferenceRow(
-          "Money",
-          selection: appState.settingsBinding(\.polishPreferences.moneyStyle),
-          options: PolishMoneyStyle.allCases,
-          title: \.title,
-          example: \.example
-        )
-        preferenceRow(
-          "Units",
-          selection: appState.settingsBinding(\.polishPreferences.unitStyle),
-          options: PolishUnitStyle.allCases,
-          title: \.title,
-          example: \.example
-        )
+      }
+      .settingsRowStyle()
+    } accessory: {
+      HStack(spacing: 6) {
+        doubleTapRoute
+        dictationRoute(isActive: appState.settings.afterTranscription.usesLLM)
       }
     }
   }
@@ -92,47 +189,36 @@ struct PolishPreferencesEditor: View {
   }
 
   private var presetEditor: some View {
-    settingsGroup("Writing style") {
-      VStack(alignment: .leading, spacing: 10) {
-        HStack(alignment: .firstTextBaseline) {
-          Text(selectedPreset?.title ?? "Custom")
-            .font(VhraseFont.title)
-            .foregroundStyle(VhraseTheme.accent)
-            .contentTransition(.interpolate)
-          Text(
-            selectedPreset?.detail
-              ?? "Your own combination. Choose a preset or adjust the options below."
-          )
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
-        }
-        StepSlider(
-          title: "Writing style preset",
-          options: PolishPreset.allCases,
-          selection: Binding(get: { selectedPreset ?? lastPreset }, set: { applyPreset($0) }),
-          isCustom: selectedPreset == nil,
-          label: \.title
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .firstTextBaseline) {
+        Text(selectedPreset?.title ?? "Custom")
+          .font(VhraseFont.title)
+          .foregroundStyle(VhraseTheme.accent)
+          .contentTransition(.interpolate)
+        Text(
+          selectedPreset?.detail
+            ?? "Your own combination. Choose a preset or adjust the options below."
         )
-        .padding(.top, 4)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
       }
-      .padding(.vertical, 4)
-      .settingsRowStyle()
+      StepSlider(
+        title: "Writing style preset",
+        options: PolishPreset.allCases,
+        selection: Binding(get: { selectedPreset ?? lastPreset }, set: { applyPreset($0) }),
+        isCustom: selectedPreset == nil,
+        label: \.title
+      )
+      .padding(.top, 4)
     }
+    .padding(.vertical, 4)
+    .settingsRowStyle()
   }
 
   private func applyPreset(_ preset: PolishPreset) {
     lastPreset = preset
     appState.updateSettings { $0.polishPreferences = preset.preferences }
-  }
-
-  private func preferenceGroup<Content: View>(
-    _ title: String,
-    @ViewBuilder content: () -> Content
-  ) -> some View {
-    settingsGroup(title) {
-      content()
-    }
   }
 
   private func preferenceRow<Option: Hashable>(
@@ -213,6 +299,31 @@ struct PolishPreferencesEditor: View {
   private func compactExample(_ text: String) -> String {
     text.replacingOccurrences(of: "\n\n", with: " ↵ ")
       .replacingOccurrences(of: "\n", with: " ")
+  }
+}
+
+/// Dims to the Shortcut page's switched-off opacity when the route doesn't use the group, so "off" reads the same on both pages.
+private struct RouteThumbnail: View {
+  let title: String
+  let timeline: GestureTimeline
+  let isActive: Bool
+  let help: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      timeline
+        .frame(width: 60)
+      Text(title)
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(.secondary)
+    }
+    .padding(.horizontal, 8)
+    .padding(.vertical, 6)
+    .surface(cornerRadius: 8)
+    .opacity(isActive ? 1 : 0.4)
+    .help(help)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("\(title) \(isActive ? "uses" : "doesn't use") these settings")
   }
 }
 

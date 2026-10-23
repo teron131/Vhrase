@@ -56,7 +56,7 @@ struct ShortcutGestures: Codable, Equatable, Sendable {
   var doubleTapToPolish = true
 }
 
-/// Interprets one shortcut as tap-to-toggle, hold-to-record, and double-tap-to-polish without delaying microphone startup, acting only on the gestures that are on.
+/// Interprets one shortcut as tap-to-toggle, hold-to-record, and double-tap-to-restyle without delaying microphone startup, acting only on the gestures that are on.
 struct ShortcutGestureInterpreter {
   static let holdThreshold: TimeInterval = 0.35
   static let doubleTapInterval: TimeInterval = 0.28
@@ -65,7 +65,7 @@ struct ShortcutGestureInterpreter {
     let text = [
       gestures.tapToToggle ? "tap to toggle" : nil,
       gestures.holdToTalk ? "hold to talk" : nil,
-      gestures.doubleTapToPolish ? "double-tap to polish" : nil,
+      gestures.doubleTapToPolish ? "double-tap to restyle" : nil,
     ]
     .compactMap(\.self)
     .joined(separator: " · ")

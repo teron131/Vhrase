@@ -128,6 +128,31 @@ struct HistorySearchCheck {
     let emptyPage = HistorySearch.Page(matches: [], requestedIndex: 9)
     precondition(emptyPage.count == 1 && emptyPage.index == 0 && emptyPage.items.isEmpty)
     precondition(HistorySearch.Page(matches: archive, requestedIndex: -1).index == 0)
+    let customStyle = PolishStyle(
+      title: "Unlisted style", instruction: "Group related ideas.")
+    let styles: [PolishStyle?] = [nil, .rephrase, .genZ, customStyle]
+    let rewrittenItems = styles.map { style in
+      TranscriptHistoryItem(
+        id: UUID(), createdAt: now, text: "Send the report", provider: "Gemini",
+        transcriptionMode: "Upload", cleanup: .llm, targetAppName: nil,
+        targetAppBundleIdentifier: nil,
+        refinement: LLMRefinement(
+          input: "send the report", output: "Send the report",
+          model: "model", systemInstruction: "instruction", includedScreenshot: false,
+          usage: nil, style: style))
+    }
+    let styleIndex = HistorySearch.Index(rewrittenItems)
+    for item in rewrittenItems {
+      precondition(
+        styleIndex.matches(query: item.cleanupTitle, dateFilter: .anyTime, provider: "").first
+          == item)
+    }
+    precondition(
+      styleIndex.matches(query: "Refine", dateFilter: .anyTime, provider: "") == [rewrittenItems[0]]
+    )
+    precondition(
+      Set(styleIndex.matches(query: "Restyle", dateFilter: .anyTime, provider: "").map(\.id))
+        == Set(rewrittenItems.dropFirst().map(\.id)))
     print("history search and pagination ok")
   }
 

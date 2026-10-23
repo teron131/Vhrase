@@ -1,4 +1,4 @@
-// Owns getting OpenCC onto this Mac for Chinese output: the Homebrew install, its progress and failure, and the next step Refinement and System both offer while OpenCC is missing.
+// Owns getting OpenCC onto this Mac for Chinese output: the Homebrew install, its progress and failure, and the next step Polishing and System both offer while OpenCC is missing.
 
 import AppKit
 import Foundation

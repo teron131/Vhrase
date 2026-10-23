@@ -27,7 +27,7 @@ struct VocabularyView: View {
           .accessibilityAddTraits(.isHeader)
         HStack(alignment: .top, spacing: 10) {
           transcriptionUse
-          refinementUse
+          polishingUse
         }
       }
     }
@@ -55,17 +55,18 @@ struct VocabularyView: View {
     )
   }
 
-  private var refinementUse: some View {
+  private var polishingUse: some View {
     let model = settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
     return UseCard(
-      stage: .refinement,
+      stage: .polishing,
       source: model.isEmpty ? "No model chosen" : model,
-      role: settings.adjustWithLLM ? "Spelling reference" : "Double-tap polishing only",
-      isActive: settings.adjustWithLLM,
-      detail: settings.adjustWithLLM
+      role: settings.afterTranscription.usesLLM
+        ? "Spelling reference" : "Double-tap and Restyle tests",
+      isActive: settings.afterTranscription.usesLLM,
+      detail: settings.afterTranscription.usesLLM
         ? "The model uses these to spell names and jargon correctly; it never adds them on its own."
-        : "Automatic polishing is off, so only text you double-tap to polish uses these.",
-      open: { navigation.open(.refinement) },
+        : "After transcription is Off. Double-tap and Restyle tests still use these spelling references.",
+      open: { navigation.open(.polishing) },
       meter: { EmptyView() }
     )
   }

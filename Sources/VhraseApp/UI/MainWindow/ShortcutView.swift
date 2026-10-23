@@ -132,7 +132,7 @@ struct ShortcutView: View {
       GridRow {
         groupHeading("Dictate")
           .gridCellColumns(2)
-        groupHeading("Polish")
+        groupHeading("Restyle")
         groupHeading("Cancel")
       }
 
@@ -154,9 +154,9 @@ struct ShortcutView: View {
         GestureTile(
           title: "Double-tap",
           isOn: appState.settingsBinding(\.shortcutGestures.doubleTapToPolish),
-          detail: "Polishes the selected text, or the whole field when nothing is selected.",
-          timeline: GestureTimeline(
-            presses: [0.06...0.15, 0.27...0.36], outcome: "wand.and.stars", outcomeAt: 0.62)
+          detail:
+            "Restyles selected text, or the whole field if nothing is selected, with \(appState.settings.polishStyle.title). Undo with Command-Z in the target app.",
+          timeline: .doubleTap
         )
         GestureTile(
           title: "Esc",
@@ -243,60 +243,5 @@ private struct GestureTile: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .surface()
     .accessibilityElement(children: .contain)
-  }
-}
-
-/// Draws a gesture over time: the line rises while the key is down, the band beneath marks when Vhrase records, and an optional mark shows the result.
-private struct GestureTimeline: View {
-  let presses: [ClosedRange<CGFloat>]
-  var recording: ClosedRange<CGFloat>?
-  var outcome: String?
-  var outcomeAt: CGFloat = 0
-
-  var body: some View {
-    GeometryReader { geometry in
-      let width = geometry.size.width
-      ZStack(alignment: .topLeading) {
-        KeyPressLine(presses: presses)
-          .stroke(
-            Color.primary.opacity(0.7),
-            style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
-          )
-          .frame(height: 16)
-        if let recording {
-          Capsule()
-            .fill(VhraseTheme.statusRecording)
-            .frame(width: width * (recording.upperBound - recording.lowerBound), height: 6)
-            .offset(x: width * recording.lowerBound, y: 24)
-        }
-        if let outcome {
-          Image(systemName: outcome)
-            .font(.system(size: 12, weight: .bold))
-            .foregroundStyle(VhraseTheme.accent)
-            .frame(width: 18, height: 18)
-            .offset(x: width * outcomeAt - 9, y: 0)
-        }
-      }
-    }
-    .frame(height: 30)
-  }
-}
-
-private struct KeyPressLine: Shape {
-  let presses: [ClosedRange<CGFloat>]
-
-  func path(in rect: CGRect) -> Path {
-    var path = Path()
-    path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-    for press in presses {
-      let start = rect.minX + rect.width * press.lowerBound
-      let end = rect.minX + rect.width * press.upperBound
-      path.addLine(to: CGPoint(x: start, y: rect.maxY))
-      path.addLine(to: CGPoint(x: start, y: rect.minY))
-      path.addLine(to: CGPoint(x: end, y: rect.minY))
-      path.addLine(to: CGPoint(x: end, y: rect.maxY))
-    }
-    path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-    return path
   }
 }

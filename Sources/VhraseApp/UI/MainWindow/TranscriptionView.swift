@@ -16,13 +16,14 @@ struct TranscriptionView: View {
       )
 
       if let issue = presentation.transcriptionConfigurationIssue {
-        // A list over the provider's limit is fixed on Vocabulary, or by choosing another provider here.
-        let isVocabularyIssue = issue == presentation.vocabularyIssue
+        let elsewhere = presentation.configurationIssueTab.flatMap {
+          $0 == .transcription ? nil : $0
+        }
         NoticeCard(
           issue, systemImage: "exclamationmark.triangle", color: VhraseTheme.statusFailure,
           title: "Recording is blocked",
-          actionTitle: isVocabularyIssue ? "Open Vocabulary" : nil,
-          action: isVocabularyIssue ? { navigation.open(.vocabulary) } : nil)
+          actionTitle: elsewhere.map { "Open \($0.title)" },
+          action: elsewhere.map { tab in { navigation.open(tab) } })
       }
 
       serviceGroup
@@ -196,17 +197,17 @@ struct TranscriptionView: View {
         detail:
           "Removes fillers, resolves spoken corrections, and formats paragraphs and lists. Turn it off to stay closer to your exact words.",
         isOn: appState.settingsBinding(\.geminiSmartTranscription))
-      if appState.settings.geminiSmartTranscription, appState.settings.adjustWithLLM {
+      if appState.settings.geminiSmartTranscription, appState.settings.afterTranscription.usesLLM {
         HStack(alignment: .center, spacing: 12) {
           Label(
-            "Automatic polishing in Refinement is also on, so the Smart transcript gets rewritten a second time.",
+            "After transcription is set to \(appState.settings.afterTranscription.title) on Polishing, so the Smart transcript gets another LLM pass.",
             systemImage: "exclamationmark.triangle"
           )
           .font(.caption)
           .foregroundStyle(VhraseTheme.statusWarning)
           .frame(maxWidth: .infinity, alignment: .leading)
           Button("Use Smart only") {
-            appState.updateSettings { $0.adjustWithLLM = false }
+            appState.updateSettings { $0.afterTranscription = .off }
           }
           .buttonStyle(.bordered)
           .controlSize(.small)

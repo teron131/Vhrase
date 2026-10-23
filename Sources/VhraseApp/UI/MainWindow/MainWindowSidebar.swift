@@ -31,7 +31,6 @@ struct MainWindowSidebar: View {
           route(presentation)
           sectionLabel("Style sheet")
           row(.vocabulary, presentation)
-          row(.writing, presentation)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -227,18 +226,17 @@ struct MainWindowSidebar: View {
       return microphoneName
     case .transcription:
       return "\(settings.provider.title) · \(settings.transcriptionModeTitle)"
-    case .refinement:
-      guard settings.adjustWithLLM else { return "Raw transcripts" }
-      let model = settings.adjustmentModel.split(separator: "/").last.map(String.init) ?? ""
-      return model.isEmpty ? "No model chosen" : model
+    case .polishing:
+      let modelIsMissing =
+        settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      return settings.afterTranscription.usesLLM && modelIsMissing
+        ? "No model chosen" : presentation.polishingSummary
     case .delivery:
       if !presentation.permissions.isReady(.accessibility) { return "Clipboard only" }
       return settings.keepTranscriptOnClipboard ? "Paste and keep a copy" : "Paste into your app"
     case .vocabulary:
       let count = settings.keytermList.count
       return count == 1 ? "1 term" : "\(count) terms"
-    case .writing:
-      return PolishPreset.matching(settings.polishPreferences)?.title ?? "Custom"
     case .system:
       if !presentation.coreRecordingReady { return "Needs attention" }
       if !presentation.selectedShortcutReady { return "Shortcut needs access" }
@@ -255,11 +253,10 @@ struct MainWindowSidebar: View {
     case .microphone:
       return !presentation.permissions.isReady(.microphone)
     case .transcription:
-      return presentation.providerReadiness != .ready
-        || (presentation.transcriptionConfigurationIssue != nil
-          && presentation.transcriptionConfigurationIssue != presentation.vocabularyIssue)
-    case .refinement:
-      guard settings.adjustWithLLM else { return false }
+      return presentation.transcriptionNeedsAttention
+    case .polishing:
+      if presentation.restyleIssue != nil { return true }
+      guard settings.afterTranscription.usesLLM else { return false }
       return appState.credentials.effectiveValue(.llmAPIKey).isEmpty
         || settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         || (settings.includeScreenshot && !presentation.permissions.isReady(.screenRecording))
@@ -269,7 +266,7 @@ struct MainWindowSidebar: View {
       return presentation.vocabularyIssue != nil
     case .system:
       return !presentation.coreRecordingReady || !presentation.selectedShortcutReady
-    case .dictation, .history, .writing:
+    case .dictation, .history:
       return false
     }
   }

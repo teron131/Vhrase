@@ -110,11 +110,11 @@ struct CustomizationTransfer {
     {
       changes.append("Change the LLM endpoint to \(host).")
     }
-    if !current.adjustWithLLM, imported.adjustWithLLM {
-      changes.append("Send transcripts to the configured LLM for cleanup.")
+    if !current.afterTranscription.usesLLM, imported.afterTranscription.usesLLM {
+      changes.append("Send transcripts to the configured LLM for polishing.")
     }
     if !current.includeScreenshot, imported.includeScreenshot {
-      changes.append("Include a screenshot of the target app's display in LLM cleanup requests.")
+      changes.append("Include a screenshot of the target app's display in LLM polishing requests.")
     }
     if !current.keepTranscriptOnClipboard, imported.keepTranscriptOnClipboard {
       changes.append("Keep finalized text on the clipboard after insertion.")

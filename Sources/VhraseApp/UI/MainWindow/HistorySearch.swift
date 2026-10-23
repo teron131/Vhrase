@@ -229,7 +229,7 @@ struct HistorySearch {
       wordCount = item.wordCount
       text = normalize(item.text)
       metadata = normalize(
-        [item.provider, item.transcriptionMode, item.cleanup.title, item.targetAppName]
+        [item.provider, item.transcriptionMode, item.cleanupTitle, item.targetAppName]
           .compactMap(\.self)
           .joined(separator: " ")
       )

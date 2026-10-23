@@ -49,7 +49,12 @@ final class SettingsStore {
         "keepTranscriptOnClipboard",
         fallback.keepTranscriptOnClipboard
       ),
-      adjustWithLLM: bool("adjustWithLLM", fallback.adjustWithLLM),
+      // A new install has no old "Polish new transcripts automatically" toggle to migrate, so it takes the default.
+      afterTranscription: enumValue(
+        "afterTranscription",
+        (defaults.object(forKey: "adjustWithLLM") as? Bool).map {
+          $0 ? DictationPolishing.refine : .off
+        } ?? fallback.afterTranscription),
       useLocalAdjustmentFallback: bool(
         "useLocalAdjustmentFallback", fallback.useLocalAdjustmentFallback),
       adjustmentBaseURL: nonEmptyString("adjustmentBaseURL", fallback.adjustmentBaseURL),
@@ -93,6 +98,10 @@ final class SettingsStore {
         "polishResolvesSpokenCorrections",
         fallback.polishPreferences.resolvesSpokenCorrections)
     )
+    settings.restyleChoice = enumValue("restyleChoice", fallback.restyleChoice)
+    settings.customRestyleName = storedString("customRestyleName", fallback.customRestyleName)
+    settings.customRestyleInstruction = storedString(
+      "customRestyleInstruction", fallback.customRestyleInstruction)
     settings.screenshotResolution = enumValue(
       "screenshotResolution", fallback.screenshotResolution)
     settings.geminiSmartTranscription = bool(
@@ -148,11 +157,15 @@ final class SettingsStore {
     set(settings.xaiSmartTurnThreshold, forKey: "xaiSmartTurnThreshold")
     set(settings.xaiSmartTurnTimeout, forKey: "xaiSmartTurnTimeout")
     set(settings.keepTranscriptOnClipboard, forKey: "keepTranscriptOnClipboard")
-    set(settings.adjustWithLLM, forKey: "adjustWithLLM")
+    set(settings.afterTranscription.rawValue, forKey: "afterTranscription")
+    remove("adjustWithLLM")
     set(settings.useLocalAdjustmentFallback, forKey: "useLocalAdjustmentFallback")
     set(settings.adjustmentBaseURL, forKey: "adjustmentBaseURL")
     set(settings.adjustmentModel, forKey: "adjustmentModel")
     set(settings.adjustmentPrompt, forKey: "adjustmentPrompt")
+    set(settings.restyleChoice.rawValue, forKey: "restyleChoice")
+    set(settings.customRestyleName, forKey: "customRestyleName")
+    set(settings.customRestyleInstruction, forKey: "customRestyleInstruction")
     set(settings.polishPreferences.rewriteLevel.rawValue, forKey: "polishRewriteLevel")
     set(settings.polishPreferences.numberStyle.rawValue, forKey: "polishNumberStyle")
     set(settings.polishPreferences.ordinalStyle.rawValue, forKey: "polishOrdinalStyle")

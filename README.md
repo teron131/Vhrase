@@ -6,17 +6,17 @@ Vhrase lives in the menu bar: press a shortcut in any app, speak, and the cloud 
 
 This is a personal project shared for reference, not a product: clone it and have your coding agent reshape it to how you work.
 
-![One dictation through Vhrase: Shortcut, Microphone, Transcription, Refinement, and Delivery, with Vocabulary, Writing, and screen context feeding the two model stages](docs/images/dictation-route.svg)
+![One dictation through Vhrase: Shortcut, Microphone, Transcription, Polishing, and Delivery, with Vocabulary, style, and screen context feeding the two model stages](docs/images/dictation-route.svg)
 
 ## How It Works
 
 The shortcut is ⌃⌥Space by default, or Fn/Globe or one you record, and each press does something different.
 
-![One shortcut, four gestures: tap starts and a second tap finishes, hold records until release, double-tap polishes the selection or the whole field, and Esc cancels without pasting or saving](docs/images/shortcut-gestures.svg)
+![One shortcut, four gestures: tap starts and a second tap finishes, hold records until release, double-tap restyles the selection or the whole field, and Esc cancels without pasting or saving](docs/images/shortcut-gestures.svg)
 
-Refinement sends the transcript to any OpenAI-compatible model with your Vocabulary and Writing style, and optionally a screenshot of the app you're in; if the request fails, local cleanup runs instead.
+Polishing chooses whether each dictation gets an LLM pass before delivery: Refine cleans it up with your Writing style, and Restyle rewrites it with a preset or your own instruction. Double-tap always restyles, and you can try a style on your five latest dictations first. Screen context is optional, and local cleanup runs if the request fails.
 
-![What Refinement fixes: a misheard word, a sentence split at a pause, Vocabulary terms, and a spoken correction with a filler, turned into one clean sentence](docs/images/refinement-fixes.svg)
+![What Refine fixes: a misheard word, a sentence split at a pause, Vocabulary terms, and a spoken correction with a filler, turned into one clean sentence](docs/images/refinement-fixes.svg)
 
 The text is pasted into the app you started in, your clipboard is restored, and History keeps a searchable local copy unless you turn it off.
 
@@ -32,7 +32,7 @@ The text is pasted into the app you started in, your clipboard is restored, and 
 | Hugging Face | Local | — | — | Whisper Large v3 Turbo; other models untested |
 | Parakeet | Local | — | — | 25 European languages |
 
-Local models need no key and run offline after a one-time download, but they are only a baseline: Refinement has no local model yet.
+Local models need no key and run offline after a one-time download, but they are only a baseline: Polishing has no local model yet.
 
 ## What It Costs
 
@@ -45,7 +45,7 @@ App prices are October 2026 list prices; only the yearly totals are estimates.
 
 - Cloud transcription sends the recording to the selected provider.
 - Polishing sends the text and the target app's name to your endpoint, plus a screenshot only when screen context is on, which it is not by default.
-- With a local model and automatic polishing off, dictation never leaves the Mac.
+- With a local model and After transcription set to Off, as it is by default, dictation never leaves the Mac.
 - API keys stay in the macOS Keychain, and History, settings, and logs stay local; logs never include audio, transcripts, or keys.
 
 ## Install
@@ -65,5 +65,6 @@ Then open **System** from the sidebar's gear, which walks you through the rest:
 1. Add a key for each cloud provider you use, or download a local model in **Transcription**.
 2. Allow Microphone, and Accessibility so Vhrase can paste into other apps.
 3. Speak a short phrase in **Transcription → Test**.
+4. To polish dictation, add an LLM key, enter a model in **Polishing**, and set After transcription to Refine or Restyle.
 
 Keys can also come from environment variables such as `XAI_API_KEY`, or from an ignored `.env` file for development builds.

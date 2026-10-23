@@ -1,4 +1,4 @@
-// Owns the shared recording-to-transcript interface and validates provider-specific upload and realtime parameters.
+// Owns the recording-to-transcript contract, validating recording configuration and provider limits and exposing actionable setup issues.
 
 import Foundation
 

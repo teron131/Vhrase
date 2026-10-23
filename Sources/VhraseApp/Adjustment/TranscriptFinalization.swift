@@ -35,7 +35,7 @@ struct TranscriptFinalizer {
     var cleanup: TranscriptCleanup = .raw
     var refinement: LLMRefinement?
 
-    if settings.adjustWithLLM {
+    if settings.afterTranscription.usesLLM {
       switch adjustment {
       case .provider:
         do {

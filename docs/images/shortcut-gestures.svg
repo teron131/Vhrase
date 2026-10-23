@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 448" width="1180" height="448" role="img" aria-labelledby="title">
-  <title id="title">Vhrase's shortcut gestures. Tap starts recording and a second tap finishes it. Hold records while the key is held and finishes on release. Double-tap polishes the selected text, or the whole field when nothing is selected. Esc cancels the recording, and nothing is pasted or saved.</title>
+  <title id="title">Vhrase's shortcut gestures. Tap starts recording and a second tap finishes it. Hold records while the key is held and finishes on release. Double-tap restyles the selected text, or the whole field when nothing is selected. Esc cancels the recording, and nothing is pasted or saved.</title>
   <!-- The global shortcut's gestures as timing diagrams: the key's presses on a line, recording as an orange bar beneath, and polishing as a violet spark. -->
   <style>
     .bg { fill: #161412; }
@@ -36,7 +36,7 @@
     <path class="key" d="M 580 258 H 604 V 222 H 624 V 258 H 638 V 222 H 658 V 258 H 820"/>
     <path class="spark" transform="translate(712 240)" d="M 0 -17 C 2 -6 4 -5 14 -3 C 4 -1 2 1 0 11 C -2 1 -4 -1 -14 -3 C -4 -5 -2 -6 0 -17 Z"/>
     <path class="spark" transform="translate(730 224) scale(0.45)" d="M 0 -17 C 2 -6 4 -5 14 -3 C 4 -1 2 1 0 11 C -2 1 -4 -1 -14 -3 C -4 -5 -2 -6 0 -17 Z"/>
-    <text class="caption" x="580" y="364">Polishes the selected text, or</text>
+    <text class="caption" x="580" y="364">Restyles the selected text, or</text>
     <text class="caption" x="580" y="388">the whole field when nothing</text>
     <text class="caption" x="580" y="412">is selected.</text>
     <text class="name" x="850" y="160">Esc</text>

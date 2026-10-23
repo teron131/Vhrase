@@ -22,7 +22,8 @@ struct SetupDiagnostics {
       diagnostics.append(
         SetupDiagnostic(
           id: .transcriptionConfiguration,
-          title: "Transcription settings",
+          title: issue == settings.restyleIssue
+            ? "Polishing settings" : "Transcription settings",
           detail: issue,
           systemImage: "slider.horizontal.3"
         ))
@@ -69,16 +70,16 @@ struct SetupDiagnostics {
           systemImage: "cursorarrow.motionlines"
         ))
     }
-    if settings.adjustWithLLM, !hasLLMKey {
+    if settings.afterTranscription.usesLLM, !hasLLMKey {
       diagnostics.append(
         SetupDiagnostic(
           id: .adjustmentKey,
           title: "LLM key",
-          detail: "Add an LLM API key, or turn off automatic polishing.",
+          detail: "Add an LLM API key, or set After transcription to Off on Polishing.",
           systemImage: "wand.and.stars"
         ))
     }
-    if settings.adjustWithLLM,
+    if settings.afterTranscription.usesLLM,
       settings.includeScreenshot,
       !permissions.isReady(.screenRecording)
     {

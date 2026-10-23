@@ -112,10 +112,10 @@ struct RecorderHUDView: View {
     case .adjusting:
       if appState.isTextPolishing {
         ZStack {
-          activityIndicator("Polishing focused text")
+          activityIndicator(appState.polishingProgress)
           HStack {
             Spacer()
-            hudButton("Cancel text polishing", systemImage: "xmark") {
+            hudButton("Cancel restyling", systemImage: "xmark") {
               appState.cancelTextPolish()
             }
             .opacity(showsControls ? 1 : 0)
@@ -123,7 +123,7 @@ struct RecorderHUDView: View {
           .padding(.horizontal, 12)
         }
       } else {
-        activityIndicator("Applying writing preferences")
+        activityIndicator(appState.polishingProgress)
       }
     case .completed:
       HStack(spacing: 8) {

@@ -1,4 +1,4 @@
-// Calls an OpenAI-compatible language model through a validated endpoint: polishing text with its application and optional screen context for both dictation cleanup and double-tap polishing, probing model access, and reading list prices.
+// Shares validated OpenAI-compatible transport across dictation polishing, double-tap Restyle, and History tests, alongside model-access and pricing probes.
 
 import Foundation
 
@@ -37,13 +37,54 @@ final class LLMAdjustmentClient: Sendable {
     self.captureScreen = captureScreen
   }
 
-  /// Attaches a capture of the app's display when screen context is on; a failed capture still sends the text, and `includedScreenshot` records which happened.
   func polish(
     _ text: String,
     as source: PolishSource,
     settings: DictationSettings,
     app: FrontmostApp?
   ) async throws -> LLMRefinement {
+    let operation: PolishOperation
+    switch source {
+    case .focusedText:
+      operation = .restyle(settings.polishStyle)
+    case .transcript:
+      guard let selected = settings.dictationPolishOperation else {
+        throw ConfigurationValidationError(
+          "After transcription is Off. No dictation polishing request was sent.")
+      }
+      operation = selected
+    }
+    return try await polish(text, as: source, operation: operation, settings: settings, app: app)
+  }
+
+  /// Replays archived text through one operation with current settings, retaining its app context but never attaching today's screen to an old message.
+  func replay(
+    _ item: TranscriptHistoryItem, operation: PolishOperation, settings: DictationSettings
+  ) async throws -> LLMRefinement {
+    var settings = settings
+    settings.includeScreenshot = false
+    let app: FrontmostApp?
+    if let name = item.targetAppName, let identifier = item.targetAppBundleIdentifier {
+      app = FrontmostApp(name: name, bundleIdentifier: identifier)
+    } else {
+      app = nil
+    }
+    let source: PolishSource = operation == .refine ? .transcript : .focusedText
+    return try await polish(
+      item.polishInput, as: source, operation: operation, settings: settings, app: app)
+  }
+
+  /// Attaches a capture of the app's display when screen context is on; a failed capture still sends the text, and `includedScreenshot` records which happened.
+  private func polish(
+    _ text: String,
+    as source: PolishSource,
+    operation: PolishOperation,
+    settings: DictationSettings,
+    app: FrontmostApp?
+  ) async throws -> LLMRefinement {
+    if case .restyle = operation {
+      try settings.validateRestyle()
+    }
     try validateConfiguration(model: settings.adjustmentModel)
     let model = settings.adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines)
     let screenshotDataURL: String? =
@@ -54,7 +95,8 @@ final class LLMAdjustmentClient: Sendable {
       }
     let instruction = settings.polishPreferences.systemInstruction(
       preferredVocabulary: settings.keytermList,
-      additionalInstructions: settings.adjustmentPrompt
+      additionalInstructions: settings.adjustmentPrompt,
+      operation: operation
     )
     let userText = """
       \(appContextText(app))
@@ -81,7 +123,8 @@ final class LLMAdjustmentClient: Sendable {
       model: model,
       systemInstruction: instruction,
       includedScreenshot: screenshotDataURL != nil,
-      usage: response.usage
+      usage: response.usage,
+      style: operation.style
     )
   }
 
