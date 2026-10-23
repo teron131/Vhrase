@@ -7,10 +7,11 @@ struct AdjustmentFallbackCheck {
   static func main() async throws {
     try validateEndpointPolicy()
     try validateTargetedModelAccessRequest()
+    try await validateDictationChoices()
 
     let raw = try await finalize(
       rawTranscript: "  Custom dictation raw text.  ",
-      adjustWithLLM: false
+      afterTranscription: .off
     )
     precondition(raw.text == "Custom dictation raw text.")
     precondition(raw.warning.isEmpty)
@@ -18,7 +19,7 @@ struct AdjustmentFallbackCheck {
 
     let vocabularyOnly = try await finalize(
       rawTranscript: "Send this to cloud fair.",
-      adjustWithLLM: false,
+      afterTranscription: .off,
       vocabulary: "Cloudflare"
     )
     precondition(vocabularyOnly.text == "Send this to cloud fair.")
@@ -50,7 +51,7 @@ struct AdjustmentFallbackCheck {
     precondition(demo.warning.isEmpty)
     precondition(demo.cleanup == .demo)
 
-    let screenshotProbe = ScreenshotProbe()
+    let screenshotProbe = CallCounter()
     let preflightFallback = try await finalize(
       rawTranscript: "raw",
       includeScreenshot: true,
@@ -67,7 +68,7 @@ struct AdjustmentFallbackCheck {
 
     let chinese = try await finalize(
       rawTranscript: "汉语发布后",
-      adjustWithLLM: false,
+      afterTranscription: .off,
       chineseTextConverter: ChineseTextConverter(
         executableURL: try fakeOpenCCExecutable(),
         configName: "s2t.json"
@@ -103,7 +104,7 @@ struct AdjustmentFallbackCheck {
 
     let missingOpenCC = try await finalize(
       rawTranscript: "汉语发布后",
-      adjustWithLLM: false,
+      afterTranscription: .off,
       chineseTextConverter: ChineseTextConverter(executableURL: nil)
     )
     precondition(missingOpenCC.text == "汉语发布后")
@@ -113,7 +114,7 @@ struct AdjustmentFallbackCheck {
     // With Chinese output off, OpenCC is never involved, even for Chinese text.
     let conversionOff = try await finalize(
       rawTranscript: "汉语发布后",
-      adjustWithLLM: false,
+      afterTranscription: .off,
       convertChineseOutput: false,
       chineseTextConverter: ChineseTextConverter(executableURL: nil)
     )
@@ -122,13 +123,62 @@ struct AdjustmentFallbackCheck {
     // Only Chinese text needs OpenCC, so its absence leaves other text untouched and silent.
     let notChinese = try await finalize(
       rawTranscript: "Kana カナ, Hangul 한글, and café stay as they are.",
-      adjustWithLLM: false,
+      afterTranscription: .off,
       chineseTextConverter: ChineseTextConverter(executableURL: nil)
     )
     precondition(notChinese.text == "Kana カナ, Hangul 한글, and café stay as they are.")
     precondition(notChinese.warning.isEmpty)
 
     print("adjustment fallback ok")
+  }
+
+  private static func validateDictationChoices() async throws {
+    URLProtocol.registerClass(FinalizationEndpoint.self)
+    defer { URLProtocol.unregisterClass(FinalizationEndpoint.self) }
+    for mode in DictationPolishing.allCases {
+      FinalizationEndpoint.calls.reset()
+      let captures = CallCounter()
+      var settings = DictationSettings.defaults
+      settings.adjustmentModel = "test-model"
+      settings.afterTranscription = mode
+      settings.restyleChoice = .custom
+      settings.customRestyleName = "Concise"
+      settings.customRestyleInstruction = "Keep all details in short sentences."
+      settings.adjustmentBaseURL = "https://vhrase-finalization.invalid/v1"
+      settings.includeScreenshot = true
+      let result = try await TranscriptFinalizer(
+        settings: settings, llmAPIKey: "test-key",
+        captureScreen: { _, _ in
+          captures.recordCall()
+          return "data:image/png;base64,AAAA"
+        }
+      )
+      .finalize(
+        TranscriptionResult(text: "  Raw transcript.  ", providerName: "Test"),
+        adjustment: .provider, targetApp: nil)
+      precondition(FinalizationEndpoint.calls.count == (mode == .off ? 0 : 1))
+      precondition(captures.count == (mode == .off ? 0 : 1))
+      precondition(result.warning.isEmpty)
+      switch mode {
+      case .off:
+        precondition(
+          result.text == "Raw transcript." && result.cleanup == .raw && result.refinement == nil)
+      case .refine:
+        precondition(result.text == "Polished." && result.cleanup == .llm)
+        precondition(result.refinement?.operation == .refine)
+      case .restyle:
+        precondition(result.text == "Polished." && result.cleanup == .llm)
+        precondition(result.refinement?.operation == .restyle(settings.polishStyle))
+      }
+    }
+    for mode in [DictationPolishing.refine, .restyle] {
+      let failed = try await finalize(
+        rawTranscript: "raw transcript", afterTranscription: mode, useLocalFallback: false)
+      precondition(failed.cleanup == .raw && failed.refinement == nil)
+      let local = try await finalize(
+        rawTranscript: "raw transcript", afterTranscription: mode, useLocalFallback: true)
+      precondition(local.cleanup == .localFallback && local.refinement == nil)
+    }
   }
 
   private static func validateTargetedModelAccessRequest() throws {
@@ -239,7 +289,7 @@ struct AdjustmentFallbackCheck {
   private static func finalize(
     rawTranscript: String,
     adjustment: AdjustmentExecution = .provider,
-    adjustWithLLM: Bool = true,
+    afterTranscription: DictationPolishing = .refine,
     vocabulary: String = "",
     includeScreenshot: Bool = false,
     useLocalFallback: Bool = false,
@@ -252,7 +302,8 @@ struct AdjustmentFallbackCheck {
       }
   ) async throws -> FinalizedTranscript {
     var settings = DictationSettings.defaults
-    settings.adjustWithLLM = adjustWithLLM
+    settings.adjustmentModel = "test-model"
+    settings.afterTranscription = afterTranscription
     settings.keyterms = vocabulary
     settings.includeScreenshot = includeScreenshot
     settings.useLocalAdjustmentFallback = useLocalFallback
@@ -345,17 +396,40 @@ struct AdjustmentFallbackCheck {
   }
 }
 
-private final class ScreenshotProbe: @unchecked Sendable {
+private final class CallCounter: @unchecked Sendable {
   private let lock = NSLock()
   private var callCount = 0
 
-  var wasCalled: Bool {
-    lock.withLock { callCount > 0 }
-  }
+  var count: Int { lock.withLock { callCount } }
+  var wasCalled: Bool { count > 0 }
+
+  func reset() { lock.withLock { callCount = 0 } }
 
   func recordCall() {
     lock.withLock {
       callCount += 1
     }
   }
+}
+
+private final class FinalizationEndpoint: URLProtocol, @unchecked Sendable {
+  static let calls = CallCounter()
+
+  override class func canInit(with request: URLRequest) -> Bool {
+    request.url?.host == "vhrase-finalization.invalid"
+  }
+
+  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+  override func startLoading() {
+    Self.calls.recordCall()
+    let response = HTTPURLResponse(
+      url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+    client?.urlProtocol(
+      self, didLoad: Data(#"{"choices":[{"message":{"content":"Polished."}}]}"#.utf8))
+    client?.urlProtocolDidFinishLoading(self)
+  }
+
+  override func stopLoading() {}
 }

@@ -54,6 +54,29 @@ struct SetupDiagnosticsCheck {
       chineseConversionIsAvailable: false)
     precondition(openCCNotNeeded.map(\.id) == [.ready])
 
+    settings.adjustmentModel = "test-model"
+    settings.afterTranscription = .restyle
+    settings.restyleChoice = .custom
+    let missingInstruction = diagnostics(
+      settings: settings, accessibility: .granted, inputMonitoring: .granted)
+    precondition(missingInstruction.first?.title == "Polishing settings")
+    for mode in DictationPolishing.allCases {
+      var modelSettings = DictationSettings.defaults
+      modelSettings.adjustmentModel = "test-model"
+      modelSettings.afterTranscription = mode
+      modelSettings.includeScreenshot = true
+      let issues = SetupDiagnostics(
+        settings: modelSettings, providerReadiness: .ready,
+        hasLLMKey: false,
+        permissions: [
+          PermissionSnapshot(permission: .microphone, state: .granted),
+          PermissionSnapshot(permission: .accessibility, state: .granted),
+          PermissionSnapshot(permission: .screenRecording, state: .notDetermined),
+        ], chineseConversionIsAvailable: true
+      ).build()
+      precondition(issues.contains { $0.id == .adjustmentKey } == mode.usesLLM)
+      precondition(issues.contains { $0.id == .screenPermission } == mode.usesLLM)
+    }
     print("setup diagnostics ok")
   }
 

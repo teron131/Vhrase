@@ -173,17 +173,17 @@ struct LocalModelControls: View {
 
   /// Keeps the promise that audio stays on this Mac honest: optional LLM polishing still sends the transcript to its endpoint.
   @ViewBuilder private var privacyNote: some View {
-    if appState.settings.adjustWithLLM {
+    if appState.settings.afterTranscription.usesLLM {
       HStack(alignment: .center, spacing: 12) {
         Label(
-          "Audio stays on this Mac, but automatic polishing sends the transcript\(appState.settings.includeScreenshot ? " and a screenshot" : "") to \(llmHost).",
+          "Audio stays on this Mac, but dictation polishing sends the transcript\(appState.settings.includeScreenshot ? " and a screenshot" : "") to \(llmHost).",
           systemImage: "exclamationmark.triangle"
         )
         .font(.caption)
         .foregroundStyle(VhraseTheme.statusWarning)
         .frame(maxWidth: .infinity, alignment: .leading)
         Button("Keep text on this Mac") {
-          appState.updateSettings { $0.adjustWithLLM = false }
+          appState.updateSettings { $0.afterTranscription = .off }
         }
         .buttonStyle(.bordered)
         .controlSize(.small)

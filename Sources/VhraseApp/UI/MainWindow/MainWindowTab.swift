@@ -8,14 +8,13 @@ enum MainWindowTab: String, CaseIterable, Hashable, Identifiable {
   case shortcut
   case microphone
   case transcription
-  case refinement
+  case polishing
   case delivery
   case vocabulary
-  case writing
   case system
 
   static let route: [MainWindowTab] = [
-    .shortcut, .microphone, .transcription, .refinement, .delivery,
+    .shortcut, .microphone, .transcription, .polishing, .delivery,
   ]
 
   var id: String { rawValue }
@@ -31,10 +30,9 @@ enum MainWindowTab: String, CaseIterable, Hashable, Identifiable {
     case .shortcut: "Shortcut"
     case .microphone: "Microphone"
     case .transcription: "Transcription"
-    case .refinement: "Refinement"
+    case .polishing: "Polishing"
     case .delivery: "Delivery"
     case .vocabulary: "Vocabulary"
-    case .writing: "Writing"
     case .system: "System"
     }
   }
@@ -46,10 +44,9 @@ enum MainWindowTab: String, CaseIterable, Hashable, Identifiable {
     case .shortcut: "How dictation starts and stops"
     case .microphone: "What Vhrase hears"
     case .transcription: "Who turns speech into text"
-    case .refinement: "How the transcript is polished"
+    case .polishing: "How text is polished"
     case .delivery: "Where finished text goes"
     case .vocabulary: "Names and terms to get right"
-    case .writing: "How polished text should read"
     case .system: "Keys and macOS access"
     }
   }
@@ -61,12 +58,20 @@ enum MainWindowTab: String, CaseIterable, Hashable, Identifiable {
     case .shortcut: "keyboard"
     case .microphone: "mic"
     case .transcription: "text.bubble"
-    case .refinement: "wand.and.stars"
+    case .polishing: "wand.and.stars"
     case .delivery: "text.insert"
     case .vocabulary: "book.closed"
-    case .writing: "paragraphsign"
     case .system: "gearshape"
     }
+  }
+}
+
+extension DictationPresentation {
+  var configurationIssueTab: MainWindowTab? {
+    guard let issue = transcriptionConfigurationIssue else { return nil }
+    if issue == vocabularyIssue { return .vocabulary }
+    if issue == restyleIssue { return .polishing }
+    return .transcription
   }
 }
 

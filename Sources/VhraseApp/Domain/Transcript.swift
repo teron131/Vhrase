@@ -22,7 +22,7 @@ enum TranscriptCleanup: String, Codable, Equatable, Sendable {
   var title: String {
     switch self {
     case .raw: "Raw"
-    case .llm: "LLM cleanup"
+    case .llm: PolishOperation.refine.title
     case .localFallback: "Local fallback"
     case .demo: "Demo cleanup"
     }
@@ -38,6 +38,12 @@ struct LLMRefinement: Codable, Equatable, Sendable {
   let includedScreenshot: Bool
   /// `nil` when the endpoint reported no usage, and for transcripts saved before Vhrase read it.
   let usage: LLMUsage?
+  // A snapshot keeps History independent of the currently configured style; absent on ordinary refinement and older results.
+  var style: PolishStyle? = nil
+
+  var operation: PolishOperation {
+    style.map(PolishOperation.restyle) ?? .refine
+  }
 }
 
 /// Prompt-cache hits are not broken out, because Vercel AI Gateway's chat endpoint omits them.
@@ -54,7 +60,7 @@ enum TranscriptDelivery: Equatable, Sendable {
 
 enum WorkflowCompletion: Equatable, Sendable {
   case transcript(TranscriptDelivery)
-  case textPolished
+  case textRestyled(style: PolishStyle)
 
   var isTranscript: Bool {
     if case .transcript = self {
@@ -79,6 +85,16 @@ struct TranscriptHistoryItem: Identifiable, Codable, Equatable, Sendable {
   var recordingSeconds: Double? = nil
   var transcriptionSeconds: Double? = nil
   var processingSeconds: Double? = nil
+
+  var cleanupTitle: String {
+    if cleanup == .llm, let refinement {
+      return refinement.operation.title
+    }
+    return cleanup.title
+  }
+
+  /// Uses saved text when History has no original LLM input to replay.
+  var polishInput: String { refinement?.input ?? text }
 
   var wordCount: Int { Self.countWords(in: text) }
 

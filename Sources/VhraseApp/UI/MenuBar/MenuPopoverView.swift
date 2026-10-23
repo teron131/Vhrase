@@ -347,7 +347,7 @@ struct MenuPopoverView: View {
         : appState.liveTranscript
     case .adjusting:
       return appState.liveTranscript.isEmpty
-        ? "Applying your writing preferences…"
+        ? "\(appState.polishingProgress)…"
         : appState.liveTranscript
     case .idle, .completed, .failed:
       return appState.lastTranscript

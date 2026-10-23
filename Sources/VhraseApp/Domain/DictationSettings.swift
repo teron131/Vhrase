@@ -2,6 +2,24 @@
 
 import Foundation
 
+enum DictationPolishing: String, CaseIterable, Codable, Identifiable, Sendable {
+  case off
+  case refine
+  case restyle
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .off: "Off"
+    case .refine: "Refine"
+    case .restyle: "Restyle"
+    }
+  }
+
+  var usesLLM: Bool { self != .off }
+}
+
 enum ElevenLabsCommitStrategy: String, CaseIterable, Codable, Identifiable, Sendable {
   case manual
   case vad
@@ -53,12 +71,15 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var xaiSmartTurnThreshold: Double
   var xaiSmartTurnTimeout: Int
   var keepTranscriptOnClipboard: Bool
-  var adjustWithLLM: Bool
+  var afterTranscription: DictationPolishing
   var useLocalAdjustmentFallback: Bool
   var adjustmentBaseURL: String
   var adjustmentModel: String
   var adjustmentPrompt: String
   var polishPreferences: PolishPreferences = .defaults
+  var restyleChoice: RestyleChoice = .rephrase
+  var customRestyleName: String = RestyleChoice.custom.title
+  var customRestyleInstruction: String = ""
   var includeScreenshot: Bool
   var screenshotResolution: ScreenshotResolution = .pixels1600
   var hotkeyPreset: HotkeyPreset
@@ -109,10 +130,10 @@ struct DictationSettings: Codable, Equatable, Sendable {
     xaiSmartTurnThreshold: 0.5,
     xaiSmartTurnTimeout: 1500,
     keepTranscriptOnClipboard: false,
-    adjustWithLLM: true,
+    afterTranscription: .off,
     useLocalAdjustmentFallback: true,
     adjustmentBaseURL: "https://ai-gateway.vercel.sh/v1",
-    adjustmentModel: "xai/grok-4.3",
+    adjustmentModel: "",
     adjustmentPrompt: defaultAdjustmentPrompt,
     includeScreenshot: false,
     hotkeyPreset: .controlOptionSpace,
@@ -130,6 +151,47 @@ struct DictationSettings: Codable, Equatable, Sendable {
   var availableHotkeyPresets: [HotkeyPreset] {
     HotkeyPreset.allCases.filter { preset in
       preset != .custom || customHotkey != nil
+    }
+  }
+
+  var polishStyle: PolishStyle {
+    switch restyleChoice {
+    case .rephrase: return .rephrase
+    case .genZ: return .genZ
+    case .custom:
+      let name = customRestyleName.trimmingCharacters(in: .whitespacesAndNewlines)
+      return PolishStyle(
+        title: name.isEmpty ? RestyleChoice.custom.title : name,
+        instruction: customRestyleInstruction)
+    }
+  }
+
+  func validateRestyle() throws {
+    guard
+      restyleChoice != .custom
+        || !customRestyleInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+      throw ConfigurationValidationError(
+        "Enter a Custom Restyle instruction on Polishing before restyling text.")
+    }
+  }
+
+  /// The Custom instruction problem that blocks recording, which Polishing rather than Transcription fixes.
+  var restyleIssue: String? {
+    guard afterTranscription == .restyle else { return nil }
+    do {
+      try validateRestyle()
+      return nil
+    } catch {
+      return error.localizedDescription
+    }
+  }
+
+  var dictationPolishOperation: PolishOperation? {
+    switch afterTranscription {
+    case .off: nil
+    case .refine: .refine
+    case .restyle: .restyle(polishStyle)
     }
   }
 
@@ -169,6 +231,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
 
   private enum RetiredKeys: String, CodingKey {
     case replacementRules
+    case adjustWithLLM
   }
 
   var transcriptionModeTitle: String {
@@ -189,7 +252,7 @@ struct DictationSettings: Codable, Equatable, Sendable {
     }
   }
 
-  /// Rejects persisted or imported values that cannot be produced by Vhrase's bounded controls.
+  /// Rejects invalid recording controls and the model or style inputs used by the selected dictation path.
   func validateLocalConfiguration() throws {
     guard (-6...6).contains(inputGainDB), (0...12).contains(noiseReductionDB) else {
       throw ConfigurationValidationError(
@@ -227,9 +290,14 @@ struct DictationSettings: Codable, Equatable, Sendable {
       throw ConfigurationValidationError(
         "ElevenLabs minimum silence must be between 50 and 2,000 ms.")
     }
-    guard !adjustWithLLM || !adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    guard
+      !afterTranscription.usesLLM
+        || !adjustmentModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     else {
       throw ConfigurationValidationError("Choose an LLM model before enabling transcript cleanup.")
+    }
+    if afterTranscription == .restyle {
+      try validateRestyle()
     }
     guard hotkeyPreset != .custom || customHotkey != nil else {
       throw ConfigurationValidationError("Capture a custom shortcut before selecting Custom.")
@@ -269,12 +337,15 @@ extension DictationSettings {
     case xaiSmartTurnThreshold
     case xaiSmartTurnTimeout
     case keepTranscriptOnClipboard
-    case adjustWithLLM
+    case afterTranscription
     case useLocalAdjustmentFallback
     case adjustmentBaseURL
     case adjustmentModel
     case adjustmentPrompt
     case polishPreferences
+    case restyleChoice
+    case customRestyleName
+    case customRestyleInstruction
     case includeScreenshot
     case screenshotResolution
     case hotkeyPreset
@@ -322,7 +393,14 @@ extension DictationSettings {
     xaiSmartTurnThreshold = try values.decode(Double.self, forKey: .xaiSmartTurnThreshold)
     xaiSmartTurnTimeout = try values.decode(Int.self, forKey: .xaiSmartTurnTimeout)
     keepTranscriptOnClipboard = try values.decode(Bool.self, forKey: .keepTranscriptOnClipboard)
-    adjustWithLLM = try values.decode(Bool.self, forKey: .adjustWithLLM)
+    if let choice = try values.decodeIfPresent(DictationPolishing.self, forKey: .afterTranscription)
+    {
+      afterTranscription = choice
+    } else {
+      afterTranscription =
+        (try retired.decodeIfPresent(Bool.self, forKey: .adjustWithLLM) ?? true)
+        ? .refine : .off
+    }
     useLocalAdjustmentFallback = try values.decode(Bool.self, forKey: .useLocalAdjustmentFallback)
     adjustmentBaseURL = try values.decode(String.self, forKey: .adjustmentBaseURL)
     adjustmentModel = try values.decode(String.self, forKey: .adjustmentModel)
@@ -333,6 +411,13 @@ extension DictationSettings {
     polishPreferences =
       try values.decodeIfPresent(
         PolishPreferences.self, forKey: .polishPreferences) ?? .defaults
+    restyleChoice =
+      try values.decodeIfPresent(RestyleChoice.self, forKey: .restyleChoice) ?? .rephrase
+    customRestyleName =
+      try values.decodeIfPresent(String.self, forKey: .customRestyleName)
+      ?? RestyleChoice.custom.title
+    customRestyleInstruction =
+      try values.decodeIfPresent(String.self, forKey: .customRestyleInstruction) ?? ""
     includeScreenshot = try values.decode(Bool.self, forKey: .includeScreenshot)
     screenshotResolution =
       try values.decodeIfPresent(ScreenshotResolution.self, forKey: .screenshotResolution)

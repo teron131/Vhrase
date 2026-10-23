@@ -84,6 +84,7 @@ final class AppState: ObservableObject {
   private var shortcutGesture = ShortcutGestureInterpreter()
   private var textPolishTask: Task<Void, Never>?
   private var textPolishID: UUID?
+  private var polishingOperation = PolishOperation.refine
   private var activeWorkflow = ActiveWorkflow.dictation
   private var cachedHistoryIndex: HistorySearch.Index?
   private var historyIndexIsCurrent = false
@@ -154,6 +155,10 @@ final class AppState: ObservableObject {
 
   var isTextPolishing: Bool {
     textPolishID != nil
+  }
+
+  var polishingProgress: String {
+    polishingOperation.progress
   }
 
   /// Only local recognition stops cleanly mid-request; a cloud provider has already received the audio.
@@ -701,7 +706,7 @@ final class AppState: ObservableObject {
   /// Captures the screenshot LLM polishing will attach while the provider transcribes, keeping it off the critical path; nothing is captured unless screen context is on and the polish request could be sent.
   private func startScreenshot(for configuration: RecordingConfiguration) -> Task<String?, Never>? {
     let settings = configuration.settings
-    guard settings.adjustWithLLM, settings.includeScreenshot else { return nil }
+    guard settings.afterTranscription.usesLLM, settings.includeScreenshot else { return nil }
     do {
       try LLMAdjustmentClient(apiKey: configuration.llmAPIKey, baseURL: settings.adjustmentBaseURL)
         .validateConfiguration(model: settings.adjustmentModel)
@@ -733,7 +738,7 @@ final class AppState: ObservableObject {
   func startTranscriptionTest() {
     guard canStartRecording else { return }
     var settings = settings
-    settings.adjustWithLLM = false
+    settings.afterTranscription = .off
     let apiKey = selectedProviderAPIKey
     do {
       try validateRecordingPermissions()
@@ -925,6 +930,7 @@ final class AppState: ObservableObject {
       baseURL: baseURL
     )
     do {
+      try polishSettings.validateRestyle()
       target = try focusedTextService.capture()
       try client.validateConfiguration(model: polishSettings.adjustmentModel)
     } catch {
@@ -934,8 +940,9 @@ final class AppState: ObservableObject {
 
     let id = UUID()
     textPolishID = id
+    polishingOperation = .restyle(polishSettings.polishStyle)
     status = .adjusting
-    notice = "Polishing text in \(target.app.name)…"
+    notice = "Restyling text in \(target.app.name) with \(polishSettings.polishStyle.title)…"
     textPolishTask = Task { [weak self] in
       guard let self else { return }
       do {
@@ -957,8 +964,8 @@ final class AppState: ObservableObject {
         }
         self.textPolishTask = nil
         self.textPolishID = nil
-        self.lastCompletion = .textPolished
-        self.notice = "Polished the focused text in \(target.app.name)."
+        self.lastCompletion = .textRestyled(style: polishSettings.polishStyle)
+        self.notice = self.lastCompletion.completionDetail
         self.status = .completed
         await self.recordPolishingCost(of: polished, baseURL: baseURL)
       } catch is CancellationError {
@@ -1016,7 +1023,8 @@ final class AppState: ObservableObject {
   ) async throws {
     let settings = configuration.settings
     let targetApp = recordingTargetApp ?? appContext.targetApp()
-    if settings.adjustWithLLM {
+    if let operation = settings.dictationPolishOperation {
+      polishingOperation = adjustment == .provider ? operation : .refine
       status = .adjusting
       if adjustment == .localDemo {
         try await pauseForDemoVisibility()

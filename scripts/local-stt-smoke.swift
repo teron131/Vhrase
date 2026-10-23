@@ -15,7 +15,7 @@ struct LocalSTTSmoke {
     var arguments = Array(CommandLine.arguments.dropFirst())
     var settings = DictationSettings.defaults
     settings.provider = .parakeet
-    settings.adjustWithLLM = false
+    settings.afterTranscription = .off
     var allowsDownload = false
     // Options come first; `--hugging-face` takes an optional model ID, and `--language` a Whisper language code or `auto`.
     while let option = arguments.first, option.hasPrefix("--") {

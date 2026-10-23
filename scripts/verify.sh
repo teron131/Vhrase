@@ -134,6 +134,7 @@ APP_FINALIZATION_CHECK_SOURCES=(
   Sources/VhraseApp/Adjustment/LLMAdjustmentClient.swift
   Sources/VhraseApp/Adjustment/LLMPrice.swift
   Sources/VhraseApp/Adjustment/TranscriptFinalization.swift
+  Sources/VhraseApp/App/PolishTest.swift
 )
 APP_FINALIZATION_CHECKS=(
   scripts/checks/adjustment-fallback-check.swift

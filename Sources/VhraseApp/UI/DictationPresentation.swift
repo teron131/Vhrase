@@ -13,6 +13,7 @@ struct DictationPresentation {
   let transcriptionConfigurationIssue: String?
   /// The vocabulary limit the selected provider would reject; when it is also the configuration issue, Vocabulary owns the fix rather than Transcription.
   let vocabularyIssue: String?
+  let restyleIssue: String?
 
   /// Validates immutable settings once so every readiness label and action uses the same result.
   init(
@@ -31,6 +32,25 @@ struct DictationPresentation {
     self.completion = completion
     transcriptionConfigurationIssue = TranscriptionContract.configurationIssue(in: settings)
     vocabularyIssue = TranscriptionContract.vocabularyIssue(in: settings)
+    restyleIssue = settings.restyleIssue
+  }
+
+  var transcriptionNeedsAttention: Bool {
+    providerReadiness != .ready
+      || (transcriptionConfigurationIssue != nil
+        && transcriptionConfigurationIssue != vocabularyIssue
+        && transcriptionConfigurationIssue != restyleIssue)
+  }
+
+  var polishingSummary: String {
+    switch settings.afterTranscription {
+    case .off:
+      "Raw transcripts"
+    case .refine:
+      "Refine · \(PolishPreset.matching(settings.polishPreferences)?.title ?? "Custom")"
+    case .restyle:
+      "Restyle · \(settings.polishStyle.title)"
+    }
   }
 
   var coreRecordingReady: Bool {
@@ -240,7 +260,7 @@ struct DictationPresentation {
     }
     switch style {
     case .compact:
-      let cleanup = settings.adjustWithLLM ? "LLM cleanup" : "Raw"
+      let cleanup = settings.dictationPolishOperation?.title ?? "Raw"
       return
         "\(settings.provider.title) \(settings.transcriptionModeTitle.lowercased()) · \(cleanup) · \(ShortcutGestureInterpreter.summary(settings.shortcutGestures))"
     case .full:
@@ -272,7 +292,7 @@ struct DictationPresentation {
   ) -> String {
     let target = item.targetAppName.map { "→ \($0)" }
     let dateLabel = date.map { relativeDateLabel(for: item.createdAt, relativeTo: $0) }
-    return [dateLabel, item.provider, item.transcriptionMode, item.cleanup.title, target]
+    return [dateLabel, item.provider, item.transcriptionMode, item.cleanupTitle, target]
       .compactMap(\.self)
       .joined(separator: " · ")
   }
@@ -370,22 +390,22 @@ extension WorkflowCompletion {
   var completionTitle: String {
     switch self {
     case .transcript(let delivery): delivery.completionTitle
-    case .textPolished: "Text polished"
+    case .textRestyled: "Text restyled"
     }
   }
 
   var completionDetail: String {
     switch self {
     case .transcript(let delivery): delivery.completionDetail
-    case .textPolished:
-      "The focused text was polished and replaced. Use Command-Z in the target app to undo."
+    case .textRestyled(let style):
+      "Restyled with \(style.title). Use Command-Z in the target app to undo."
     }
   }
 
   var completionSystemImage: String {
     switch self {
     case .transcript(let delivery): delivery.completionSystemImage
-    case .textPolished: "wand.and.stars"
+    case .textRestyled: "wand.and.stars"
     }
   }
 }

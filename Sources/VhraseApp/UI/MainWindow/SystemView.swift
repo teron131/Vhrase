@@ -124,7 +124,7 @@ struct SystemView: View {
     settingsGroup(
       "LLM key",
       footer:
-        "Refinement uses this key with its endpoint and model. To use one account for both, enter its key here too. Type a variable name ending in _KEY, such as AI_GATEWAY_API_KEY, to read the key from your environment instead."
+        "Polishing uses this key with its endpoint and model. To use one account for both, enter its key here too. Type a variable name ending in _KEY, such as AI_GATEWAY_API_KEY, to read the key from your environment instead."
     ) {
       keyField(.llmAPIKey)
     }
@@ -286,7 +286,7 @@ struct SystemView: View {
       case .inputMonitoring:
         appState.settings.hotkeyPreset == .fn
       case .screenRecording:
-        appState.settings.adjustWithLLM && appState.settings.includeScreenshot
+        appState.settings.afterTranscription.usesLLM && appState.settings.includeScreenshot
       case .accessibility:
         true
       }
@@ -334,7 +334,7 @@ struct SystemView: View {
   private func setupDiagnosticActionTitle(_ diagnostic: SetupDiagnostic) -> String? {
     switch diagnostic.id {
     case .transcriptionConfiguration:
-      "Review Transcription"
+      presentation.configurationIssueTab.map { "Review \($0.title)" }
     case .providerKey, .adjustmentKey:
       "Add Key"
     case .localModel:
@@ -363,7 +363,7 @@ struct SystemView: View {
   private func handleSetupDiagnostic(_ diagnostic: SetupDiagnostic) {
     switch diagnostic.id {
     case .transcriptionConfiguration:
-      navigation.open(.transcription)
+      if let tab = presentation.configurationIssueTab { navigation.open(tab) }
     case .providerKey:
       credentialRequest = SecretKey(appState.settings.provider)
     case .localModel:

@@ -18,7 +18,7 @@ struct UploadSTTSmoke {
     let providers = requested.isEmpty ? [STTProvider.gemini, .xai, .openAI, .vercel] : requested
     var settings = DictationSettings.defaults
     settings.transcriptionMode = .upload
-    settings.adjustWithLLM = false
+    settings.afterTranscription = .off
     settings.keyterms = "Vercel\nrefactor\nbackpropagation\nschema\nMonte Carlo"
     for provider in providers {
       settings.provider = provider

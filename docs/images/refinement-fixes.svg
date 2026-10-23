@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 572" width="1180" height="572" role="img" aria-labelledby="title">
-  <title id="title">What Refinement fixes. The speech model heard: "Check the session. Below in agents dot md. Then ask cloud to open the reaper. Um, no, the codecs config." Refinement corrects the misheard "session" to "section", joins the sentence split at a pause, writes AGENTS.md, Claude and Codex from the Vocabulary list, and drops the spoken correction and filler. Result: "Check the section below in AGENTS.md. Then ask Claude to open the Codex config."</title>
+  <title id="title">What Refine fixes. The speech model heard: "Check the session. Below in agents dot md. Then ask cloud to open the reaper. Um, no, the codecs config." Refine corrects the misheard "session" to "section", joins the sentence split at a pause, writes AGENTS.md, Claude and Codex from the Vocabulary list, and drops the spoken correction and filler. Result: "Check the section below in AGENTS.md. Then ask Claude to open the Codex config."</title>
   <!-- A proofread transcript: the speech model's raw words with corrections marked in pen, orange where the Vocabulary list supplied them and violet where the model judged, and the clean result below. -->
   <style>
     .bg { fill: #161412; }
@@ -25,7 +25,7 @@
   </style>
   <rect class="bg" width="1180" height="572" rx="24"/>
   <g transform="translate(30 0)">
-    <text class="title" x="40" y="62">What Refinement fixes</text>
+    <text class="title" x="40" y="62">What Refine fixes</text>
     <text class="sub" x="40" y="90">Raw words from the speech model, marked up the way the language model corrects them</text>
     <rect class="sheet" x="40" y="126" width="1040" height="250" rx="10"/>
     <text class="label" x="62" y="152">Heard</text>

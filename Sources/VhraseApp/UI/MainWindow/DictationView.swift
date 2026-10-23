@@ -293,7 +293,7 @@ struct DictationView: View {
     case .transcribing:
       "Audio captured · \(appState.settings.provider.title) is working"
     case .adjusting:
-      "Applying your writing preferences"
+      appState.polishingProgress
     case .idle, .completed, .failed:
       "Your most recent completed dictation"
     }
@@ -314,7 +314,7 @@ struct DictationView: View {
         : appState.liveTranscript
     case .adjusting:
       appState.liveTranscript.isEmpty
-        ? "Transcript received. Applying your writing preferences…"
+        ? "\(appState.polishingProgress)…"
         : appState.liveTranscript
     case .idle, .completed, .failed:
       appState.lastTranscript.isEmpty
@@ -385,7 +385,7 @@ struct DictationView: View {
     case .transcribing:
       return "Transcribing with \(appState.settings.provider.title)."
     case .adjusting:
-      return "Applying writing preferences."
+      return "\(appState.polishingProgress)."
     case .completed:
       return appState.lastCompletion.completionDetail
     case .failed(let message):
