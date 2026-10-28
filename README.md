@@ -6,6 +6,17 @@ Vhrase lives in the menu bar: press a shortcut in any app, speak, and the cloud 
 
 This is a personal project shared for reference, not a product: clone it and have your coding agent reshape it to how you work.
 
+<p align="center">
+  <img src="docs/images/recording-pill.png" width="300" alt="The recording pill: a black capsule with the live waveform of the speech">
+</p>
+
+While you speak, the pill floats over whatever app is open. Settings live in one window, a page each: Transcription picks the speech model and tunes how it hears you, and Polishing sets what happens after transcription.
+
+<p align="center">
+  <img src="docs/images/transcription-page.jpg" width="49%" alt="The Transcription page: cloud services from ElevenLabs, Gemini, OpenAI, Vercel, and xAI, local Hugging Face and Parakeet models, upload or realtime mode, and xAI's options">
+  <img src="docs/images/polishing-page.jpg" width="49%" alt="The Polishing page: whether dictation is refined, restyled, or left as heard; Refine's style slider from Minimal to Polished, with rows that show each rule before and after; and Restyle's Rephrase, Gen Z, and Custom styles">
+</p>
+
 ![One dictation through Vhrase: Shortcut, Microphone, Transcription, Polishing, and Delivery, with Vocabulary, style, and screen context feeding the two model stages](docs/images/dictation-route.svg)
 
 ## How It Works
